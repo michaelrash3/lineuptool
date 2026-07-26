@@ -42,9 +42,15 @@ vi.mock("firebase/firestore", () => {
   // accepted either call shape indiscriminately made that option structurally
   // untestable (see "subscribes to both signup lanes with
   // includeMetadataChanges" below).
+  // The ERROR callback is kept alongside `next` for the same reason `options`
+  // is: a listener whose error arm is never delivered to is a listener whose
+  // error arm is untestable, and the signup lanes' rationale for the
+  // pre-landed legacy paint ("a rules lag that denies the subcollection read
+  // can't freeze a stale list") lives entirely in that arm.
   const listeners: Array<{
     path: string;
     next: (snap: unknown) => void;
+    error?: (e: unknown) => void;
     options: unknown;
   }> = [];
   // doc()/collection() take (db, ...segments); drop the db handle and keep the
@@ -72,9 +78,13 @@ vi.mock("firebase/firestore", () => {
       const hasOptions = typeof rest[0] !== "function";
       const options = hasOptions ? rest[0] : undefined;
       const next = (hasOptions ? rest[1] : rest[0]) as (s: unknown) => void;
+      const error = (hasOptions ? rest[2] : rest[1]) as
+        | ((e: unknown) => void)
+        | undefined;
       listeners.push({
         path: (target as { __path: string }).__path,
         next,
+        error,
         options,
       });
       return () => {
@@ -114,6 +124,7 @@ const listeners = (
     __listeners: Array<{
       path: string;
       next: (snap: unknown) => void;
+      error?: (e: unknown) => void;
       options: unknown;
     }>;
   }
@@ -174,6 +185,40 @@ const emitCollection = (path: string, docs: Doc[], fromCache = false) =>
       .filter((l) => l.path === path)
       .forEach((l) => l.next(snap as unknown));
   });
+
+// Deny the listeners on `path` — Firestore's error arm, which is what a rules
+// lag (or a member removed mid-session) actually delivers. Fails loudly if the
+// subscription was created without an error handler at all: an unhandled
+// listener error is a crash in production, so "no handler" is never the
+// behavior under test.
+const emitError = (path: string, code = "permission-denied") => {
+  const targets = listeners.filter((l) => l.path === path);
+  expect(targets.length).toBeGreaterThan(0);
+  targets.forEach((l) => {
+    if (!l.error) {
+      throw new Error(`listener on ${path} was created with no error handler`);
+    }
+  });
+  return act(() => {
+    targets.forEach((l) => l.error?.({ code, name: "FirebaseError" }));
+  });
+};
+
+// Make the ONE write that deletes team-doc fields reject, the way a rules
+// change or a lost connection would, while every other updateDoc the provider
+// issues keeps succeeding. Returns the rejection count so a test can prove the
+// write it is asserting about actually failed.
+const failFieldDrop = (field: "tryoutSignups" | "evaluationEvents") => {
+  const failed: unknown[] = [];
+  updateDocMock.mockImplementation((_ref: unknown, payload: any) => {
+    if (payload?.[field]?.__deleteField === true) {
+      failed.push(payload);
+      return Promise.reject(new Error("permission-denied"));
+    }
+    return Promise.resolve();
+  });
+  return () => failed.length;
+};
 
 // A team doc the provider treats as fully loaded and owned by the test user
 // (ownerId ⇒ realRole "head", the only role allowed to drop the arrays), at the
@@ -245,6 +290,21 @@ const mountProvider = async () => {
   await emitDoc(SETTINGS, { teams: [{ id: "t1", name: "T1" }] });
 };
 
+// Arm the signup-array drop: one legacy entry, mirrored, both lanes
+// server-confirmed. Everything the drop asks for is in place except the
+// settle window.
+const armDrop = async () => {
+  await mountProvider();
+  await emitDoc(
+    teamPath("t1"),
+    teamDoc({ tryoutSignups: [{ id: "legacy-a" }] }),
+  );
+  await emitCollection(subPath("t1", "tryoutSignups"), [
+    { id: "legacy-a", data: {} },
+  ]);
+  await emitCollection(subPath("t1", "interestSignups"), []);
+};
+
 const tryoutIds = () => screen.getByTestId("tryout").textContent;
 const interestIds = () => screen.getByTestId("interest").textContent;
 const readyFlag = () => screen.getByTestId("ready").textContent;
@@ -255,6 +315,14 @@ const dropWrites = () =>
       (call[1] as { tryoutSignups?: { __deleteField?: boolean } })
         ?.tryoutSignups?.__deleteField === true,
   );
+// The evalRounds equivalent: the other irreversible field delete, wired to the
+// same "clear the guard on write failure" retry contract.
+const evalDropWrites = () =>
+  updateDocMock.mock.calls.filter(
+    (call) =>
+      (call[1] as { evaluationEvents?: { __deleteField?: boolean } })
+        ?.evaluationEvents?.__deleteField === true,
+  );
 const backfillWrites = (path: string) =>
   setDocMock.mock.calls.filter(
     (call) => (call[0] as { __path?: string })?.__path === path,
@@ -264,6 +332,10 @@ beforeEach(() => {
   // Only setTimeout: faking Date/performance would stall React's scheduler.
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   vi.clearAllMocks();
+  // clearAllMocks wipes recorded calls but NOT implementations, so a test that
+  // made a write reject would leak that into every test after it.
+  updateDocMock.mockImplementation(() => Promise.resolve());
+  setDocMock.mockImplementation(() => Promise.resolve());
   listeners.length = 0;
   teamApi = null;
   renders.length = 0;
@@ -619,19 +691,6 @@ describe("TeamProvider signup subcollections — migration writes", () => {
     );
   });
 
-  // Arm the drop: one legacy entry, mirrored, both lanes server-confirmed.
-  const armDrop = async () => {
-    await mountProvider();
-    await emitDoc(
-      teamPath("t1"),
-      teamDoc({ tryoutSignups: [{ id: "legacy-a" }] }),
-    );
-    await emitCollection(subPath("t1", "tryoutSignups"), [
-      { id: "legacy-a", data: {} },
-    ]);
-    await emitCollection(subPath("t1", "interestSignups"), []);
-  };
-
   // The weaker of the two abandonment paths, and the one the original version
   // of this test was actually exercising: a mid-settle snapshot re-runs the
   // effect, whose cleanup clears the pending timer, and the fresh arm-time
@@ -746,6 +805,211 @@ describe("TeamProvider signup subcollections — migration writes", () => {
       vi.advanceTimersByTime(SETTLE_MS * 4);
     });
     expect(dropWrites()).toHaveLength(1);
+  });
+});
+
+// Both irreversible field deletes take their once-per-team guard BEFORE the
+// write resolves, and hand back the failure case with a single `.catch` that
+// removes the team from the guard set again. That catch encodes a promise made
+// in both source comments — "on write failure the guard clears so a later
+// session retries" — and it is the difference between a transient rules
+// deploy or a dropped connection costing a migration one retry, and costing it
+// the whole session: the drop can only re-arm if the guard is clear, and
+// nothing else ever clears it.
+//
+// Everything below needs the write to actually REJECT. Nothing else in this
+// file rejects anything, which is precisely why the catch bodies were free to
+// mutate before these tests existed.
+describe("TeamProvider signup subcollections — drop write failure", () => {
+  it("clears the drop guard when the irreversible write FAILS, so a later cycle retries", async () => {
+    const failures = failFieldDrop("tryoutSignups");
+    await armDrop();
+    await act(async () => {
+      vi.advanceTimersByTime(SETTLE_MS);
+    });
+    // The attempt was made and the server refused it. The legacy arrays are
+    // still on the doc, and the raw refs still hold them — so the team still
+    // has migration work outstanding.
+    expect(dropWrites()).toHaveLength(1);
+    expect(failures()).toBe(1);
+    expect(tryoutIds()).toBe("legacy-a");
+
+    // The next qualifying cycle: any snapshot on either lane re-runs the drop
+    // effect, which re-proves coverage and re-arms the settle window. It can
+    // only get past the once-guard if the failure cleared it.
+    await emitCollection(subPath("t1", "tryoutSignups"), [
+      { id: "legacy-a", data: {} },
+    ]);
+    await act(async () => {
+      vi.advanceTimersByTime(SETTLE_MS);
+    });
+    expect(dropWrites()).toHaveLength(2);
+    expect((dropWrites()[1][0] as { __path: string }).__path).toBe(
+      teamPath("t1"),
+    );
+    // Contrast, proven by "keeps the once-guard for the write, not for the
+    // attempt" above: after a write that SUCCEEDS the identical follow-up
+    // snapshot issues nothing. Retrying is the failure path only.
+  });
+
+  // The evalRounds drop is the same contract, one collection earlier in the
+  // migration and with no settle window: guard taken at write time, cleared by
+  // the catch. Its retry path had no rejection test either.
+  it("clears the evalRounds drop guard when its irreversible write FAILS", async () => {
+    const failures = failFieldDrop("evaluationEvents");
+    await mountProvider();
+    // One legacy round, and the subcollection stream proves it is mirrored.
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({ evaluationEvents: [{ id: "r1", evaluatorId: "u1" }] }),
+    );
+    await emitCollection(`${teamPath("t1")}/evalRounds`, [
+      { id: "r1", data: { evaluatorId: "u1" } },
+    ]);
+    expect(evalDropWrites()).toHaveLength(1);
+    expect(failures()).toBe(1);
+
+    // The array is still there (the delete never landed), so the next
+    // subcollection snapshot must be able to try again.
+    await emitCollection(`${teamPath("t1")}/evalRounds`, [
+      { id: "r1", data: { evaluatorId: "u1" } },
+    ]);
+    expect(evalDropWrites()).toHaveLength(2);
+  });
+
+  // The other half of that contract, and the half a full-suite mutation sweep
+  // found unpinned: the guard must be released ONLY on failure. Clearing it
+  // unconditionally still passes the test above — the drop succeeds, the guard
+  // is dropped anyway, and every later evaluationEvents snapshot re-arms the
+  // effect and re-issues deleteField. Harmless-looking (the field is already
+  // gone) but it is an unbounded write loop against the team doc, billed per
+  // write, for as long as the session lives. The signups drop is already
+  // pinned in this direction; evalRounds was not.
+  it("keeps the evalRounds drop guard after the write SUCCEEDS", async () => {
+    await mountProvider();
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({ evaluationEvents: [{ id: "r1", evaluatorId: "u1" }] }),
+    );
+    await emitCollection(`${teamPath("t1")}/evalRounds`, [
+      { id: "r1", data: { evaluatorId: "u1" } },
+    ]);
+    expect(evalDropWrites()).toHaveLength(1);
+
+    // Two more qualifying snapshots. The drop already landed, so the guard has
+    // to hold — exactly once, no matter how many snapshots follow.
+    await emitCollection(`${teamPath("t1")}/evalRounds`, [
+      { id: "r1", data: { evaluatorId: "u1" } },
+    ]);
+    await emitCollection(`${teamPath("t1")}/evalRounds`, [
+      { id: "r1", data: { evaluatorId: "u1" } },
+    ]);
+    expect(evalDropWrites()).toHaveLength(1);
+  });
+});
+
+// The signup subscriptions' error arm. Firestore delivers it for a rules lag
+// (a member added to the team doc before the rules deploy that grants the
+// subcollection read), for a member removed mid-session, and for a
+// transiently unreachable backend. The source's whole justification for
+// keeping the legacy array authoritative until a lane LANDS — "a rules lag
+// that denies the subcollection read can't freeze a stale list" — is asserted
+// in a comment and was exercised nowhere: no test in this file had ever
+// reached an error callback.
+//
+// Two properties, and they pull in opposite directions. READ side: a denial
+// must not blank the screen — the legacy array is all this client has, and it
+// must keep painting and keep updating. WRITE side: a denial must never count
+// as evidence. An errored lane reports an EMPTY id set, and an empty id set
+// read as fact is what turns the backfill into a clobber of coach edits and
+// the drop into a delete of signups nobody ever mirrored.
+describe("TeamProvider signup subcollections — denied subcollection read", () => {
+  const legacyPair = [
+    { id: "legacy-a", submittedAt: "2026-01-05" },
+    { id: "legacy-b", submittedAt: "2026-03-09" },
+  ];
+
+  it("keeps painting the legacy array when the subcollection read is DENIED", async () => {
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc({ tryoutSignups: legacyPair }));
+    expect(tryoutIds()).toBe("legacy-a,legacy-b");
+
+    await emitError(subPath("t1", "tryoutSignups"));
+    // Nothing landed, so nothing changed: the array is still painted, still
+    // verbatim. A handler that cleared the list (or that "landed" the lane on
+    // an empty doc set) would show up here as a blank or a re-sort.
+    expect(tryoutIds()).toBe("legacy-a,legacy-b");
+
+    // And the lane the coach still has stays LIVE — a portal append arriving
+    // on the deprecated array lane must keep surfacing while the read is
+    // denied, which is the only reason that lane is still open.
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({
+        tryoutSignups: [...legacyPair, { id: "legacy-c" }],
+      }),
+    );
+    expect(tryoutIds()).toBe("legacy-a,legacy-b,legacy-c");
+
+    // A denied lane is not a delivered lane. A signup that exists only as a
+    // subdoc is unknown to this client, so the union is genuinely incomplete
+    // and the flag that gates "this id does not exist" must say so — even
+    // once the OTHER lane has landed.
+    expect(readyFlag()).toBe("false");
+    await emitCollection(subPath("t1", "interestSignups"), []);
+    expect(readyFlag()).toBe("false");
+  });
+
+  it("never lets a DENIED lane satisfy the irreversible drop", async () => {
+    await mountProvider();
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({ tryoutSignups: [{ id: "legacy-a" }] }),
+    );
+    // The tryout lane is fully mirrored and server-confirmed...
+    await emitCollection(subPath("t1", "tryoutSignups"), [
+      { id: "legacy-a", data: {} },
+    ]);
+    // ...and the interest lane is DENIED. Its legacy array is empty, so the
+    // coverage proof reads "nothing to migrate" for it and waves it through:
+    // the landed/server-confirmed gates are the only thing between a read we
+    // were refused and a deleteField that spans BOTH fields.
+    await emitError(subPath("t1", "interestSignups"));
+    await act(async () => {
+      vi.advanceTimersByTime(SETTLE_MS * 4);
+    });
+    expect(dropWrites()).toHaveLength(0);
+
+    // Once the denied lane genuinely answers, the same setup drops — so it was
+    // the denial that held the write, not a missing precondition.
+    await emitCollection(subPath("t1", "interestSignups"), []);
+    await act(async () => {
+      vi.advanceTimersByTime(SETTLE_MS);
+    });
+    expect(dropWrites()).toHaveLength(1);
+  });
+
+  it("never lets a DENIED lane release the backfill", async () => {
+    await mountProvider();
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({ tryoutSignups: [{ id: "legacy-a" }] }),
+    );
+    // The tryout lane's id set is what tells the backfill which legacy entries
+    // already exist as subdocs — and a subdoc may carry a coach's edits
+    // (tryoutNumber, status, measurements live there only). Denied, that set
+    // reads empty: every entry looks unmirrored, and mirroring one means
+    // setDoc-ing the stale legacy copy over the server's.
+    await emitError(subPath("t1", "tryoutSignups"));
+    await emitCollection(subPath("t1", "interestSignups"), []);
+    const written = () =>
+      backfillWrites(subPath("t1", "tryoutSignups") + "/legacy-a");
+    expect(written()).toHaveLength(0);
+
+    // The lane recovers and reports for itself — empty, so legacy-a really is
+    // unmirrored — and only now is the write made.
+    await emitCollection(subPath("t1", "tryoutSignups"), []);
+    expect(written()).toHaveLength(1);
   });
 });
 
