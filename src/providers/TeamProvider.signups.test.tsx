@@ -192,6 +192,12 @@ const teamDoc = (over: Record<string, unknown> = {}) => ({
 
 let teamApi: any = null;
 
+// One entry per commit of the Probe. signupsReady is derived from refs DURING
+// render, so "eventually true" is not the property — "true in the commit that
+// published the union it gates" is. Only a per-commit log can tell those two
+// apart, and the difference is exactly a deep link bouncing or not.
+const renders: Array<{ ready: boolean; tryout: string; interest: string }> = [];
+
 const Probe = () => {
   const team = useTeam();
   teamApi = team;
@@ -204,10 +210,17 @@ const Probe = () => {
     )
       .map((e) => e?.id)
       .join(",");
+  const entry = {
+    ready: team.signupsReady === true,
+    tryout: ids("tryoutSignups"),
+    interest: ids("interestSignups"),
+  };
+  renders.push(entry);
   return (
     <div>
-      <div data-testid="tryout">{ids("tryoutSignups")}</div>
-      <div data-testid="interest">{ids("interestSignups")}</div>
+      <div data-testid="tryout">{entry.tryout}</div>
+      <div data-testid="interest">{entry.interest}</div>
+      <div data-testid="ready">{String(entry.ready)}</div>
     </div>
   );
 };
@@ -234,6 +247,7 @@ const mountProvider = async () => {
 
 const tryoutIds = () => screen.getByTestId("tryout").textContent;
 const interestIds = () => screen.getByTestId("interest").textContent;
+const readyFlag = () => screen.getByTestId("ready").textContent;
 // The legacy-array drop is the only write that deletes team-doc fields.
 const dropWrites = () =>
   updateDocMock.mock.calls.filter(
@@ -252,6 +266,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   listeners.length = 0;
   teamApi = null;
+  renders.length = 0;
 });
 
 afterEach(() => {
@@ -353,6 +368,74 @@ describe("TeamProvider signup subcollections — read assembly", () => {
     // inputs, different output: that is the branch doing something.
     await emitCollection(subPath("t1", "tryoutSignups"), []);
     expect(tryoutIds()).toBe("stored-second,stored-first");
+  });
+});
+
+// The PRODUCER side of #583. LetterPages injects signupsReady as a literal, so
+// the consumer's redirect logic is covered but nothing proves the provider ever
+// publishes the right value. Without these, replacing the whole derivation with
+// `true` is invisible — and that restores the exact bug #583 exists to fix: a
+// coach deep-links a signup that so far exists only as a subdoc, the legacy
+// array is what is painted, the lookup misses, and they are bounced to
+// /tryouts milliseconds before the subscription would have answered.
+describe("TeamProvider signup subcollections — signupsReady", () => {
+  it("withholds signupsReady until BOTH lanes have landed", async () => {
+    await mountProvider();
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({ tryoutSignups: [{ id: "legacy-a" }] }),
+    );
+    // The team doc is loaded and a non-empty list is already painted — the
+    // state a length-based guess would call "ready".
+    expect(tryoutIds()).toBe("legacy-a");
+    expect(readyFlag()).toBe("false");
+
+    // One lane down. The interest lane has delivered nothing, so an interest
+    // letter's deep link would still miss; conjunction, not disjunction.
+    await emitCollection(subPath("t1", "tryoutSignups"), []);
+    expect(readyFlag()).toBe("false");
+
+    await emitCollection(subPath("t1", "interestSignups"), []);
+    expect(readyFlag()).toBe("true");
+  });
+
+  // Same conjunction, the other lane first. A one-sided test would pass against
+  // `landed.tryoutSignups` alone, which is a real way to write this bug.
+  it("withholds signupsReady when only the INTEREST lane has landed", async () => {
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc());
+    await emitCollection(subPath("t1", "interestSignups"), []);
+    expect(readyFlag()).toBe("false");
+
+    await emitCollection(subPath("t1", "tryoutSignups"), []);
+    expect(readyFlag()).toBe("true");
+  });
+
+  it("flips signupsReady in the very commit the second lane lands", async () => {
+    await mountProvider();
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({
+        tryoutSignups: [{ id: "legacy-a", submittedAt: "2026-01-05" }],
+      }),
+    );
+    await emitCollection(subPath("t1", "tryoutSignups"), [
+      { id: "sub-1", data: { submittedAt: "2026-03-09" } },
+    ]);
+    // The landed gate is flipped BEFORE assembling, so the first snapshot a
+    // lane delivers publishes the union rather than one last raw-only paint.
+    expect(tryoutIds()).toBe("sub-1,legacy-a");
+    expect(readyFlag()).toBe("false");
+
+    const before = renders.length;
+    await emitCollection(subPath("t1", "interestSignups"), []);
+    // signupsReady is derived from refs during render, so it can only become
+    // visible on a commit something else schedules. Assert it rode the FIRST
+    // commit that snapshot produced: a flag that lagged one commit behind the
+    // data it describes reopens the redirect window it exists to close.
+    expect(renders.length).toBeGreaterThan(before);
+    expect(renders[before].ready).toBe(true);
+    expect(renders.slice(0, before).some((r) => r.ready)).toBe(false);
   });
 });
 
@@ -663,5 +746,121 @@ describe("TeamProvider signup subcollections — migration writes", () => {
       vi.advanceTimersByTime(SETTLE_MS * 4);
     });
     expect(dropWrites()).toHaveLength(1);
+  });
+});
+
+// The signup-subscription effect's cleanup resets four things per lane:
+// landed, serverConfirmed, subDocs and subIds. The comment above it claims "a
+// half-reset pair is exactly what the migration write-effects would misread as
+// proof" — these tests are that claim, made checkable. Each one leaves the
+// previous team fully proven, switches, and then asserts the next team has to
+// prove itself from scratch.
+describe("TeamProvider signup subcollections — subscription teardown", () => {
+  // landed[key] = false. Nothing else in the provider un-readies the flag, so
+  // without this line the very first render after a team switch reports the
+  // NEXT team's signups as fully delivered while its lanes hold the previous
+  // team's state — which is the #583 bug again, now with a wrong-team list.
+  it("un-readies signupsReady for the next team until ITS lanes land", async () => {
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc());
+    await emitCollection(subPath("t1", "tryoutSignups"), []);
+    await emitCollection(subPath("t1", "interestSignups"), []);
+    expect(readyFlag()).toBe("true");
+
+    await act(async () => {
+      await teamApi.switchTeam("t2");
+    });
+    await emitDoc(
+      teamPath("t2"),
+      teamDoc({ name: "T2", tryoutSignups: [{ id: "t2-legacy" }] }),
+    );
+    // t2's own subscriptions have delivered nothing. The list being painted is
+    // t2's legacy array alone, so a signup that lives only as a t2 subdoc is
+    // absent-but-arriving — precisely what the flag must not call "missing".
+    expect(tryoutIds()).toBe("t2-legacy");
+    expect(readyFlag()).toBe("false");
+
+    await emitCollection(subPath("t2", "tryoutSignups"), []);
+    expect(readyFlag()).toBe("false");
+    await emitCollection(subPath("t2", "interestSignups"), []);
+    expect(readyFlag()).toBe("true");
+  });
+
+  // serverConfirmed[key] = false, consequence 1: the irreversible drop. The
+  // drop deletes both legacy arrays on the strength of an id set, and a
+  // cache-served id set under-reports. Carrying t1's confirmation into t2 lets
+  // t2's drop fire having never heard from the server at all.
+  it("never carries the previous team's SERVER confirmation into the next team's drop", async () => {
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc());
+    // t1's lanes are server-confirmed (fromCache defaults to false).
+    await emitCollection(subPath("t1", "tryoutSignups"), []);
+    await emitCollection(subPath("t1", "interestSignups"), []);
+
+    await act(async () => {
+      await teamApi.switchTeam("t2");
+    });
+    await emitDoc(
+      teamPath("t2"),
+      teamDoc({ name: "T2", tryoutSignups: [{ id: "legacy-b" }] }),
+    );
+    // Everything t2 delivers is cache-served. Coverage looks complete on
+    // paper, but nothing here is evidence of what the server holds.
+    await emitCollection(
+      subPath("t2", "tryoutSignups"),
+      [{ id: "legacy-b", data: {} }],
+      true,
+    );
+    await emitCollection(subPath("t2", "interestSignups"), [], true);
+    await act(async () => {
+      vi.advanceTimersByTime(SETTLE_MS * 4);
+    });
+    expect(dropWrites()).toHaveLength(0);
+
+    // And once t2's own lanes are genuinely server-confirmed, the same setup
+    // does drop — so it was the stale-confirmation guard that held, not a
+    // missing precondition.
+    await emitCollection(subPath("t2", "tryoutSignups"), [
+      { id: "legacy-b", data: {} },
+    ]);
+    await emitCollection(subPath("t2", "interestSignups"), []);
+    await act(async () => {
+      vi.advanceTimersByTime(SETTLE_MS);
+    });
+    expect(dropWrites()).toHaveLength(1);
+    expect((dropWrites()[0][0] as { __path: string }).__path).toBe(
+      teamPath("t2"),
+    );
+  });
+
+  // serverConfirmed[key] = false, consequence 2: the backfill. A collection
+  // this device never cached reads back EMPTY, so every legacy entry looks
+  // unmirrored and the backfill setDocs its stale legacy copy over the subdoc
+  // the server actually holds — silently reverting tryoutNumber, status and
+  // measurements, which are written to the subdoc only.
+  it("never carries the previous team's SERVER confirmation into the next team's backfill", async () => {
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc());
+    await emitCollection(subPath("t1", "tryoutSignups"), []);
+    await emitCollection(subPath("t1", "interestSignups"), []);
+
+    await act(async () => {
+      await teamApi.switchTeam("t2");
+    });
+    await emitDoc(
+      teamPath("t2"),
+      teamDoc({ name: "T2", tryoutSignups: [{ id: "legacy-b" }] }),
+    );
+    await emitCollection(subPath("t2", "tryoutSignups"), [], true);
+    await emitCollection(subPath("t2", "interestSignups"), [], true);
+    const written = () =>
+      backfillWrites(subPath("t2", "tryoutSignups") + "/legacy-b");
+    expect(written()).toHaveLength(0);
+
+    // The server's own word releases it — and the once-per-team guard was not
+    // burned by the cache-only pass.
+    await emitCollection(subPath("t2", "tryoutSignups"), []);
+    await emitCollection(subPath("t2", "interestSignups"), []);
+    expect(written()).toHaveLength(1);
   });
 });
