@@ -6,6 +6,7 @@ import "./styles.css";
 import App from "./App";
 import { initErrorReporting } from "./utils/errorReporter";
 import { initSentry } from "./utils/sentry";
+import { registerServiceWorkerOnLoad } from "./utils/serviceWorker";
 
 // Capture errors thrown outside React's render path (async, promise rejections).
 initErrorReporting();
@@ -50,17 +51,8 @@ root.render(
 );
 
 // Register the offline-shell service worker in production builds only.
-// Development bundles change with every HMR push, so caching them just
-// gets in the way. See public/service-worker.js for the strategy.
-if (
-  import.meta.env.PROD &&
-  typeof navigator !== "undefined" &&
-  "serviceWorker" in navigator
-) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/service-worker.js").catch(() => {
-      // Registration failures are silent — the app keeps working
-      // online; we just don't get the offline cache.
-    });
-  });
-}
+// Development bundles change with every HMR push, so caching them just gets in
+// the way. This is the app's ONLY registration call — see
+// src/utils/serviceWorker.ts for why that matters, and src/service-worker.js
+// for the caching strategy it installs.
+if (import.meta.env.PROD) registerServiceWorkerOnLoad();

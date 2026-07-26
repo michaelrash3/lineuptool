@@ -33,7 +33,7 @@ import {
 import { saveEvalRound, deleteEvalRound } from "../utils/evalRounds";
 import {
   deleteAllSignupDocs,
-  deleteSignupDoc,
+  dropLegacySignupArray,
 } from "../utils/tryoutSignupDocs";
 import {
   blankStats,
@@ -580,7 +580,12 @@ export const useTeamLifecycle = ({
           // import modal starts blank, prompting the coach for the new link.
           gcCalendarUrl: "",
           tryoutSessions: [],
-          tryoutSignups: [],
+          // `tryoutSignups` is deliberately NOT here. Signups live in the
+          // tryoutSignups SUBCOLLECTION (Phase 1) and the legacy array is being
+          // retired by a deleteField drop; writing `tryoutSignups: []` would
+          // recreate the very field the migration removes — the same thing the
+          // evaluationEvents note below forbids. Both homes are cleared after
+          // this patch instead (sweep + deleteField).
           tryoutsOpen: false,
           lastSeasonAdvanceAt: nowIso,
           ...(financesWithTryoutDeposits
@@ -637,13 +642,25 @@ export const useTeamLifecycle = ({
           }
         }
 
-        // Season reset of tryout signups, per-doc in the tryoutSignups
-        // subcollection: `tryoutSignups: []` in the patch above clears any
-        // legacy array stragglers, but migrated signups live one-per-doc and
-        // must be swept individually (ids come from the assembled union on
-        // teamData, which covers both homes). Interest signups are deliberately
-        // untouched — standing leads survive the rollover (see the intake
-        // comment above).
+        // Season reset of tryout signups. They have TWO homes mid-migration
+        // and the advance has to clear both, or the ones it misses come
+        // straight back through the provider's union read:
+        //   - the tryoutSignups SUBCOLLECTION (where they live now), swept
+        //     with the same best-effort collection sweep deleteTeamCmd uses.
+        //     A client cannot recursively delete a collection — that needs the
+        //     Admin SDK — so this queries and batch-deletes, and inherits
+        //     every limit documented on deleteAllSignupDocs. It queries rather
+        //     than walking teamData's ids because that union only holds what
+        //     this client's subscription delivered: a denied or not-yet-landed
+        //     subscription would have swept nothing at all and quietly left
+        //     last season's families on next season's Tryouts tab.
+        //   - the LEGACY array on the team doc, for a team the drop hasn't
+        //     reached yet — cleared with deleteField, never `[]`, so the
+        //     advance can't recreate a field the migration is removing (see
+        //     dropLegacySignupArray). deleteField on an already-dropped team
+        //     is a no-op.
+        // Interest signups are deliberately untouched in BOTH homes — standing
+        // leads survive the rollover (see the intake comment above).
         //
         // Deliberately ordered AFTER the season patch is issued so a rejected
         // team-doc write doesn't find the signups already destroyed — the same
@@ -652,22 +669,15 @@ export const useTeamLifecycle = ({
         // partial, but only within a bounded window: a coach advancing the
         // season from a dead-zone field would otherwise sit on this await
         // until they reconnect (failuresWithinReportWindow).
-        const signupDeletions: Promise<void>[] = [];
-        for (const s of teamData.tryoutSignups || []) {
-          if (s?.id) {
-            signupDeletions.push(
-              deleteSignupDoc(db, appId, activeTeamId, "tryoutSignups", s.id),
-            );
-          }
-        }
-        const signupsFailed = await failuresWithinReportWindow(signupDeletions);
+        const signupsFailed = await failuresWithinReportWindow([
+          deleteAllSignupDocs(db, appId, activeTeamId, "tryoutSignups"),
+          dropLegacySignupArray(db, appId, activeTeamId, "tryoutSignups"),
+        ]);
         if (signupsFailed > 0) {
           toast.push({
             kind: "warn",
             title: "Some old tryout signups are still there",
-            message: `${signupsFailed} signup${
-              signupsFailed === 1 ? "" : "s"
-            } from ${archivedSeason} couldn't be deleted. Delete them from Tryouts.`,
+            message: `Signups from ${archivedSeason} couldn't all be deleted. Check the Tryouts tab and remove any that are left.`,
           });
         }
       }
