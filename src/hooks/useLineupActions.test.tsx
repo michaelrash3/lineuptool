@@ -6,14 +6,19 @@ import { vi } from "vitest";
 // Mock the engine so we can drive the post-generation toast logic directly.
 // Rec games route through generateLineup; Tournament (USSSA) games route
 // through generateTournamentLineup — both mocks feed the same assertions.
-const { generateLineupMock, generateTournamentLineupMock } = vi.hoisted(() => ({
+const {
+  generateLineupMock,
+  generateTournamentLineupMock,
+  generateBattingOnlyMock,
+} = vi.hoisted(() => ({
   generateLineupMock: vi.fn(),
   generateTournamentLineupMock: vi.fn(),
+  generateBattingOnlyMock: vi.fn(),
 }));
 vi.mock("../lineupEngine", () => ({
   generateLineup: generateLineupMock,
   generateTournamentLineup: generateTournamentLineupMock,
-  generateBattingOnly: vi.fn(),
+  generateBattingOnly: generateBattingOnlyMock,
   resolvePitchRuleSet: vi.fn(() => ({
     id: "littleLeague",
     limits: {},
@@ -202,6 +207,133 @@ describe("useLineupActions one-game-balance toast", () => {
     expect(toast.push).not.toHaveBeenCalledWith(
       expect.objectContaining({ title: "Lineup built (one-game balance)" }),
     );
+  });
+});
+
+describe("useLineupActions game-scoped undo buffer", () => {
+  // The undo snapshot is stamped with the game it was captured from, and both
+  // readers — the toast's Undo action (which outlives a game switch: the
+  // ToastProvider stack is not remounted when selectedGameId changes) and the
+  // context-level undoLineup — must refuse once a DIFFERENT game is selected.
+  // Otherwise game 1's pre-roll lineup lands in game 2's editor and the next
+  // Save writes it onto game 2. Sibling of the team-switch clear covered by
+  // TeamProvider.teamSwitch.test.tsx.
+  const players = Array.from({ length: 9 }, (_, i) => ({
+    id: `p${i}`,
+    name: `P${i}`,
+  }));
+  const g1Lineup = [{ P: { id: "p0" }, C: { id: "p1" } }];
+  const g1Batting = players.map((p) => ({ id: p.id, name: p.name }));
+
+  // Inputs object is mutated in place to simulate UIProvider's game switch:
+  // getInputs() closes over it, so readers see the NEW selection at click time
+  // exactly as the real bridge does.
+  const mount = () => {
+    const inputs: any = {
+      currentGame: { id: "g1" },
+      currentGameAttendance: {},
+      firstInningLineup: {},
+      lineup: g1Lineup,
+      battingLineup: g1Batting,
+      previousLineup: g1Lineup,
+      previousBattingLineup: g1Batting,
+    };
+    const mounted = setup({ players }, inputs);
+    const switchToGame = (id: string) => {
+      inputs.currentGame = { id };
+      // The game-switch effect loads the new game's saved state into the
+      // editor; the fresh game has none.
+      inputs.lineup = null;
+      inputs.battingLineup = null;
+      inputs.previousLineup = null;
+      inputs.previousBattingLineup = null;
+    };
+    const lastUndoAction = () =>
+      (mounted.toast.push as jest.Mock).mock.calls
+        .map((c) => c[0])
+        .filter((t) => t.action)
+        .pop()?.action;
+    return { ...mounted, inputs, switchToGame, lastUndoAction };
+  };
+
+  beforeEach(() => {
+    generateLineupMock.mockReset();
+    generateLineupMock.mockReturnValue({
+      lineup: [{ P: { id: "p2" } }],
+      battingLineup: g1Batting,
+    });
+    generateBattingOnlyMock.mockReset();
+    generateBattingOnlyMock.mockReturnValue({
+      battingLineup: [...g1Batting].reverse(),
+    });
+  });
+
+  // All three paths that arm the buffer (and push an Undo toast).
+  const reRolls: Array<[string, (r: any) => void]> = [
+    ["generateLineup", (r) => r.generateLineup()],
+    ["regenerateDefense", (r) => r.regenerateDefense()],
+    ["regenerateBatting", (r) => r.regenerateBatting()],
+  ];
+
+  it.each(reRolls)(
+    "%s: undo after a game switch is a no-op — no cross-game write",
+    (_name, run) => {
+      const { result, uiBridge, switchToGame, lastUndoAction } = mount();
+      act(() => run(result.current));
+      const undoAction = lastUndoAction();
+      expect(undoAction).toBeTruthy();
+
+      switchToGame("g2");
+      (uiBridge.current.applyResult as jest.Mock).mockClear();
+
+      // Both readers: the still-live toast button and the context action.
+      act(() => undoAction.onClick());
+      act(() => result.current.undoLineup());
+      expect(uiBridge.current.applyResult).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(reRolls)(
+    "%s: undo without a game switch still restores",
+    (_name, run) => {
+      const { result, uiBridge, lastUndoAction } = mount();
+      act(() => run(result.current));
+      (uiBridge.current.applyResult as jest.Mock).mockClear();
+
+      act(() => lastUndoAction().onClick());
+      expect(uiBridge.current.applyResult).toHaveBeenCalledWith({
+        lineup: g1Lineup,
+        battingLineup: g1Batting,
+      });
+
+      (uiBridge.current.applyResult as jest.Mock).mockClear();
+      act(() => result.current.undoLineup());
+      expect(uiBridge.current.applyResult).toHaveBeenCalledWith({
+        lineup: g1Lineup,
+        battingLineup: g1Batting,
+      });
+    },
+  );
+
+  it("re-arms for the new game — the refusal doesn't disable undo permanently", () => {
+    const { result, uiBridge, inputs, switchToGame } = mount();
+    act(() => result.current.regenerateDefense());
+
+    switchToGame("g2");
+    // The coach builds game 2 a lineup, then re-rolls it — arming the buffer
+    // with game 2's own pre-roll state.
+    const g2Lineup = [{ P: { id: "p3" } }];
+    const g2Batting = [{ id: "p3", name: "P3" }];
+    inputs.lineup = g2Lineup;
+    inputs.battingLineup = g2Batting;
+    act(() => result.current.regenerateDefense());
+
+    (uiBridge.current.applyResult as jest.Mock).mockClear();
+    act(() => result.current.undoLineup());
+    expect(uiBridge.current.applyResult).toHaveBeenCalledWith({
+      lineup: g2Lineup,
+      battingLineup: g2Batting,
+    });
   });
 });
 

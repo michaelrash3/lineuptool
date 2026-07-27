@@ -122,11 +122,23 @@ helpers in `src/utils/tryoutSignupDocs.ts`:
 - **Legacy public lanes retained one release:** the array-append rules stay
   (marked DEPRECATED in `firestore.rules`) for cached portal clients still
   running the `arrayUnion` code; stragglers are harmless because union +
-  backfill absorbs late array entries. **Explicit follow-up (next
-  release):** remove the two array lanes and ratchet `tryoutSignups` /
-  `interestSignups` like `evaluationEvents`; migrate
-  `playerInfoSubmissions` / `availabilitySubmissions` the same way (their
-  array lanes are not deprecated yet).
+  backfill absorbs late array entries. **Rules ratchet (IN — the Phase 1
+  exit condition):** `tryoutSignups` / `interestSignups` are ratcheted like
+  `evaluationEvents` — a team-doc write may carry either key only while the
+  doc still has it (`!(k in request.resource.data) || (k in resource.data)`
+  on the base update rule), team CREATE may never seed them, and each
+  deprecated public append lane additionally requires the array to still
+  exist (allow rules OR, so the lane needs its own clause — otherwise a
+  cached portal append could recreate a dropped field, since
+  `appendsExactlyOne` treats a missing key as an empty array). The per-team
+  `deleteField` drop is therefore genuinely irreversible: a stale pre-drop
+  client's `[]` overwrite or `arrayUnion` append is DENIED after that
+  team's drop and fails loudly, while every write shape keeps working on
+  teams whose arrays haven't been dropped yet. Emulator-tested in
+  `firestore-tests/rules.test.ts` ("signup-array legacy-field ratchet").
+  **Explicit follow-up (next release):** remove the two array lanes
+  entirely; migrate `playerInfoSubmissions` / `availabilitySubmissions` the
+  same way (their array lanes are not deprecated yet).
 
 ### Phase 2 — evaluations → subcollection (SHIPPED)
 

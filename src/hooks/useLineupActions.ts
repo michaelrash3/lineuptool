@@ -34,6 +34,31 @@ export const useLineupActions = ({
   uiBridge,
   previousLineupRef,
 }: UseLineupActionsArgs) => {
+  // Restore the undo snapshot into the editor — the single reader behind the
+  // generate/re-roll toasts' "Undo" action and the context-level undoLineup.
+  // The snapshot is GAME-scoped: it is stamped with the id of the game it was
+  // captured from, and applying it while a DIFFERENT game is selected would
+  // push game A's pre-roll lineup into game B's editor (the toast outlives a
+  // game switch — ToastProvider sits above TeamProvider — and the next Save
+  // writes the editor onto the currently selected game). So refuse unless the
+  // selected game at CLICK time still matches. `undefined === undefined`
+  // deliberately passes: a snapshot captured without an id (scratch inputs in
+  // tests / defensive against malformed games) still undoes while no other
+  // game has been selected, so the common single-game flow keeps working.
+  // A stale toast's Undo becoming a no-op matches the team-switch precedent
+  // (#586); the sibling team-switch leak is handled by TeamProvider clearing
+  // this ref on team-doc teardown.
+  const applyUndoSnapshot = useCallback(() => {
+    const snap = previousLineupRef.current;
+    if (!snap) return;
+    const currentGameId = uiBridge.current.getInputs?.()?.currentGame?.id;
+    if (snap.gameId !== currentGameId) return;
+    uiBridge.current.applyResult({
+      lineup: snap.lineup,
+      battingLineup: snap.battingLineup,
+    });
+  }, [uiBridge, previousLineupRef]);
+
   // ----- Lineup generation (uses the engine) -----
   // uiBridge / previousLineupRef are owned by TeamProvider and passed in; the
   // UI sets inputs via useUI() which we read at call time through uiBridge.
@@ -150,8 +175,10 @@ export const useLineupActions = ({
         return;
       }
 
-      // Snapshot for undo
+      // Snapshot for undo, stamped with the game it belongs to so a later
+      // undo can refuse once a different game is selected.
       previousLineupRef.current = {
+        gameId: currentGame.id,
         lineup: previousLineup,
         battingLineup: previousBattingLineup,
       };
@@ -211,19 +238,12 @@ export const useLineupActions = ({
         action: hasPrev
           ? {
               label: "Undo",
-              onClick: () => {
-                const snap = previousLineupRef.current;
-                if (snap)
-                  uiBridge.current.applyResult({
-                    lineup: snap.lineup,
-                    battingLineup: snap.battingLineup,
-                  });
-              },
+              onClick: applyUndoSnapshot,
             }
           : undefined,
       });
     },
-    [teamDataRef, toast, uiBridge, previousLineupRef],
+    [teamDataRef, toast, uiBridge, previousLineupRef, applyUndoSnapshot],
   );
 
   const generateLineup = useCallback(
@@ -326,7 +346,11 @@ export const useLineupActions = ({
       return;
     }
 
-    previousLineupRef.current = { lineup, battingLineup };
+    previousLineupRef.current = {
+      gameId: currentGame.id,
+      lineup,
+      battingLineup,
+    };
     uiBridge.current.applyResult({
       lineup: result.lineup,
       // Preserve the existing batting order — re-roll only touched defense.
@@ -340,18 +364,11 @@ export const useLineupActions = ({
       action: lineup
         ? {
             label: "Undo",
-            onClick: () => {
-              const snap = previousLineupRef.current;
-              if (snap)
-                uiBridge.current.applyResult({
-                  lineup: snap.lineup,
-                  battingLineup: snap.battingLineup,
-                });
-            },
+            onClick: applyUndoSnapshot,
           }
         : undefined,
     });
-  }, [teamDataRef, toast, uiBridge, previousLineupRef]);
+  }, [teamDataRef, toast, uiBridge, previousLineupRef, applyUndoSnapshot]);
 
   // Re-roll JUST the batting order. Defensive lineup, attendance, and
   // first-inning overrides are all left alone. Useful when the defense
@@ -406,7 +423,11 @@ export const useLineupActions = ({
     }
 
     // Snapshot for undo (preserve current defensive lineup, swap batting).
-    previousLineupRef.current = { lineup, battingLineup };
+    previousLineupRef.current = {
+      gameId: currentGame.id,
+      lineup,
+      battingLineup,
+    };
     uiBridge.current.applyResult({
       lineup,
       battingLineup: result.battingLineup,
@@ -419,27 +440,14 @@ export const useLineupActions = ({
       action: battingLineup
         ? {
             label: "Undo",
-            onClick: () => {
-              const snap = previousLineupRef.current;
-              if (snap)
-                uiBridge.current.applyResult({
-                  lineup: snap.lineup,
-                  battingLineup: snap.battingLineup,
-                });
-            },
+            onClick: applyUndoSnapshot,
           }
         : undefined,
     });
-  }, [teamDataRef, toast, uiBridge, previousLineupRef]);
+  }, [teamDataRef, toast, uiBridge, previousLineupRef, applyUndoSnapshot]);
 
-  const undoLineup = useCallback(() => {
-    const snap = previousLineupRef.current;
-    if (snap)
-      uiBridge.current.applyResult({
-        lineup: snap.lineup,
-        battingLineup: snap.battingLineup,
-      });
-  }, [uiBridge, previousLineupRef]);
+  // Same game-identity check as the toast buttons — see applyUndoSnapshot.
+  const undoLineup = applyUndoSnapshot;
 
   const saveCurrentGame = useCallback(() => {
     const inputs = uiBridge.current.getInputs();

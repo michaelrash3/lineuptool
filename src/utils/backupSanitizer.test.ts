@@ -24,6 +24,32 @@ describe("sanitizeBackup", () => {
     expect("joinCode" in data).toBe(false);
   });
 
+  it("strips the retired legacy arrays — a restore must never write a ratcheted key", () => {
+    // Backups carry these keys whether they predate the subcollection
+    // migration or were exported after it (the export serializes teamData,
+    // which composes the subcollection docs INTO these keys). Restoring them
+    // would merge-write a key the rules ratchet forbids re-creating, failing
+    // the whole restore with permission-denied on any dropped team — the
+    // disaster-recovery path dead exactly when it is needed. The emulator
+    // suite proves the write shape WITH the keys is denied post-drop and the
+    // stripped shape is allowed; this pins the stripping itself.
+    const { data } = sanitizeBackup(
+      {
+        name: "Hawks",
+        players: [{ id: "p1" }],
+        tryoutSignups: [{ id: "s1", firstName: "Kid" }],
+        interestSignups: [{ id: "l1" }],
+        evaluationEvents: [{ id: "r1" }],
+      },
+      TODAY,
+    );
+    expect(data.name).toBe("Hawks");
+    expect(data.players).toEqual([{ id: "p1" }]);
+    expect("tryoutSignups" in data).toBe(false);
+    expect("interestSignups" in data).toBe(false);
+    expect("evaluationEvents" in data).toBe(false);
+  });
+
   it("trims datetime strings to their date without counting a repair", () => {
     const { data, repairedFinanceDates } = sanitizeBackup(
       {

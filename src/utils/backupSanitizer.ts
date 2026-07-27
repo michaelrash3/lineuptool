@@ -13,6 +13,22 @@ import { isValidIsoDate } from "./dates";
 // stale code would desync from the /teamInvites lookup doc.
 const ACL_KEYS = ["ownerId", "members", "coachRoles", "joinCode"] as const;
 
+// Legacy array keys retired by the subcollection migration
+// (docs/firestore-data-migration.md). Backups predate that or carry the
+// assembled UNION (teamData composes subcollection docs into these keys before
+// export), so a restore would write them back onto the team doc — and the
+// rules ratchet forbids re-creating a dropped key, which would fail the ENTIRE
+// restore with permission-denied on any team whose arrays were already
+// dropped. Restore was never how this data comes back anyway: the
+// subcollections are the source of truth and a team-doc merge does not touch
+// them, so writing the stale team-doc copy could only mislead (or, pre-drop,
+// resurrect deleted entries through the union read).
+const RETIRED_ARRAY_KEYS = [
+  "tryoutSignups",
+  "interestSignups",
+  "evaluationEvents",
+] as const;
+
 // Finance arrays whose entries carry a date + amount. sponsorships' date is
 // optional, so only a PRESENT-but-invalid one is repaired there.
 const FINANCE_ENTRY_KEYS = [
@@ -28,6 +44,7 @@ export const sanitizeBackup = (
 ): { data: Record<string, unknown>; repairedFinanceDates: number } => {
   const out: Record<string, unknown> = { ...data };
   for (const k of ACL_KEYS) delete out[k];
+  for (const k of RETIRED_ARRAY_KEYS) delete out[k];
 
   let repaired = 0;
   const finances = out.finances;

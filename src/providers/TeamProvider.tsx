@@ -159,6 +159,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const [genError, setGenError] = useState(""); // login screen only
 
   const previousLineupRef = useRef<{
+    // Which game the snapshot was captured from. Readers in useLineupActions
+    // refuse to apply it once a DIFFERENT game is selected — the game-scoped
+    // sibling of the team-switch clear in the team-doc effect's cleanup.
+    gameId?: string;
     lineup: Inning[] | null;
     battingLineup: SlimPlayer[] | null;
   } | null>(null);
