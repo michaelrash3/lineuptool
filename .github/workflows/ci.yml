@@ -97,6 +97,12 @@ jobs:
       # tests once one has failed). Local `npm test` stays full-run for debugging.
       - name: Unit tests
         run: npm test -- --bail=1
+
+      # The auto-merge workflow decides what lands on main without a human;
+      # its hold logic is executed from the real YAML by workflow-tests/, so
+      # an edit to the workflow that regresses the hold fails CI here.
+      - name: Workflow-script tests
+        run: npm run test:workflows
         env:
           CI: true
 

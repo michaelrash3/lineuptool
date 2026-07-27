@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, act } from "@testing-library/react";
+import { render, act, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 // Team-scoped state that must not outlive a team switch — the bug class #583
@@ -434,5 +434,36 @@ describe("TeamProvider — the defenseSize auto-correct guard is per team", () =
     // says "10". The guard must swallow this rather than start a retry storm.
     await emitDoc(teamPath("ta"), teamDoc("ta", { defenseSize: "10" }));
     expect(defenseSizeWrites("ta")).toHaveLength(1);
+  });
+});
+
+describe("TeamProvider — the stale-mirror warning is per team", () => {
+  const isMirrorWrite = (ref: unknown) =>
+    String((ref as { __path?: string })?.__path || "").includes("/teamPublic/");
+
+  it("warns for the SECOND team's stale mirror too", async () => {
+    // Both teams' public-mirror writes fail; everything else succeeds. A
+    // session one-shot would warn for ta and then silently swallow tb's —
+    // the coach looking at tb would never learn its public page is stale.
+    setDocMock.mockImplementation((ref: unknown) =>
+      isMirrorWrite(ref)
+        ? Promise.reject(new Error("permission-denied"))
+        : Promise.resolve(),
+    );
+    await mountProvider();
+    await emitDoc(teamPath("ta"), teamDoc("ta"));
+    await act(async () => {});
+    expect(
+      screen.getAllByText("Public tryout page may be out of date"),
+    ).toHaveLength(1);
+
+    await act(async () => {
+      await teamApi.switchTeam("tb");
+    });
+    await emitDoc(teamPath("tb"), teamDoc("tb"));
+    await act(async () => {});
+    expect(
+      screen.getAllByText("Public tryout page may be out of date"),
+    ).toHaveLength(2);
   });
 });

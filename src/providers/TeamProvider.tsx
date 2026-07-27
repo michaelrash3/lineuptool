@@ -141,6 +141,9 @@ const SIGNUP_ARRAY_DROP_SETTLE_MS = 5000;
 // rules deploy landing mid-session) and small enough that a permanent denial
 // costs at most three passes over the legacy arrays.
 const SIGNUP_BACKFILL_MAX_ATTEMPTS = 3;
+// Base delay before a failed pass retries; doubles per attempt (5s, 10s), so
+// a real outage is not hammered at a fixed cadence while still riding out the
+// transient blips the retry exists for.
 const SIGNUP_BACKFILL_RETRY_MS = 5000;
 
 export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
@@ -186,7 +189,9 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   teamDataRef.current = teamData;
   // One-shot guard so the "approaching storage limit" warning fires once per
   // session instead of on every save once the doc is large.
-  const docSizeWarnedRef = useRef(false);
+  // Keyed by team id: a session one-shot would let team A's warning silence
+  // team B's for the whole session (multi-team coaches are the norm here).
+  const docSizeWarnedRef = useRef<Set<string>>(new Set());
   // Last Firestore write error from persistTeam, stashed so the optimistic
   // updateTeam path can surface the real code/message in its toast instead of
   // a generic "check your connection" line that hides whether the write was
@@ -254,6 +259,15 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const signupSubsServerConfirmedRef = useRef<
     Record<SignupCollectionKey, boolean>
   >({ tryoutSignups: false, interestSignups: false });
+  // A lane whose read the server REFUSED. onSnapshot errors are terminal —
+  // Firestore never calls that listener again — so a denied lane can never
+  // land and signupsReady can never flip this session. Published so consumers
+  // waiting on signupsReady (the letter pages' id lookup) can stop showing an
+  // infinite loader and say what actually happened.
+  const signupSubsDeniedRef = useRef<Record<SignupCollectionKey, boolean>>({
+    tryoutSignups: false,
+    interestSignups: false,
+  });
   // Bumped when a signup subscription reaches a milestone the migration
   // effects gate on — first snapshot landed, then first server-confirmed
   // snapshot — so they re-evaluate at exactly those moments.
@@ -281,6 +295,12 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const signupsReady =
     signupSubsLandedRef.current.tryoutSignups &&
     signupSubsLandedRef.current.interestSignups;
+  // True when a lane is dead-on-denial: signupsReady is false and will STAY
+  // false, which is a different instruction to a waiting consumer than "still
+  // in flight".
+  const signupsDenied =
+    signupSubsDeniedRef.current.tryoutSignups ||
+    signupSubsDeniedRef.current.interestSignups;
 
   // Assemble ONE signup collection from BOTH of its inputs and return the
   // array to publish. Called from the team-doc snapshot handler (the legacy
@@ -307,7 +327,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const lastMirrorRef = useRef<string>("");
   // One-shot guard so the "public page may be stale" warning fires once per
   // failure streak rather than on every team change while the mirror is down.
-  const mirrorWarnedRef = useRef(false);
+  // Keyed by team id for the same reason as docSizeWarnedRef above.
+  const mirrorWarnedRef = useRef<Set<string>>(new Set());
   // True when the most recent mirror write failed (public tryout page stale).
   const [mirrorStale, setMirrorStale] = useState(false);
   // Per-session set of team ids we've already attempted to auto-claim.
@@ -980,10 +1001,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // a write silently fails. Non-blocking — the write still proceeds.
   const warnDocSizeOnce = useCallback(
     (estimatedDoc: Record<string, unknown>) => {
-      if (docSizeWarnedRef.current) return;
+      if (!activeTeamId || docSizeWarnedRef.current.has(activeTeamId)) return;
       const estimated = estimateDocSizeBytes(estimatedDoc);
       if (estimated > FIRESTORE_DOC_LIMIT_BYTES * DOC_SIZE_WARN_RATIO) {
-        docSizeWarnedRef.current = true;
+        docSizeWarnedRef.current.add(activeTeamId);
         toast.push({
           kind: "warn",
           title: "Team data is getting large",
@@ -994,7 +1015,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         });
       }
     },
-    [toast],
+    [activeTeamId, toast],
   );
 
   // Helper: write a partial update to the active team document. Resolves to
@@ -1079,7 +1100,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // Estimate the post-merge size (games slimmed as they will be stored) and
       // warn once when nearing the limit so a coach can archive old seasons
       // before a write silently fails.
-      if (!docSizeWarnedRef.current) {
+      if (activeTeamId && !docSizeWarnedRef.current.has(activeTeamId)) {
         const prev = teamDataRef.current || {};
         const mergedGames = Array.isArray(toPersist.games)
           ? toPersist.games
@@ -1177,7 +1198,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // Manual repair path for a stale public mirror (wired into Settings →
   // Tryouts). Forces a fresh write even if the projection looks unchanged.
   const resyncPublicMirror = useCallback(async (): Promise<boolean> => {
-    mirrorWarnedRef.current = false;
+    if (activeTeamId) mirrorWarnedRef.current.delete(activeTeamId);
     const ok = await writePublicMirror({ force: true });
     toast.push(
       ok
@@ -1190,7 +1211,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           },
     );
     return ok;
-  }, [writePublicMirror, toast]);
+  }, [activeTeamId, writePublicMirror, toast]);
 
   // Keep the public mirror in sync as the team changes. Backfills the mirror
   // for teams created before this feature (first snapshot writes it). Writing a
@@ -1200,8 +1221,9 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (!activeTeamId || !teamData) return;
     void writePublicMirror().then((ok) => {
-      if (ok || mirrorWarnedRef.current) return;
-      mirrorWarnedRef.current = true;
+      if (ok || !activeTeamId || mirrorWarnedRef.current.has(activeTeamId))
+        return;
+      mirrorWarnedRef.current.add(activeTeamId);
       toast.push({
         kind: "warn",
         title: "Public tryout page may be out of date",
@@ -1977,6 +1999,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     // cleanup mutates the same objects the callbacks armed.
     const landed = signupSubsLandedRef.current;
     const serverConfirmed = signupSubsServerConfirmedRef.current;
+    const denied = signupSubsDeniedRef.current;
     const subDocs = signupSubDocsRef.current;
     const subIds = signupSubIdsRef.current;
     const keys: SignupCollectionKey[] = ["tryoutSignups", "interestSignups"];
@@ -2008,7 +2031,16 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           if (progressed) setSignupSubsProgressTick((t) => t + 1);
         },
         () => {
-          // Non-fatal: keep the legacy array authoritative until the cutover.
+          // Non-fatal for PAINT: the legacy array stays authoritative, the
+          // migration write-effects stay gated (a denied lane never lands and
+          // never confirms). But the error is terminal for this listener, so
+          // record it and re-render — consumers gating on signupsReady would
+          // otherwise wait forever with no way to tell a dead lane from a
+          // slow one.
+          if (!denied[key]) {
+            denied[key] = true;
+            setSignupSubsProgressTick((t) => t + 1);
+          }
         },
       ),
     );
@@ -2021,6 +2053,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       for (const key of keys) {
         landed[key] = false;
         serverConfirmed[key] = false;
+        denied[key] = false;
         subDocs[key] = [];
         subIds[key] = new Set();
       }
@@ -2173,13 +2206,16 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         // an instant one would just replay a transient failure.
         const priorRetry = signupBackfillRetryTimersRef.current.get(teamId);
         if (priorRetry) clearTimeout(priorRetry);
-        const retry = setTimeout(() => {
-          signupBackfillRetryTimersRef.current.delete(teamId);
-          // Team-pinned, like the drop's settle timer: a switch during the
-          // delay makes this a no-op instead of a spurious render.
-          if (loadedTeamIdRef.current !== teamId) return;
-          setSignupBackfillRetryTick((t) => t + 1);
-        }, SIGNUP_BACKFILL_RETRY_MS);
+        const retry = setTimeout(
+          () => {
+            signupBackfillRetryTimersRef.current.delete(teamId);
+            // Team-pinned, like the drop's settle timer: a switch during the
+            // delay makes this a no-op instead of a spurious render.
+            if (loadedTeamIdRef.current !== teamId) return;
+            setSignupBackfillRetryTick((t) => t + 1);
+          },
+          SIGNUP_BACKFILL_RETRY_MS * 2 ** (attempt - 1),
+        );
         signupBackfillRetryTimersRef.current.set(teamId, retry);
       })
       .finally(() => {
@@ -2720,6 +2756,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // pages) must not treat "absent" as "missing" until this is true, or a
       // deep link bounces the coach out of the page they opened.
       signupsReady,
+      signupsDenied,
     }),
     [
       teamData,
@@ -2741,6 +2778,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       mirrorStale,
       resyncPublicMirror,
       signupsReady,
+      signupsDenied,
     ],
   );
 

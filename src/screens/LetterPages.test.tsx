@@ -99,6 +99,7 @@ const renderLetter = (
         // Most cases exercise data that has already arrived; the in-flight
         // cases override this to false.
         signupsReady: true,
+        signupsDenied: false,
         updateTryoutSignup,
         updateFinances,
         ...ctxOver,
@@ -237,6 +238,21 @@ describe("TryoutLetterPage", () => {
     expect(screen.queryByText("TRYOUTS TAB")).not.toBeInTheDocument();
   });
 
+  it("shows an error, not an eternal loader, when the signup lane was DENIED", () => {
+    // A denied subscription is terminal for the session: signupsReady will
+    // never flip, so the loader's promise — "the wait ends" — is false. The
+    // page must say what happened and offer a way out instead.
+    renderLetter("/tryouts/letter/s9/new-player", {
+      team: { ...team, tryoutSignups: [] },
+      signupsReady: false,
+      signupsDenied: true,
+    });
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load signups")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByText("TRYOUTS TAB")).not.toBeInTheDocument();
+  });
+
   it("redirects an assistant immediately, without waiting on signups", () => {
     // Role is known from context alone — no reason to sit on a skeleton.
     renderLetter("/tryouts/letter/s1/new-player", {
@@ -277,6 +293,16 @@ describe("InterestLetterPage", () => {
       signupsReady: true,
     });
     expect(screen.getByText("INTEREST TAB")).toBeInTheDocument();
+  });
+
+  it("shows the denied error for a dead interest lane too", () => {
+    renderLetter("/interest/letter/nope", {
+      team: { ...team, interestSignups: [] },
+      signupsReady: false,
+      signupsDenied: true,
+    });
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("redirects assistants away", () => {

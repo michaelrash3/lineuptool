@@ -49,6 +49,29 @@ const KIND_SLUGS: Record<string, OfferLetterKind> = {
 // created after the cutover exists ONLY as a subdoc, so a deep link to one
 // would be judged "settled, id unknown" and redirected away.
 
+// Shown when the id lookup can never resolve: a signup lane's subscription
+// was DENIED by the server, which is terminal for the session (Firestore
+// never re-delivers to an errored listener). An infinite loader here would be
+// a lie — the wait cannot end. Say what happened and hand back control; the
+// tab itself still paints whatever the legacy array carries.
+const SignupsBlocked = ({ onBack }: { onBack: () => void }) => (
+  <div role="alert" className="w-full max-w-xl mx-auto py-10 px-4 text-center">
+    <h2 className="text-lg font-bold">Couldn&apos;t load signups</h2>
+    <p className="mt-2 text-sm opacity-80">
+      The signup list couldn&apos;t be read from the server, so this letter
+      can&apos;t be opened right now. Reload the app to try again — if it keeps
+      happening, your access to this team may have changed.
+    </p>
+    <button
+      type="button"
+      onClick={onBack}
+      className="mt-4 inline-flex items-center rounded-lg border px-4 py-2 text-sm font-semibold"
+    >
+      Go back
+    </button>
+  </div>
+);
+
 const Shell = ({
   kind,
   onBack,
@@ -113,6 +136,7 @@ export const TryoutLetterPage = memo(() => {
     updateTryoutSignup,
     currentRole,
     signupsReady,
+    signupsDenied,
   } = useTeam();
   const back = useBackOrFallback("/tryouts");
   const signups = team.tryoutSignups || [];
@@ -127,9 +151,12 @@ export const TryoutLetterPage = memo(() => {
     return <Navigate to="/tryouts" replace />;
   }
   if (!signup) {
+    if (signupsReady) return <Navigate to="/tryouts" replace />;
+    // A denied lane never lands, so "wait" would be forever — surface it.
+    if (signupsDenied) return <SignupsBlocked onBack={back} />;
     // Same skeleton App.tsx uses as the Suspense fallback for this route, so
     // a chunk still loading and its data still arriving look like one wait.
-    return signupsReady ? <Navigate to="/tryouts" replace /> : <ScreenLoader />;
+    return <ScreenLoader />;
   }
   const name = [signup.firstName, signup.lastName].filter(Boolean).join(" ");
   return (
@@ -155,7 +182,7 @@ export const TryoutLetterPage = memo(() => {
 // lead.
 export const InterestLetterPage = memo(() => {
   const { leadId } = useParams();
-  const { team, user, currentRole, signupsReady } = useTeam();
+  const { team, user, currentRole, signupsReady, signupsDenied } = useTeam();
   const back = useBackOrFallback("/interest");
   const leads = team.interestSignups || [];
   const lead = leads.find((l: any) => l.id === leadId);
@@ -163,11 +190,9 @@ export const InterestLetterPage = memo(() => {
     return <Navigate to="/interest" replace />;
   }
   if (!lead) {
-    return signupsReady ? (
-      <Navigate to="/interest" replace />
-    ) : (
-      <ScreenLoader />
-    );
+    if (signupsReady) return <Navigate to="/interest" replace />;
+    if (signupsDenied) return <SignupsBlocked onBack={back} />;
+    return <ScreenLoader />;
   }
   const name = [lead.firstName, lead.lastName].filter(Boolean).join(" ");
   return (

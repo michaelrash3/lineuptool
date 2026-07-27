@@ -257,6 +257,7 @@ const Probe = () => {
       .join(",");
   const entry = {
     ready: team.signupsReady === true,
+    denied: team.signupsDenied === true,
     tryout: ids("tryoutSignups"),
     interest: ids("interestSignups"),
   };
@@ -266,6 +267,7 @@ const Probe = () => {
       <div data-testid="tryout">{entry.tryout}</div>
       <div data-testid="interest">{entry.interest}</div>
       <div data-testid="ready">{String(entry.ready)}</div>
+      <div data-testid="denied">{String(entry.denied)}</div>
     </div>
   );
 };
@@ -929,6 +931,27 @@ describe("TeamProvider signup subcollections — denied subcollection read", () 
     { id: "legacy-b", submittedAt: "2026-03-09" },
   ];
 
+  it("publishes signupsDenied so a waiting consumer can stop waiting", async () => {
+    // onSnapshot errors are terminal — the lane can never land, signupsReady
+    // can never flip, and a consumer gating on it (the letter pages' id
+    // lookup) would loader forever. The denied flag is the "stop waiting"
+    // signal, and it must clear on team switch: the next team's lanes get
+    // fresh listeners and deserve a fresh verdict.
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc({ tryoutSignups: legacyPair }));
+    expect(screen.getByTestId("denied").textContent).toBe("false");
+
+    await emitError(subPath("t1", "tryoutSignups"));
+    expect(screen.getByTestId("denied").textContent).toBe("true");
+    expect(screen.getByTestId("ready").textContent).toBe("false");
+
+    // Team switch tears the lanes down; the verdict must not follow t2.
+    await act(async () => {
+      await teamApi.switchTeam("t2");
+    });
+    expect(screen.getByTestId("denied").textContent).toBe("false");
+  });
+
   it("keeps painting the legacy array when the subcollection read is DENIED", async () => {
     await mountProvider();
     await emitDoc(teamPath("t1"), teamDoc({ tryoutSignups: legacyPair }));
@@ -1258,6 +1281,32 @@ describe("TeamProvider signup backfill — failure, retry and the retry bound", 
     await waitOutRetryDelay();
 
     expect(mirrorAttempts()).toBe(1);
+  });
+
+  it("backs off between attempts — the second retry waits double, not the base delay", async () => {
+    const denials = failMirrorWrites();
+    await armBackfill();
+    expect(mirrorAttempts()).toBe(1);
+
+    // Attempt 2 fires after the base delay and is denied too.
+    await waitOutRetryDelay();
+    expect(mirrorAttempts()).toBe(2);
+
+    // The next retry is scheduled at DOUBLE the base delay. Advancing only the
+    // base delay must not fire it — a flat cadence is what hammers a real
+    // outage — and the remaining half must.
+    await act(async () => {
+      vi.advanceTimersByTime(BACKFILL_RETRY_MS);
+    });
+    await settle();
+    expect(mirrorAttempts()).toBe(2);
+
+    await act(async () => {
+      vi.advanceTimersByTime(BACKFILL_RETRY_MS);
+    });
+    await settle();
+    expect(mirrorAttempts()).toBe(3);
+    expect(denials()).toBe(3);
   });
 
   it("stops at the attempt cap — a permanently denied team is not a write loop", async () => {
