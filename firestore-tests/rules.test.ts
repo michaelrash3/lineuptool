@@ -21,6 +21,10 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+// The REAL payload createTeam writes (minus name/owner/members) — imported so
+// the "a fresh team can be created" ratchet test proves the actual client
+// shape, not a hand-maintained copy of it.
+import { NEW_TEAM_DOC } from "../src/constants/ui";
 
 // Firestore security-rule tests. Run with `npm run test:rules`, which wraps
 // these in `firebase emulators:exec --only firestore` so the emulator is up
@@ -539,6 +543,182 @@ describe("evaluationEvents legacy-field ratchet (finding 3.1 close-out)", () => 
       }),
     );
     await assertFails(getDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1"))));
+  });
+});
+
+// Phase 1 close-out (docs/firestore-data-migration.md): the legacy
+// `tryoutSignups` / `interestSignups` arrays get the same ratchet as
+// evaluationEvents. While a team doc still carries an array, every existing
+// write keeps working — the deprecated public append lane, coach-side
+// arrayRemove cleanup, a stale pre-#587 client's `tryoutSignups: []` season
+// overwrite, and the deleteField drop itself. Once a team's array is dropped
+// (the irreversible migration step), NO write may recreate the key: not the
+// base member rule, not the public append lane (allow rules OR together, so
+// the lane carries its own existence clause), not team creation.
+describe("signup-array legacy-field ratchet (Phase 1 drop irreversibility)", () => {
+  it("a member may still overwrite / clean the arrays while the doc carries them", async () => {
+    // The stale pre-#587 advanceSeason shape: a merge patch carrying
+    // `tryoutSignups: []` alongside the season fields. Allowed while the
+    // array exists — a cached coach client keeps working until THIS team's
+    // drop lands (and the drop is issued by the head's own up-to-date app).
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(OWNER), ...teamPath("team-1")),
+        { currentSeason: "Fall 2026", tryoutsOpen: false, tryoutSignups: [] },
+        { merge: true },
+      ),
+    );
+    // Exact-entry arrayRemove cleanup (removeLegacySignupEntries shape).
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        interestSignups: arrayRemove({ id: "i1", firstName: "Lead" }),
+      }),
+    );
+  });
+
+  it("the head can drop both arrays in one write, and NOBODY can recreate them after", async () => {
+    // dropLegacySignupArrays shape — the one irreversible step.
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        tryoutSignups: deleteField(),
+        interestSignups: deleteField(),
+      }),
+    );
+    // The stale-client `[]` resurrection (merge and update shapes) is denied
+    // for every member — assistant AND head.
+    await assertFails(
+      setDoc(
+        doc(dbFor(OWNER), ...teamPath("team-1")),
+        { tryoutSignups: [] },
+        { merge: true },
+      ),
+    );
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        interestSignups: [],
+      }),
+    );
+    // A member arrayUnion append can't recreate it either. tryoutsOpen is
+    // still true here, so without the lane's own existence clause this write
+    // would sail through the deprecated PUBLIC lane (allow rules OR).
+    await assertFails(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        tryoutSignups: arrayUnion({ id: "ts-sneak", firstName: "Nope" }),
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        interestSignups: arrayUnion({ id: "il-sneak", firstName: "Nope" }),
+      }),
+    );
+    // Nor can a cached anonymous portal client (the deprecated array lane).
+    await assertFails(
+      updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
+        tryoutSignups: arrayUnion({ id: "s2", firstName: "New" }),
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
+        interestSignups: arrayUnion({ id: "i2", firstName: "New" }),
+      }),
+    );
+  });
+
+  it("the single-key season-advance drop works and leaves the interest lane alone", async () => {
+    // dropLegacySignupArray("tryoutSignups") — season advance clears the
+    // tryout lane only; standing interest leads survive the rollover.
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        tryoutSignups: deleteField(),
+      }),
+    );
+    // Interest array still exists → the public append lane still works.
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
+        interestSignups: arrayUnion({ id: "i2", firstName: "New" }),
+      }),
+    );
+    // The dropped tryout lane is closed, even while tryoutsOpen is true.
+    await assertFails(
+      updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
+        tryoutSignups: arrayUnion({ id: "s2", firstName: "New" }),
+      }),
+    );
+  });
+
+  it("ordinary writes keep working on a doc without the arrays", async () => {
+    // The ratchet must not collaterally block post-drop team-doc writes —
+    // request.resource.data is the POST-write doc, so a write that never
+    // touches the dropped keys doesn't carry them either.
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
+        tryoutSignups: deleteField(),
+        interestSignups: deleteField(),
+      });
+    });
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        players: arrayUnion({ id: "p-post-drop", name: "Cai" }),
+      }),
+    );
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(OWNER), ...teamPath("team-1")),
+        { tryoutsOpen: false },
+        { merge: true },
+      ),
+    );
+  });
+
+  it("a new team doc cannot be born with the arrays — and the REAL createTeam payload passes", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), ...teamPath("team-fresh")), {
+        name: "Fresh",
+        ownerId: OWNER,
+        members: [OWNER],
+        tryoutSignups: [],
+      }),
+    );
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), ...teamPath("team-fresh")), {
+        name: "Fresh",
+        ownerId: OWNER,
+        members: [OWNER],
+        interestSignups: [],
+      }),
+    );
+    // The exact shape createTeam writes (useTeamLifecycle): NEW_TEAM_DOC
+    // (which seeds NONE of the ratcheted legacy fields) + league choice,
+    // name, ownerId, members.
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER), ...teamPath("team-fresh")), {
+        ...NEW_TEAM_DOC,
+        leagueRuleSet: "USSSA",
+        name: "Fresh",
+        ownerId: OWNER,
+        members: [OWNER],
+      }),
+    );
+  });
+
+  it("the evaluationEvents ratchet is untouched by the new clauses", async () => {
+    // Belt-and-braces regression for the neighbouring ratchet: rewrite while
+    // present still works, recreation after a drop is still denied.
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        evaluationEvents: [],
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        evaluationEvents: deleteField(),
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        evaluationEvents: [],
+      }),
+    );
   });
 });
 

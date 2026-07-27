@@ -173,18 +173,42 @@ service cloud.firestore {
                     // drop), but once gone no write may recreate it — that
                     // would put scoped eval data back on the shared doc.
                     && (!('evaluationEvents' in request.resource.data)
-                        || ('evaluationEvents' in resource.data));
+                        || ('evaluationEvents' in resource.data))
+                    // tryoutSignups / interestSignups are the next fields on
+                    // the same ladder (Phase 1 of
+                    // docs/firestore-data-migration.md — signups live in the
+                    // per-entry subcollections below; the coach client drops
+                    // each team's arrays with deleteField once the backfill
+                    // provably covers them). Same ratchet shape: a doc still
+                    // carrying an array may rewrite or remove it (a stale
+                    // pre-drop client's `tryoutSignups: []` season overwrite,
+                    // exact-entry arrayRemove cleanup, the deleteField drop),
+                    // but once a team's array is gone no write may recreate
+                    // it — a stale client fails LOUDLY instead of silently
+                    // resurrecting the dropped field. NOTE: request.resource
+                    // is the POST-write doc, so a write that doesn't touch a
+                    // key still "carries" it while the doc has it — which is
+                    // exactly why ordinary writes keep passing pre-drop and
+                    // post-drop alike.
+                    && (!('tryoutSignups' in request.resource.data)
+                        || ('tryoutSignups' in resource.data))
+                    && (!('interestSignups' in request.resource.data)
+                        || ('interestSignups' in resource.data));
 
       // Only the current owner can delete the team document.
       allow delete: if isCurrentOwner();
 
       // Team bootstrap: signed-in creator can create a new team doc when
-      // ownerId is set to their UID. A new doc can never be born with the
-      // dropped legacy evaluationEvents field (see the update-rule ratchet) —
-      // combined, the field can only ever disappear from the fleet.
+      // ownerId is set to their UID. A new doc can never be born with a
+      // dropped legacy field — evaluationEvents, tryoutSignups,
+      // interestSignups (see the update-rule ratchets) — combined, each
+      // field can only ever disappear from the fleet. createTeam writes
+      // NEW_TEAM_DOC (src/constants/ui.ts), which seeds none of them.
       allow create: if isSignedIn()
                     && request.resource.data.ownerId == request.auth.uid
-                    && !('evaluationEvents' in request.resource.data);
+                    && !('evaluationEvents' in request.resource.data)
+                    && !('tryoutSignups' in request.resource.data)
+                    && !('interestSignups' in request.resource.data);
 
       // NOTE: there is deliberately NO "read if a join code exists" rule here.
       // The old `allow read: if isSignedIn() && resource.data.joinCode != null;`
@@ -239,11 +263,20 @@ service cloud.firestore {
       // lanes stay ONE release for cached portal clients still running the
       // arrayUnion code — stragglers are harmless because the coach client's
       // union read + lazy backfill absorbs late array entries into the
-      // subcollection. Next release: remove both lanes and ratchet the arrays
-      // like evaluationEvents. (The playerInfoSubmissions / availability
-      // lanes below are NOT deprecated yet — they migrate in a later phase.)
+      // subcollection. The arrays are now RATCHETED like evaluationEvents
+      // (see the base update rule): each lane additionally requires the
+      // array to still EXIST on the doc, because allow rules OR together —
+      // without that clause an append could sneak a dropped field back onto
+      // the doc through this lane, since appendsExactlyOne treats a missing
+      // key as an empty array. While a team's array survives, cached-client
+      // appends work exactly as before; after that team's drop, the append
+      // fails loudly and the parent retries on the subcollection path.
+      // Next release: remove both lanes entirely. (The
+      // playerInfoSubmissions / availability lanes below are NOT deprecated
+      // yet — they migrate in a later phase.)
       allow update: if isSignedIn()
                     && resource.data.tryoutsOpen == true
+                    && ('tryoutSignups' in resource.data)
                     && request.resource.data.diff(resource.data)
                          .affectedKeys()
                          .hasOnly(['tryoutSignups'])
@@ -251,6 +284,7 @@ service cloud.firestore {
 
       allow update: if isSignedIn()
                     && resource.data.tryoutShareId != null
+                    && ('interestSignups' in resource.data)
                     && request.resource.data.diff(resource.data)
                          .affectedKeys()
                          .hasOnly(['interestSignups'])
