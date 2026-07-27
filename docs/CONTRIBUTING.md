@@ -40,7 +40,7 @@ npm test               # one-shot test run (vitest run)
 npm run build          # production Vite build into ./dist
 ```
 
-CI runs the security audit (`npm audit --audit-level=high --omit=dev`), the typecheck (`tsc --noEmit`), lint (`npm run lint`), the format check (`npm run format:check`), the test suite (`npm test`), and the production build (`npm run build`) on every push, plus a parallel `rules-test` job that runs the Firestore-emulator rules suite (`npm run test:rules`). Run them locally before pushing.
+CI runs the security audit (`npm audit --audit-level=high --omit=dev`), the typecheck (`tsc --noEmit`), lint (`npm run lint`), the format check (`npm run format:check`), the test suite (`npm test`), the workflow-script suite (`npm run test:workflows` — executes the auto-merge hold logic from the real YAML, so an edit to that workflow that regresses the hold fails CI), and the production build (`npm run build`) on every push, plus a parallel `rules-test` job that runs the Firestore-emulator rules suite (`npm run test:rules`). Run them locally before pushing.
 
 Formatting is pinned to **Prettier** (config in `.prettierrc.json`). Run `npm run format` to format the tree and `npm run format:check` to verify — CI fails on any unformatted file, so let Prettier own style instead of hand-matching it.
 
