@@ -345,6 +345,31 @@ export const lineupSlotMatchesPlayer = (
   return slotName === playerName;
 };
 
+// The classification a game EFFECTIVELY plays under. gameType is a real
+// per-game control (the Game Type selector in the game editor stamps it, as
+// do addGame and the GameChanger ICS merge), but games created before the
+// stamp existed carry none — those fall back to the rule set the game plays
+// under: Tournament (USSSA) reads as pool play, everything else as
+// rec/league. Every consumer (engine input aside — it keeps its own legacy
+// default) should classify through this so chips, planners, and stakes copy
+// never disagree.
+export const effectiveGameType = (
+  game:
+    | { gameType?: string | null; leagueRuleSet?: string | null }
+    | null
+    | undefined,
+  teamLeagueRuleSet?: string,
+): "league" | "pool" | "bracket" => {
+  const t = game?.gameType;
+  if (t === "league" || t === "pool" || t === "bracket") return t;
+  return (game?.leagueRuleSet || teamLeagueRuleSet) === "USSSA"
+    ? "pool"
+    : "league";
+};
+
+export const gameTypeLabel = (t: "league" | "pool" | "bracket"): string =>
+  t === "bracket" ? "Bracket" : t === "pool" ? "Pool" : "Rec";
+
 export interface TournamentGroup {
   id: string;
   label: string;
@@ -712,14 +737,22 @@ export const estimateDocSizeBytes = (value: unknown): number => {
 export interface PitchingOuting {
   date: string;
   pitches: number;
-  // The game this outing came from. Outings are deduped by gameId so two
-  // games on the SAME date (doubleheaders) each keep their own entry, while
-  // re-finalizing the same game updates in place. Legacy entries (written
-  // before this field existed) have no gameId and are matched by date.
+  // The game this outing came from. Outings are deduped by (gameId, date) so
+  // two games on the SAME date (doubleheaders) each keep their own entry, a
+  // re-finalized game updates its entry in place, and a SUSPENDED game that
+  // finishes on a second date adds a second entry — real pitches were thrown
+  // on that day, so rest math must see it. Legacy entries (written before
+  // this field existed) have no gameId and are matched by date.
   gameId?: string;
 }
 
-const PITCHING_LOG_CAP = 12;
+// How many outings the rolling log keeps. Entries are tiny (~55 bytes of JSON
+// each: date + pitches + gameId), so 60 per pitcher is ~3.3 KB, and even a
+// 12-arm staff adds well under 50 KB against the 1 MiB Firestore doc limit
+// (see estimateDocSizeBytes / FIRESTORE_DOC_LIMIT_BYTES above). 60 covers a
+// full season of outings; games[].playerStats remains the durable record —
+// this log only has to be deep enough for rest math and the Arm Care view.
+const PITCHING_LOG_CAP = 60;
 
 // Pure: returns a new `pitching` object with recentPitches/lastPitchDate set to
 // the given outing (unchanged semantics) and the outing recorded in `log`.
@@ -735,9 +768,12 @@ export const recordPitchingOuting = (
   const all: PitchingOuting[] = Array.isArray(base.log) ? base.log : [];
   const prior = all.filter((o: any) => {
     if (!o || !o.date) return false;
-    // With a gameId, only the same game's entry is replaced — other outings
-    // (including a different game on the same date) are preserved.
-    if (gameId) return o.gameId !== gameId;
+    // With a gameId, only the same game's entry ON THIS DATE is replaced —
+    // re-importing a corrected CSV still updates in place, while the same
+    // game landing on a NEW date (suspended game finished later) keeps the
+    // first date's entry and adds a second. Other outings (including a
+    // different game on the same date) are always preserved.
+    if (gameId) return !(o.gameId === gameId && o.date === date);
     // Legacy path: no gameId, dedupe by date.
     return o.date !== date;
   });
@@ -752,6 +788,93 @@ export const recordPitchingOuting = (
     )
     .slice(0, PITCHING_LOG_CAP);
   return { ...base, recentPitches: pitches, lastPitchDate: date, log };
+};
+
+// Shared tail for the manual log-edit helpers below: sort newest-first (same
+// order recordPitchingOuting stores), cap, and RECOMPUTE the
+// recentPitches/lastPitchDate mirror fields from the surviving entries. The
+// mirrors matter only as a fallback for data saved before the log existed
+// (see pitchRules.mostRecentDayPitches), but an edit can change which date is
+// most recent, so they can't just echo the edited entry the way
+// recordPitchingOuting echoes a new outing. recentPitches is the latest
+// day's TOTAL (doubleheaders summed) to match the engine's rest math.
+const finalizePitchingLog = (
+  base: Record<string, any>,
+  entries: PitchingOuting[],
+): Record<string, any> => {
+  const log = entries
+    .filter((o) => o && o.date)
+    .sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) ||
+        String(b.gameId || "").localeCompare(String(a.gameId || "")),
+    )
+    .slice(0, PITCHING_LOG_CAP);
+  const lastPitchDate = log.length ? log[0].date : null;
+  const recentPitches = log.reduce(
+    (s, o) => (o.date === lastPitchDate ? s + (Number(o.pitches) || 0) : s),
+    0,
+  );
+  return { ...base, recentPitches, lastPitchDate, log };
+};
+
+// Pure: edit one logged outing in place (by its index in the STORED log,
+// newest-first) — the coach correcting an amount or moving pitches to the
+// date they were actually thrown (e.g. splitting a suspended game's total
+// across its two dates). gameId is preserved so a later CSV re-import still
+// finds the entry. Invalid index or an empty patch returns the input
+// unchanged; invalid patch fields keep the entry's existing values.
+export const updatePitchingOutingEntry = (
+  pitching: Record<string, any> | null | undefined,
+  index: number,
+  patch: { date?: string; pitches?: number },
+): Record<string, any> => {
+  const base = pitching || {};
+  const log: PitchingOuting[] = Array.isArray(base.log) ? base.log : [];
+  if (!Number.isInteger(index) || index < 0 || index >= log.length) return base;
+  const cur = log[index];
+  const date =
+    typeof patch.date === "string" && patch.date ? patch.date : cur.date;
+  const pitches =
+    Number.isFinite(patch.pitches) && (patch.pitches as number) > 0
+      ? Math.round(patch.pitches as number)
+      : cur.pitches;
+  const next = log.map((o, i) => (i === index ? { ...o, date, pitches } : o));
+  return finalizePitchingLog(base, next);
+};
+
+// Pure: delete one logged outing (by stored-log index). Removing the last
+// entry resets the mirrors to the "hasn't pitched" state (0 / null) so rest
+// math stops seeing the deleted outing entirely.
+export const removePitchingOutingEntry = (
+  pitching: Record<string, any> | null | undefined,
+  index: number,
+): Record<string, any> => {
+  const base = pitching || {};
+  const log: PitchingOuting[] = Array.isArray(base.log) ? base.log : [];
+  if (!Number.isInteger(index) || index < 0 || index >= log.length) return base;
+  return finalizePitchingLog(
+    base,
+    log.filter((_, i) => i !== index),
+  );
+};
+
+// Pure: append a manual outing WITHOUT the record-path dedupe — the coach is
+// explicitly adding a second entry (the back half of a split, or an outing
+// the CSVs never captured), so nothing existing is replaced. Rejects
+// non-positive/invalid input by returning the input unchanged.
+export const addPitchingOutingEntry = (
+  pitching: Record<string, any> | null | undefined,
+  date: string,
+  pitches: number,
+): Record<string, any> => {
+  const base = pitching || {};
+  if (!date || !Number.isFinite(pitches) || pitches <= 0) return base;
+  const log: PitchingOuting[] = Array.isArray(base.log) ? base.log : [];
+  return finalizePitchingLog(base, [
+    ...log,
+    { date, pitches: Math.round(pitches) },
+  ]);
 };
 
 export interface PitchingWorkload {
@@ -782,7 +905,10 @@ export const summarizePitchingWorkload = (
 
 // Catching outing log — mirrors the pitching log so we can enforce the same-day
 // catch<->pitch rule across games (doubleheaders), where the in-lineup rule
-// can't reach. Entries are deduped by gameId.
+// can't reach. Entries are deduped by (gameId, date), same as pitching, so a
+// suspended game finished on a second date keeps both days' innings. The cap
+// stays at 12: the catch<->pitch rule only ever looks back a day or two, so
+// this log doesn't need the pitching log's season depth.
 export interface CatchingOuting {
   date: string;
   innings: number;
@@ -800,7 +926,7 @@ export const recordCatchingOuting = (
   const all: CatchingOuting[] = Array.isArray(base.log) ? base.log : [];
   const prior = all.filter((o: any) => {
     if (!o || !o.date) return false;
-    if (gameId) return o.gameId !== gameId;
+    if (gameId) return !(o.gameId === gameId && o.date === date);
     return o.date !== date;
   });
   const entry: CatchingOuting = gameId

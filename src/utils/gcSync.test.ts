@@ -39,6 +39,28 @@ describe("mergeGcEventsIntoGames", () => {
     expect(typeof games[0].id).toBe("string");
   });
 
+  it("stamps classification on new games: pool for USSSA teams, league otherwise", () => {
+    const rec = mergeGcEventsIntoGames([], [ev({ uid: "a" })], defaults);
+    expect(rec.games[0].gameType).toBe("league");
+    const tourney = mergeGcEventsIntoGames([], [ev({ uid: "a" })], {
+      ...defaults,
+      leagueRuleSet: "USSSA",
+    });
+    expect(tourney.games[0].gameType).toBe("pool");
+  });
+
+  it("re-sync never overwrites a coach's classification on an existing game", () => {
+    const first = mergeGcEventsIntoGames([], [ev({ uid: "a" })], defaults);
+    const coached = [{ ...first.games[0], gameType: "bracket" }];
+    const { games, updated } = mergeGcEventsIntoGames(
+      coached,
+      [ev({ uid: "a", opponent: "New Opp" })],
+      defaults,
+    );
+    expect(updated).toBe(1);
+    expect(games[0].gameType).toBe("bracket");
+  });
+
   it("routes GameChanger practice titles with matchup words to practices, not games", () => {
     const practice = ev({
       uid: "practice-vs",

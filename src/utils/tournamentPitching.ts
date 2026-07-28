@@ -1,10 +1,13 @@
-// Cross-game pitching math for stored Tournaments — the layer that makes a
-// PLANNED outing in Saturday's opener count against the daily-max and
-// rest-day rules when looking at Saturday's nightcap or Sunday's bracket
-// game. Everything here is pure and wraps the engine's existing single-date
+// Cross-game pitching math — the layer that makes a PLANNED outing in
+// Saturday's opener count against the daily-max and rest-day rules when
+// looking at Saturday's nightcap or Sunday's bracket game. The core walk
+// (assessGamesPlan) takes any ordered span of games — stored Tournaments
+// wrap it here, and utils/weekPlanning widens it to whole calendar weeks.
+// Everything here is pure and wraps the engine's existing single-date
 // machinery (checkPitchEligibility / buildPitchingPlan) by folding planned
 // outings into a hypothetical copy of each player's pitching log — zero
-// engine changes, so tournament math can never disagree with game-day math.
+// engine changes, so tournament/week math can never disagree with game-day
+// math.
 //
 // The wrapper inherits the engine's semantics deliberately, including its
 // "most recent day only" reading of the log and its one-mound-appearance-
@@ -54,15 +57,19 @@ export interface PlanViolation {
   message: string;
 }
 
-export interface TournamentGameAssessment {
+export interface GamePlanAssessment {
   gameId: string;
   date: string;
   // Every cleared pitcher's availability for THIS game with all earlier
-  // planned outings in the tournament folded in — the "arms remaining" view.
+  // planned outings in the assessed span folded in — the "arms remaining"
+  // view.
   arms: PitcherAvailability[];
   // This game's own planned assignments that break the rules.
   violations: PlanViolation[];
 }
+
+// Back-compat alias from when the fold only ran inside a stored Tournament.
+export type TournamentGameAssessment = GamePlanAssessment;
 
 // Effective pitch budget of a plan entry: the coach's explicit number, else
 // the age group's full daily max — conservative on purpose, so later-game
@@ -127,10 +134,20 @@ export const planEntryStatus = (
   return "planned";
 };
 
-// Chronological order within a tournament: date, then first pitch (ISO
-// startUtc — free-text `time` is unreliable), then id for a stable tiebreak.
+// Chronological order key: date, then first pitch (ISO startUtc — free-text
+// `time` is unreliable), then id for a stable tiebreak.
 const gameOrderKey = (g: Game): string =>
   `${g.date || "9999-99-99"}|${g.startUtc || ""}|${g.id}`;
+
+// Undated games drop out; the rest sort chronologically. Shared by the
+// tournament fold and the week planner so both walk games in the same order.
+export const orderGamesChronologically = (
+  games: Game[] | null | undefined,
+): Game[] =>
+  (games || [])
+    .filter((g): g is Game => Boolean(g && g.date))
+    .slice()
+    .sort((a, b) => gameOrderKey(a).localeCompare(gameOrderKey(b)));
 
 // Resolve a tournament's gameIds against the schedule: dangling ids (deleted
 // games) and undated games drop out; the rest sort chronologically.
@@ -139,10 +156,11 @@ export const orderedTournamentGames = (
   games: Game[] | null | undefined,
 ): Game[] => {
   const byId = new Map((games || []).map((g) => [g.id, g]));
-  return (tournament?.gameIds || [])
-    .map((id) => byId.get(id))
-    .filter((g): g is Game => Boolean(g && g.date))
-    .sort((a, b) => gameOrderKey(a).localeCompare(gameOrderKey(b)));
+  return orderGamesChronologically(
+    (tournament?.gameIds || [])
+      .map((id) => byId.get(id))
+      .filter((g): g is Game => Boolean(g)),
+  );
 };
 
 // Total pitches a hypothetical player carries on one date (real log entries
@@ -172,33 +190,39 @@ const firstEligibleDate = (
   return null;
 };
 
-interface AssessArgs {
-  tournament: Tournament;
-  games: Game[] | null | undefined; // full schedule; ids resolve against it
+interface AssessGamesArgs {
+  // Chronologically ordered, dated games (orderGamesChronologically them).
+  orderedGames: Game[];
+  // Where each game's planned outings live — tournament.pitchPlan for a
+  // stored tournament, game.pitchPlan for standalone games (see
+  // utils/weekPlanning.planForGame).
+  planFor: (gameId: string) => PlannedOuting[];
   players: Player[] | null | undefined;
   teamAge: string;
   ruleSet: PitchRuleSet;
 }
 
-// The heart of the feature: walk the tournament's games in order, and for
+// The heart of the cross-game math: walk the given games in order, and for
 // each one assess every arm AS IF all earlier games' planned outings had
 // already been thrown. Violations are computed for the game's own entries
 // (and a violating entry still folds forward — the coach should see both the
 // violation AND its downstream effect, not have the plan silently ignored).
-export function assessTournamentPlan({
-  tournament,
-  games,
+// Both the tournament panel and the week planner run THIS function, so a
+// weekend and a whole week can never disagree on the same plan.
+export function assessGamesPlan({
+  orderedGames,
+  planFor,
   players,
   teamAge,
   ruleSet,
-}: AssessArgs): TournamentGameAssessment[] {
-  const ordered = orderedTournamentGames(tournament, games);
+}: AssessGamesArgs): GamePlanAssessment[] {
+  const ordered = orderedGames;
   const roster = players || [];
   const realById = new Map(roster.map((p) => [p.id, p]));
   const maxP = maxPitchesForAge(teamAge, ruleSet);
   // Planned load accumulated from earlier games, per player.
   const acc = new Map<PlayerId, HypotheticalOuting[]>();
-  const out: TournamentGameAssessment[] = [];
+  const out: GamePlanAssessment[] = [];
 
   for (const game of ordered) {
     const date = game.date as string;
@@ -209,7 +233,7 @@ export function assessTournamentPlan({
     const arms = buildPitchingPlan(hypPlayers, date, teamAge, ruleSet);
 
     const violations: PlanViolation[] = [];
-    for (const entry of tournament.pitchPlan?.[game.id] || []) {
+    for (const entry of planFor(game.id)) {
       const real = realById.get(entry.playerId);
       if (!real) continue;
       // Reality already recorded this outing — the real log speaks for it.
@@ -262,6 +286,32 @@ export function assessTournamentPlan({
     out.push({ gameId: game.id, date, arms, violations });
   }
   return out;
+}
+
+interface AssessArgs {
+  tournament: Tournament;
+  games: Game[] | null | undefined; // full schedule; ids resolve against it
+  players: Player[] | null | undefined;
+  teamAge: string;
+  ruleSet: PitchRuleSet;
+}
+
+// The tournament-scoped fold: the core walk over the tournament's own games,
+// reading plans from tournament.pitchPlan.
+export function assessTournamentPlan({
+  tournament,
+  games,
+  players,
+  teamAge,
+  ruleSet,
+}: AssessArgs): TournamentGameAssessment[] {
+  return assessGamesPlan({
+    orderedGames: orderedTournamentGames(tournament, games),
+    planFor: (gameId) => tournament.pitchPlan?.[gameId] || [],
+    players,
+    teamAge,
+    ruleSet,
+  });
 }
 
 // The not-yet-consumed planned outings that land strictly BEFORE `gameId`

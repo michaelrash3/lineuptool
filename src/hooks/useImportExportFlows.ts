@@ -501,8 +501,11 @@ export const useImportExportFlows = ({
 
             // Log this game's pitching/catching outings from the imported
             // line — the box score, not the planned lineup, now drives
-            // arm-care rest. Both logs dedupe by gameId, so re-importing the
-            // same game replaces (never double-counts) its outing. Pitching
+            // arm-care rest. Both logs dedupe by (gameId, date): re-importing
+            // the same game on the same date replaces (never double-counts)
+            // its outing, while a suspended game finished on a second date
+            // adds a second entry — the coach can then split the total across
+            // the two days in the Arm Care log editor. Pitching
             // is already stripped for machine/coach games at import, so a
             // non-kid game leaves totalPitches undefined and logs nothing.
             const line = playerStats[p.id] || {};

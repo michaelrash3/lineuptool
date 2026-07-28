@@ -8,6 +8,7 @@ import {
   buildSeasonBenchImbalance,
   isGameFinalized,
   deriveTournaments,
+  effectiveGameType,
   isPlayerScheduledOut,
   isPlayerHealthOut,
 } from "../utils/helpers";
@@ -392,10 +393,12 @@ export const ScheduleTab = memo(() => {
     // defensive positions (P/SS/3B/C/1B for kid-pitch ages, C/1B/SS for 8U).
     // Implies seasonal fairness is off.
     const isBigGame = currentGame.isBigGame === true;
-    // Tournament classification. Drives engine pitcher pool size for
-    // 9U+ Kid Pitch — Pool spreads across the staff (top 5); Bracket
-    // narrows to your aces (top 3); League is the regular-season default.
-    const gameType = currentGame.gameType || "league";
+    // Game classification — a real per-game control (see the Game Type
+    // selector below). Drives engine pitcher pool size for 9U+ Kid Pitch —
+    // Pool spreads across the staff (top 5); Bracket narrows to your aces
+    // (top 3); Rec/League is the regular-season default. Unstamped games
+    // default from the rule set they play under (Tournament → pool).
+    const gameType = effectiveGameType(currentGame, leagueRuleSet);
     const isScrimmage = currentGame.isScrimmage === true;
     // Tournament games run competitive (best-XI + minimum-play floor), so the
     // Rec-only knobs (Big Game, even-out-playing-time) don't apply and are hidden.
@@ -683,20 +686,13 @@ export const ScheduleTab = memo(() => {
                   const newFormat = allowed.includes(gamePitching)
                     ? gamePitching
                     : allowed[0];
-                  // Pool/Bracket is a subset of Tournament. Rec games are
-                  // always League; switching to Tournament defaults to Pool
-                  // play (keeps an existing Bracket pick), and back to Rec
-                  // resets to League.
-                  const newGameType =
-                    newLeague === "USSSA"
-                      ? gameType === "bracket"
-                        ? "bracket"
-                        : "pool"
-                      : "league";
+                  // Classification (gameType) is its own control now — the
+                  // Game Type selector below — so switching rule sets no
+                  // longer rewrites it behind the coach's back. Unstamped
+                  // games still default from the rule set (effectiveGameType).
                   updateGame(selectedGameId, {
                     leagueRuleSet: newLeague,
                     pitchingFormat: newFormat,
-                    gameType: newGameType,
                   });
                 }}
                 className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
@@ -705,27 +701,30 @@ export const ScheduleTab = memo(() => {
                 <option value="NKB">Rec</option>
               </select>
             </div>
-            {/* Pool / Bracket — a subset of Tournament (Rec is always League),
-                  treated like the Fielders setting. Drives the engine's pitcher
-                  pool: Pool spreads across the staff (top 5) so aces rest for
-                  bracket; Bracket narrows to your aces (top 3). */}
-            {isTournamentGame && (
-              <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                  Tournament
-                </label>
-                <select
-                  value={gameType === "bracket" ? "bracket" : "pool"}
-                  onChange={(e) =>
-                    updateGame(selectedGameId, { gameType: e.target.value })
-                  }
-                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-                >
-                  <option value="pool">Pool Play</option>
-                  <option value="bracket">Bracket</option>
-                </select>
-              </div>
-            )}
+            {/* Game classification — a real per-game control for EVERY game
+                  (it used to be a side-effect of the Game Rules select).
+                  Drives the engine's pitcher pool for 9U+ Kid Pitch: Pool
+                  spreads across the staff (top 5) so aces rest for bracket;
+                  Bracket narrows to your aces (top 3); Rec/League is the
+                  regular-season default. Also the classification chip in the
+                  week planner. */}
+            <div className="w-full">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                Game Type
+              </label>
+              <select
+                value={gameType}
+                aria-label="Game type"
+                onChange={(e) =>
+                  updateGame(selectedGameId, { gameType: e.target.value })
+                }
+                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+              >
+                <option value="league">Rec / League</option>
+                <option value="pool">Pool Play</option>
+                <option value="bracket">Bracket</option>
+              </select>
+            </div>
             <div className="w-full">
               <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                 Pitching
@@ -1538,6 +1537,13 @@ export const ScheduleTab = memo(() => {
               <Icons.Upload className="w-4 h-4" /> Import Schedule
             </button>
           )}
+          <button
+            onClick={() => navigate("/schedule/week")}
+            className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
+            title="Weekly rotation planner — every game grouped by week, with cross-game pitch planning"
+          >
+            <Icons.Calendar className="w-4 h-4" /> Week Planner
+          </button>
           {canEdit && (
             <button
               onClick={() => navigate("/lineup/what-if")}
