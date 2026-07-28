@@ -322,23 +322,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     [swapSelection],
   );
 
-  const addInning = useCallback(() => {
-    if (!lineup) return;
-    const last = lineup[lineup.length - 1] || {};
-    // Deep-copy BENCH so the new inning doesn't share an array reference with
-    // the previous one — a subsequent BENCH edit would otherwise mutate both.
-    const cloned = {
-      ...last,
-      BENCH: Array.isArray(last.BENCH) ? [...last.BENCH] : [],
-    };
-    setLineup([...lineup, cloned]);
-  }, [lineup]);
-
-  const removeInning = useCallback(() => {
-    if (!lineup || lineup.length <= 1) return;
-    setLineup(lineup.slice(0, -1));
-  }, [lineup]);
-
   const moveBatter = useCallback((idx: number, delta: number) => {
     setBattingLineup((cur: SlimPlayer[] | null) => {
       if (!cur) return cur;
@@ -468,8 +451,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       swapSelection,
       gameSaved,
       handleCellClick,
-      addInning,
-      removeInning,
       moveBatter,
       opponentName,
       setOpponentName,
@@ -509,8 +490,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       swapSelection,
       gameSaved,
       handleCellClick,
-      addInning,
-      removeInning,
       moveBatter,
       opponentName,
       isAddingTeam,

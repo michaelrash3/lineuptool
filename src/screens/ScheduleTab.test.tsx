@@ -107,8 +107,6 @@ const renderGameEditor = (
         battingLineup: batting,
         swapSelection: null,
         handleCellClick,
-        addInning: jest.fn(),
-        removeInning: jest.fn(),
         moveBatter: jest.fn(),
       },
     },

@@ -233,8 +233,6 @@ export const ScheduleTab = memo(() => {
     swapSelection,
     gameSaved,
     handleCellClick,
-    addInning,
-    removeInning,
     moveBatter,
     setOpponentName,
     openPlayerProfile,
