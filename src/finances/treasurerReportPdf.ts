@@ -11,6 +11,8 @@ import {
   budgetItemAmount,
   financeSummary,
   formatCurrency,
+  isFamilyPayoutEarmark,
+  passThroughSummary,
   reimbursementsSummary,
   reconciliationStatus,
   round2,
@@ -35,10 +37,21 @@ export interface TreasurerReportData {
   stillOwed: number;
   balanceOnceAllPaid: number;
   refundsTotal: number;
-  // Non-fee income split by source. A sponsor entry counts as "sponsors"
-  // whether or not it also credits dues; fundraising is the non-sponsor
-  // fundraising slice; everything else (carryover, misc) is "other".
-  incomeBySource: { fundraising: number; sponsors: number; other: number };
+  // Non-fee income split by source. Pass-through (earmarked fee-relief)
+  // fundraisers are their own slice — that money is held for families, not
+  // club revenue, and the earmark takes precedence over the other flags. A
+  // sponsor entry counts as "sponsors" whether or not it also credits dues;
+  // fundraising is the non-sponsor fundraising slice; everything else
+  // (carryover, misc) is "other".
+  incomeBySource: {
+    fundraising: number;
+    sponsors: number;
+    other: number;
+    passThrough: number;
+  };
+  // Undisbursed pass-through: cash in the balance that belongs to families
+  // (fee-relief fundraisers minus what's already been paid back out).
+  heldForFamilies: number;
   budgetRows: Array<{ label: string; planned: number; spent: number }>;
   unplanned: number;
   collections: Array<{
@@ -79,9 +92,13 @@ export const buildTreasurerReportData = (
   let fundraising = 0;
   let sponsors = 0;
   let other = 0;
+  let passThroughIncome = 0;
   for (const inc of finances.incomes || []) {
     const amt = Number(inc?.amount) || 0;
-    if (inc?.sponsor) sponsors += amt;
+    // Earmark precedence: held-for-families money is never club revenue,
+    // whatever other flags the row carries.
+    if (isFamilyPayoutEarmark(inc)) passThroughIncome += amt;
+    else if (inc?.sponsor) sponsors += amt;
     else if (inc?.fundraising) fundraising += amt;
     else other += amt;
   }
@@ -117,7 +134,10 @@ export const buildTreasurerReportData = (
       };
     });
 
+  // Owed to VOLUNTEERS only — fee-relief payouts are owed to families and
+  // are already inside the held-for-families figure below.
   const reimbursementsOutstanding = reimbursementsSummary(finances).outstanding;
+  const heldForFamilies = passThroughSummary(finances).undisbursed;
   const reconciliations = reconciliationStatus(finances, players)
     .filter((r) => r.reconciled && r.bankBalance != null && r.variance != null)
     .map((r) => ({
@@ -139,7 +159,9 @@ export const buildTreasurerReportData = (
       fundraising: round2(fundraising),
       sponsors: round2(sponsors),
       other: round2(other),
+      passThrough: round2(passThroughIncome),
     },
+    heldForFamilies,
     budgetRows,
     unplanned: round2(actuals.unplanned),
     collections,
@@ -305,6 +327,16 @@ const renderTreasurerReportPdf = async ({
   moneyRow("Other income (carryover, misc.)", [
     { text: formatCurrency(data.incomeBySource.other), ...oneCol[0] },
   ]);
+  if (data.incomeBySource.passThrough > 0) {
+    // Pass-through money is in the balance but is NOT club revenue — the
+    // report says so explicitly instead of blending it into fundraising.
+    moneyRow("Fee-relief fundraisers (held for families, paid back out)", [
+      {
+        text: formatCurrency(data.incomeBySource.passThrough),
+        ...oneCol[0],
+      },
+    ]);
+  }
   moneyRow(
     "Total received",
     [
@@ -389,7 +421,11 @@ const renderTreasurerReportPdf = async ({
   }
 
   // ---- Reconciliation & liabilities ----
-  if (data.reimbursementsOutstanding > 0 || data.reconciliations.length > 0) {
+  if (
+    data.reimbursementsOutstanding > 0 ||
+    data.heldForFamilies > 0 ||
+    data.reconciliations.length > 0
+  ) {
     sectionTitle("Reconciliation & liabilities");
     if (data.reimbursementsOutstanding > 0) {
       moneyRow(
@@ -400,6 +436,13 @@ const renderTreasurerReportPdf = async ({
             x: right - 8,
           },
         ],
+        { bold: true },
+      );
+    }
+    if (data.heldForFamilies > 0) {
+      moneyRow(
+        "Held for families (undisbursed fee relief)",
+        [{ text: formatCurrency(data.heldForFamilies), x: right - 8 }],
         { bold: true },
       );
     }

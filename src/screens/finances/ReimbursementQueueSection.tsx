@@ -11,7 +11,10 @@ import type { Reimbursement } from "../../types";
 
 interface ReimbursementQueueSectionProps {
   reimbursements: Reimbursement[];
+  // Unpaid VOLUNTEER reimbursements (owed to volunteers).
   outstanding: number;
+  // Unpaid feeRelief payouts (owed to families from earmarked fundraisers).
+  feeReliefOutstanding: number;
   addReimbursement: (e?: FormEvent) => void;
   markReimbursementPaid: (id: string) => void;
   removeReimbursement: (id: string) => void;
@@ -23,12 +26,17 @@ interface ReimbursementQueueSectionProps {
   setReimbNote: Dispatch<SetStateAction<string>>;
 }
 
-// Coach-internal queue of money owed back to volunteers who fronted expenses.
-// An unpaid entry is a liability (not in the club balance); Mark paid posts a
-// single expense so the cash leaves exactly once. All state/handlers thread in.
+// Coach-internal queue of money owed back out: volunteer reimbursements
+// (someone fronted an expense) and fee-relief payouts to families (created by
+// distributing an earmarked fundraiser). An unpaid entry is a liability (not
+// in the club balance); Mark paid posts a single expense so the cash leaves
+// exactly once — labeled "Reimbursement" or "Fee relief" by kind. The two
+// kinds are totaled separately so "owed to volunteers" and "owed to families"
+// never blur. All state/handlers thread in.
 export const ReimbursementQueueSection = ({
   reimbursements,
   outstanding,
+  feeReliefOutstanding,
   addReimbursement,
   markReimbursementPaid,
   removeReimbursement,
@@ -52,12 +60,32 @@ export const ReimbursementQueueSection = ({
             </span>
           </div>
         )}
+        {feeReliefOutstanding > 0 && (
+          <div className="flex items-center justify-between rounded-xl border border-line bg-surface-2/40 p-3">
+            <span className="t-eyebrow text-ink-3">
+              Owed to families (fee relief)
+            </span>
+            <span className="text-lg font-black tabular-nums text-loss">
+              {formatCurrency(feeReliefOutstanding)}
+            </span>
+          </div>
+        )}
         {unpaid.length > 0 && (
           <ul className="divide-y divide-line">
             {unpaid.map((r) => (
               <li key={r.id} className="py-2 flex items-center gap-3 text-sm">
                 <div className="flex-1 min-w-0">
-                  <div className="t-body-bold text-ink truncate">{r.to}</div>
+                  <div className="t-body-bold text-ink truncate">
+                    {r.to}
+                    {r.kind === "feeRelief" && (
+                      <span
+                        className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-surface-2 text-ink-2 align-middle"
+                        title="Fee-relief payout to a family from an earmarked fundraiser"
+                      >
+                        fee relief
+                      </span>
+                    )}
+                  </div>
                   {r.note && <div className="t-meta text-ink-3">{r.note}</div>}
                 </div>
                 <span className="tabular-nums font-black text-ink whitespace-nowrap">
@@ -66,7 +94,11 @@ export const ReimbursementQueueSection = ({
                 <Button
                   variant="secondary"
                   size="sm"
-                  aria-label={`Mark ${r.to} reimbursed`}
+                  aria-label={
+                    r.kind === "feeRelief"
+                      ? `Mark fee relief to ${r.to} paid`
+                      : `Mark ${r.to} reimbursed`
+                  }
                   onClick={() => markReimbursementPaid(r.id)}
                 >
                   <Icons.Check className="w-3.5 h-3.5" /> Mark paid
@@ -129,6 +161,7 @@ export const ReimbursementQueueSection = ({
                 <li key={r.id} className="flex justify-between gap-2">
                   <span className="truncate">
                     {r.to}
+                    {r.kind === "feeRelief" ? " · fee relief" : ""}
                     {r.paidDate ? ` · ${r.paidDate}` : ""}
                   </span>
                   <span className="tabular-nums">

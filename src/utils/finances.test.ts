@@ -4,6 +4,7 @@ import {
   rollFinancesForNewSeason,
   financeSummary,
   suggestedFeePerPlayer,
+  suggestedNextFeePerPlayer,
   sponsorshipTotal,
   feeOffsetSponsorshipTotal,
   teamFeesStatus,
@@ -17,6 +18,7 @@ import {
   budgetItemCategory,
   expenseCategory,
   budgetByCategory,
+  nextBudgetTotal,
   spendingByCategory,
   incomeCategory,
   incomeByCategory,
@@ -27,6 +29,20 @@ import {
   feeAdjustmentAmount,
   reimbursementsSummary,
   reconciliationStatus,
+  passThroughSummary,
+  freeCashSummary,
+  splitEvenly,
+  isFamilyPayoutEarmark,
+  externalOrgFeeContext,
+  nextExternalOrgFeeContext,
+  isFundraiseFunded,
+  feeFundedBudgetTotal,
+  feeFundedNextBudgetTotal,
+  fundraisingGoalTotal,
+  nextFundraisingGoalTotal,
+  fundraisingGoalSummary,
+  buildPlayerFeeBreakdown,
+  estimateBudgetFromSeason,
 } from "./finances";
 import type { TeamFinances } from "../types";
 
@@ -200,29 +216,39 @@ describe("rollFinancesForNewSeason — the Spring→Fall year roll", () => {
 describe("per-sponsor 'reduces team fees' switch", () => {
   const players = [{ id: "p1" }, { id: "p2" }, { id: "p3" }, { id: "p4" }];
 
-  it("a pledge offsets the suggested fee by default (switch unset/on)", () => {
+  it("a pledge offsets the suggested NEXT-season fee by default (switch unset/on)", () => {
+    const finances: TeamFinances = {
+      nextBudgetItems: [{ id: "b1", label: "Season costs", amount: 1000 }],
+      sponsorships: [{ id: "sp1", sponsor: "Pizza", amount: 600 }],
+    };
+    // (1000 − 600) / 4 = 100.
+    expect(suggestedNextFeePerPlayer(finances, players)).toBe(100);
+  });
+
+  it("pledges NEVER offset THIS year's fee guidance — they're next-season money", () => {
     const finances: TeamFinances = {
       budgetItems: [{ id: "b1", label: "Season costs", amount: 1000 }],
       sponsorships: [{ id: "sp1", sponsor: "Pizza", amount: 600 }],
     };
-    // (1000 − 600) / 4 = 100.
-    expect(suggestedFeePerPlayer(finances, players)).toBe(100);
+    // Full 1000 / 4 = 250: the pledge converts to income at the fall roll,
+    // so it discounts the DRAFT's suggestion, never the live one.
+    expect(suggestedFeePerPlayer(finances, players)).toBe(250);
   });
 
   it("a pledge held as club income does NOT offset the fee", () => {
     const finances: TeamFinances = {
-      budgetItems: [{ id: "b1", label: "Season costs", amount: 1000 }],
+      nextBudgetItems: [{ id: "b1", label: "Season costs", amount: 1000 }],
       sponsorships: [
         { id: "sp1", sponsor: "Pizza", amount: 600, reducesFees: false },
       ],
     };
     // Full 1000 / 4 = 250 — this sponsor's money doesn't discount the fee.
-    expect(suggestedFeePerPlayer(finances, players)).toBe(250);
+    expect(suggestedNextFeePerPlayer(finances, players)).toBe(250);
   });
 
   it("mixed pledges: only the fee-reducing ones offset — never all-or-nothing", () => {
     const finances: TeamFinances = {
-      budgetItems: [{ id: "b1", label: "Season costs", amount: 1000 }],
+      nextBudgetItems: [{ id: "b1", label: "Season costs", amount: 1000 }],
       sponsorships: [
         { id: "sp1", sponsor: "Pizza", amount: 400 }, // reduces (default)
         { id: "sp2", sponsor: "Hardware", amount: 600, reducesFees: false },
@@ -231,7 +257,7 @@ describe("per-sponsor 'reduces team fees' switch", () => {
     expect(feeOffsetSponsorshipTotal(finances)).toBe(400);
     expect(sponsorshipTotal(finances)).toBe(1000); // gross total for display
     // (1000 − 400) / 4 = 150 — Hardware's pledge stays club income.
-    expect(suggestedFeePerPlayer(finances, players)).toBe(150);
+    expect(suggestedNextFeePerPlayer(finances, players)).toBe(150);
   });
 
   it("a this-season sponsor credits dues only when ITS switch is on", () => {
@@ -870,13 +896,24 @@ describe("financeIntegrity — orphaned references (reconcile nudge)", () => {
   });
 });
 
-describe("seasonOutlook — forward projection", () => {
+describe("seasonOutlook — forward projection from the DRAFT", () => {
   it("returns null when there's nothing to project", () => {
-    expect(seasonOutlook({}, [])).toBeNull(); // no budget
-    // budget but no payers (empty roster, no planned count):
+    expect(seasonOutlook({}, [])).toBeNull(); // no draft
+    // a LIVE budget alone projects nothing — the outlook reads the draft:
     expect(
       seasonOutlook(
-        { budgetItems: [{ id: "b", label: "x", amount: 500 }] },
+        {
+          budgetItems: [{ id: "b", label: "x", amount: 500 }],
+          plannedPlayerCount: 10,
+          nextClubFee: 100,
+        },
+        [],
+      ),
+    ).toBeNull();
+    // draft but no payers (empty roster, no planned count):
+    expect(
+      seasonOutlook(
+        { nextBudgetItems: [{ id: "b", label: "x", amount: 500 }] },
         [],
       ),
     ).toBeNull();
@@ -884,7 +921,7 @@ describe("seasonOutlook — forward projection", () => {
 
   it("projects break-even, cushion, and end balance at the set fee", () => {
     const finances: TeamFinances = {
-      budgetItems: [{ id: "b", label: "Season", amount: 1000 }],
+      nextBudgetItems: [{ id: "b", label: "Season", amount: 1000 }],
       sponsorships: [{ id: "s", sponsor: "Pizza", amount: 200 }],
       nextClubFee: 120,
       plannedPlayerCount: 10,
@@ -899,9 +936,9 @@ describe("seasonOutlook — forward projection", () => {
     expect(o.bufferTotal).toBe(o.projectedEndBalance); // identity
   });
 
-  it("falls back to the suggested fee when none is set", () => {
+  it("falls back to the draft's suggested fee when none is set", () => {
     const finances: TeamFinances = {
-      budgetItems: [{ id: "b", label: "Season", amount: 800 }],
+      nextBudgetItems: [{ id: "b", label: "Season", amount: 800 }],
       plannedPlayerCount: 8,
     };
     const o = seasonOutlook(finances, [])!;
@@ -1118,5 +1155,831 @@ describe("reconciliationStatus — month-end bank reconcile", () => {
       "2027-08-15",
     )!;
     expect(rolled.reconciliations).toBeUndefined();
+  });
+});
+
+describe("next-season draft budget (nextBudgetItems) and the fall roll", () => {
+  // A mid-season book with BOTH lists populated: the live working budget
+  // (with a linked expense so planned-vs-spent is real) and next year's draft.
+  const withDraft = (): TeamFinances => ({
+    ...activeFinances(),
+    budgetItems: [
+      { id: "b1", label: "Umpires", qty: 8, unitAmount: 40, amount: 320 },
+      { id: "b2", label: "Fall league registration", amount: 199 },
+    ],
+    expenses: [
+      {
+        id: "exp1",
+        date: "2026-10-01",
+        label: "Ump crew week 1",
+        amount: 120,
+        budgetItemId: "b1",
+      },
+    ],
+    nextBudgetItems: [
+      { id: "d1", label: "Spring league registration", amount: 499 },
+      { id: "d2", label: "Umpires", qty: 10, unitAmount: 40, amount: 400 },
+    ],
+  });
+
+  it("nextBudgetTotal reads the draft; budgetTotal stays on the live list", () => {
+    const f = withDraft();
+    expect(budgetTotal(f)).toBe(519); // 320 + 199
+    expect(nextBudgetTotal(f)).toBe(899); // 499 + 400
+    expect(nextBudgetTotal({})).toBe(0);
+  });
+
+  it("shouldRollFinances rolls into Fall on a drafted budget alone", () => {
+    const draftOnly: TeamFinances = {
+      nextBudgetItems: [{ id: "d", label: "Spring league", amount: 499 }],
+    };
+    expect(shouldRollFinances("Fall 2027", draftOnly)).toBe(true);
+    // …but never mid-year.
+    expect(shouldRollFinances("Spring 2027", draftOnly)).toBe(false);
+  });
+
+  it("Fall→Spring passthrough leaves the live budget AND the draft alone", () => {
+    const finances = withDraft();
+    // Mirrors TeamProvider.advanceSeason: no roll → the same object flows
+    // through, so both lists (and everything else) survive verbatim.
+    expect(shouldRollFinances("Spring 2027", finances)).toBe(false);
+    const passed = shouldRollFinances("Spring 2027", finances)
+      ? rollFinancesForNewSeason(finances, "Fall 2026", "2027-02-01")
+      : finances;
+    expect(passed).toBe(finances);
+  });
+
+  it("the fall roll consumes a non-empty draft: it becomes the new budgetItems", () => {
+    const finances = withDraft();
+    const rolled = rollFinancesForNewSeason(
+      finances,
+      "Spring 2027",
+      "2027-08-15",
+    )!;
+    // Promoted verbatim (ids, qty mode, dollars) — the nextClubFee → clubFee
+    // pattern applied to the plan itself.
+    expect(rolled.budgetItems).toEqual(finances.nextBudgetItems);
+    expect(rolled.nextBudgetItems).toBeUndefined(); // consumed, not duplicated
+  });
+
+  it("the fall roll archives the outgoing plan: total + per-category planned-vs-spent", () => {
+    const finances = withDraft();
+    const rolled = rollFinancesForNewSeason(
+      finances,
+      "Spring 2027",
+      "2027-08-15",
+      [{ id: "p1", name: "Ava" }],
+    )!;
+    const archived = rolled.pastSeasons![rolled.pastSeasons!.length - 1];
+    expect(archived.budgetPlanned).toBe(519);
+    // The snapshot IS the by-category rollup at roll time, so the $120 of
+    // umpire spend linked against the $320 plan survives the roll.
+    expect(archived.budgetCategories).toEqual(budgetByCategory(finances));
+    const ump = archived.budgetCategories!.find((r) =>
+      r.planned === 320 ? true : false,
+    );
+    expect(ump).toMatchObject({ planned: 320, spent: 120 });
+  });
+
+  it("a roll with no budget at all archives the old row shape (no snapshot keys)", () => {
+    // activeFinances has no budgetItems — its archive row must stay
+    // byte-identical to the pre-snapshot shape.
+    const rolled = rollFinancesForNewSeason(
+      activeFinances(),
+      "Spring 2027",
+      "2027-08-15",
+    )!;
+    const archived = rolled.pastSeasons![rolled.pastSeasons!.length - 1];
+    expect("budgetPlanned" in archived).toBe(false);
+    expect("budgetCategories" in archived).toBe(false);
+  });
+
+  it("the fall roll WITHOUT a draft keeps the live budget as the new year's reference", () => {
+    const { nextBudgetItems: _none, ...noDraft } = withDraft();
+    const rolled = rollFinancesForNewSeason(
+      noDraft,
+      "Spring 2027",
+      "2027-08-15",
+    )!;
+    // Same array, untouched — exactly the pre-draft behavior.
+    expect(rolled.budgetItems).toBe(noDraft.budgetItems);
+    expect(rolled.nextBudgetItems).toBeUndefined();
+  });
+
+  it("a plan-only roll (no recorded money) still promotes the draft, with no archive", () => {
+    const draft = [{ id: "d1", label: "Spring league", amount: 499 }];
+    const rolled = rollFinancesForNewSeason(
+      { nextBudgetItems: draft },
+      "Spring 2027",
+      "2027-08-15",
+    )!;
+    expect(rolled.budgetItems).toEqual(draft);
+    expect(rolled.nextBudgetItems).toBeUndefined();
+    expect(rolled.payments).toEqual([]);
+    expect(rolled.expenses).toEqual([]);
+    expect(rolled.pastSeasons).toBeUndefined(); // nothing worth archiving
+  });
+});
+
+describe("pass-through fee-relief fundraisers (IncomeEntry.earmark)", () => {
+  // A book with one earmarked fundraiser mid-disbursement:
+  //   raised $300 (pt1) · $90 paid out to Ava · $90 still queued for Ben
+  //   → allocated 180, remaining 120, disbursed 90, undisbursed 210.
+  // Plus a plain fundraiser, a volunteer IOU, and normal club activity:
+  //   balanceNow = 100 fees + 300 + 150 income − 50 spent = 500.
+  const passThroughBook = (): TeamFinances => ({
+    clubFee: 100,
+    payments: [{ id: "pay1", playerId: "p1", date: "2026-09-10", amount: 100 }],
+    incomes: [
+      {
+        id: "pt1",
+        date: "2026-09-20",
+        label: "Spirit night (fee relief)",
+        amount: 300,
+        earmark: "familyPayout",
+        category: "grant",
+      },
+      {
+        id: "inc1",
+        date: "2026-09-21",
+        label: "Equipment fundraiser",
+        amount: 150,
+      },
+    ],
+    expenses: [
+      { id: "exp1", date: "2026-10-01", label: "Baseballs", amount: 50 },
+    ],
+    reimbursements: [
+      { id: "vol1", to: "Coach Bo", amount: 40, status: "unpaid" },
+      {
+        id: "fr1",
+        to: "Ava",
+        amount: 90,
+        status: "paid",
+        kind: "feeRelief",
+        playerId: "p1",
+        sourceIncomeId: "pt1",
+      },
+      {
+        id: "fr2",
+        to: "Ben",
+        amount: 90,
+        status: "unpaid",
+        kind: "feeRelief",
+        playerId: "p2",
+        sourceIncomeId: "pt1",
+      },
+    ],
+  });
+  const roster = [
+    { id: "p1", name: "Ava" },
+    { id: "p2", name: "Ben" },
+  ];
+
+  it("earmarked money is real cash (balanceNow) but NEVER a dues credit", () => {
+    const s = financeSummary(passThroughBook(), roster);
+    expect(s.balanceNow).toBe(500); // the $300 is in the bank
+    expect(s.otherIncome).toBe(450);
+    // No fundraising credit leaks out of it: fees stay whole.
+    expect(s.duesCreditPerPlayer).toBe(0);
+    expect(s.effectiveFeePerPlayer).toBe(100);
+    expect(s.stillOwed).toBe(100); // Ben owes the full fee
+  });
+
+  it("earmark wins over a leaked fundraising flag — counted once, as pass-through", () => {
+    const both: TeamFinances = {
+      clubFee: 100,
+      incomes: [
+        {
+          id: "pt1",
+          date: "2026-09-20",
+          label: "Spirit night",
+          amount: 300,
+          earmark: "familyPayout",
+          fundraising: true, // must not double-count as a dues credit
+        },
+      ],
+    };
+    const s = financeSummary(both, roster);
+    expect(s.balanceNow).toBe(300); // counted exactly once
+    expect(s.duesCreditPerPlayer).toBe(0); // and never as fundraising
+    expect(s.effectiveFeePerPlayer).toBe(100);
+    // The ledger badges it as pass-through, not fundraising.
+    const row = transactionLedger(both).find((r) => r.id === "pt1")!;
+    expect(row.passThrough).toBe(true);
+    expect(row.fundraising).toBeUndefined();
+    // And the pass-through books see it in full.
+    expect(passThroughSummary(both).raised).toBe(300);
+  });
+
+  it("allocated = unpaid + paid non-voided feeRelief rows; remaining = amount − allocated", () => {
+    const pt = passThroughSummary(passThroughBook());
+    expect(pt.fundraisers).toHaveLength(1);
+    expect(pt.fundraisers[0]).toEqual({
+      id: "pt1",
+      label: "Spirit night (fee relief)",
+      amount: 300,
+      allocated: 180, // 90 paid + 90 unpaid
+      disbursed: 90,
+      remaining: 120,
+      undisbursed: 210, // 300 − 90 paid out (the unpaid row stays inside)
+    });
+    expect(pt.undisbursed).toBe(210);
+    // A voided payout row counts for $0 (the standard isVoided rule).
+    const voided = passThroughBook();
+    voided.reimbursements![2] = {
+      ...voided.reimbursements![2],
+      voidedAt: "2026-10-02T00:00:00Z",
+    };
+    expect(passThroughSummary(voided).fundraisers[0]).toMatchObject({
+      allocated: 90,
+      remaining: 210,
+    });
+  });
+
+  it("remaining floors at 0 for display when a book arrives over-allocated", () => {
+    const over = passThroughBook();
+    over.reimbursements!.push({
+      id: "fr3",
+      to: "Cal",
+      amount: 200,
+      status: "unpaid",
+      kind: "feeRelief",
+      sourceIncomeId: "pt1",
+    });
+    // allocated 380 > raised 300 → remaining shows 0, never negative.
+    expect(passThroughSummary(over).fundraisers[0].remaining).toBe(0);
+  });
+
+  it("reimbursementsSummary splits by kind; outstanding = owed to VOLUNTEERS only", () => {
+    const s = reimbursementsSummary(passThroughBook());
+    expect(s.volunteerUnpaid).toBe(40);
+    expect(s.volunteerPaid).toBe(0);
+    expect(s.feeReliefUnpaid).toBe(90);
+    expect(s.feeReliefPaid).toBe(90);
+    expect(s.unpaid).toBe(130);
+    expect(s.paid).toBe(90);
+    // Fee-relief unpaid is NOT owed to volunteers — it's already inside the
+    // undisbursed pass-through liability.
+    expect(s.outstanding).toBe(40);
+  });
+
+  it("a volunteer-only queue behaves exactly as before (kind absent = volunteer)", () => {
+    const legacy: TeamFinances = {
+      reimbursements: [
+        { id: "r1", to: "Coach", amount: 45, status: "unpaid" },
+        { id: "r2", to: "Parent", amount: 20, status: "paid" },
+      ],
+    };
+    const s = reimbursementsSummary(legacy);
+    expect(s).toMatchObject({ unpaid: 45, paid: 20, outstanding: 45 });
+    expect(s.feeReliefUnpaid).toBe(0);
+    expect(s.feeReliefPaid).toBe(0);
+  });
+
+  it("free cash = balanceNow − volunteer unpaid − undisbursed (NO double counting)", () => {
+    const fc = freeCashSummary(passThroughBook(), roster);
+    expect(fc.balanceNow).toBe(500);
+    expect(fc.owedToVolunteers).toBe(40);
+    expect(fc.heldForFamilies).toBe(210);
+    // 500 − 40 − 210 = 250. The unpaid $90 feeRelief row is inside the 210 —
+    // subtracting it again (→ 160) would be the double-count bug.
+    expect(fc.freeCash).toBe(250);
+    expect(fc.hasPassThrough).toBe(true);
+    // No earmark on the books → the split is invisible.
+    expect(freeCashSummary({}, roster).hasPassThrough).toBe(false);
+  });
+
+  it("seasonOutlook's carryover excludes undisbursed pass-through", () => {
+    const f: TeamFinances = {
+      ...passThroughBook(),
+      nextBudgetItems: [{ id: "d1", label: "Spring league", amount: 800 }],
+      nextClubFee: 400,
+    };
+    const o = seasonOutlook(f, roster)!;
+    // 500 in the bank, but $210 belongs to families: only $290 projects in.
+    expect(o.carryover).toBe(290);
+    expect(o.projectedWithCarryover).toBe(290 + o.projectedEndBalance);
+  });
+
+  it("the fall roll splits the carry: club cash + still-earmarked entries, links intact — and the books still sum to the old balanceNow", () => {
+    const finances = passThroughBook();
+    const rolled = rollFinancesForNewSeason(
+      finances,
+      "Spring 2027",
+      "2027-08-15",
+      roster,
+    )!;
+    // Identity: post-roll income − expense = pre-roll balanceNow.
+    const incomeTotalAfter = (rolled.incomes || []).reduce(
+      (sum, i) => sum + i.amount,
+      0,
+    );
+    const expenseTotalAfter = (rolled.expenses || []).reduce(
+      (sum, e) => sum + e.amount,
+      0,
+    );
+    expect(incomeTotalAfter - expenseTotalAfter).toBe(500);
+    // Split correctly: $290 club cash carries under the carryover label…
+    const cashCarry = (rolled.incomes || []).find((i) =>
+      /^Carried over/.test(i.label),
+    )!;
+    expect(cashCarry.amount).toBe(290);
+    expect(isFamilyPayoutEarmark(cashCarry)).toBe(false);
+    // …and the $210 held for families rolls as its OWN entry that KEEPS the
+    // earmark, the source id, and the category.
+    const held = (rolled.incomes || []).find((i) => i.id === "pt1")!;
+    expect(held).toMatchObject({
+      id: "pt1",
+      label: "Spirit night (fee relief)",
+      amount: 210,
+      earmark: "familyPayout",
+      category: "grant",
+    });
+    // The unpaid payout row survived the roll with its link intact; the paid
+    // one was dropped with the old ledger.
+    expect(rolled.reimbursements).toEqual([
+      finances.reimbursements![0], // Coach Bo's volunteer IOU
+      finances.reimbursements![2], // Ben's unpaid fee relief
+    ]);
+    expect(rolled.reimbursements![1].sourceIncomeId).toBe("pt1");
+    // Post-roll pass-through books are consistent: Ben's $90 is still
+    // allocated out of the rolled $210, leaving the same $120 remaining.
+    const ptAfter = passThroughSummary(rolled);
+    expect(ptAfter.fundraisers[0]).toMatchObject({
+      amount: 210,
+      allocated: 90,
+      remaining: 120,
+      undisbursed: 210,
+    });
+  });
+
+  it("rolls a debt when families are owed more than the bank holds — identity intact", () => {
+    // Club spent down to $100 while still holding a $300 fundraiser with
+    // nothing paid out: cash carry = 100 − 300 = −200 (a debt), the full
+    // $300 rolls earmarked, and the books still sum to the old balanceNow.
+    const shorted: TeamFinances = {
+      incomes: [
+        {
+          id: "pt1",
+          date: "2026-09-20",
+          label: "Spirit night",
+          amount: 300,
+          earmark: "familyPayout",
+        },
+      ],
+      expenses: [
+        { id: "exp1", date: "2026-10-01", label: "Big spend", amount: 200 },
+      ],
+    };
+    const rolled = rollFinancesForNewSeason(
+      shorted,
+      "Spring 2027",
+      "2027-08-15",
+    )!;
+    const held = (rolled.incomes || []).find((i) => i.id === "pt1")!;
+    expect(held).toMatchObject({ amount: 300, earmark: "familyPayout" });
+    const debt = (rolled.expenses || []).find((e) =>
+      /^Debt carried over/.test(e.label),
+    )!;
+    expect(debt.amount).toBe(200);
+    const net =
+      (rolled.incomes || []).reduce((s, i) => s + i.amount, 0) -
+      (rolled.expenses || []).reduce((s, e) => s + e.amount, 0);
+    expect(net).toBe(100); // = pre-roll balanceNow
+  });
+
+  it("a roll with no earmark keeps the old carry shape byte-for-byte", () => {
+    const rolled = rollFinancesForNewSeason(
+      activeFinances(),
+      "Spring 2027",
+      "2027-08-15",
+    )!;
+    // 160 fees + 200 income − 250 spent = 110, all of it plain club cash.
+    expect(rolled.incomes![0]).toMatchObject({
+      label: "Carried over (through Spring 2027)",
+      amount: 110,
+    });
+    expect((rolled.incomes || []).some((i) => isFamilyPayoutEarmark(i))).toBe(
+      false,
+    );
+  });
+
+  it("splitEvenly is cent-exact and can never overshoot the total", () => {
+    expect(splitEvenly(100, 3)).toEqual([33.34, 33.33, 33.33]);
+    expect(splitEvenly(0.02, 3)).toEqual([0.01, 0.01, 0]);
+    expect(splitEvenly(210, 2)).toEqual([105, 105]);
+    expect(splitEvenly(50, 0)).toEqual([]);
+    // Property: the parts sum EXACTLY to the (rounded) total.
+    for (const [total, n] of [
+      [100.01, 3],
+      [99.99, 7],
+      [1, 12],
+    ] as const) {
+      const parts = splitEvenly(total, n);
+      const sum = Math.round(parts.reduce((s, p) => s + p, 0) * 100) / 100;
+      expect(sum).toBe(Math.round(total * 100) / 100);
+      expect(parts).toHaveLength(n);
+    }
+  });
+});
+
+describe("externalOrgFee — display-only context, never in the money math", () => {
+  const players = [{ id: "p1" }, { id: "p2" }];
+  const base: TeamFinances = {
+    clubFee: 300,
+    budgetItems: [{ id: "b1", label: "League registration", amount: 500 }],
+    nextBudgetItems: [{ id: "nb1", label: "League registration", amount: 700 }],
+    payments: [{ id: "pay1", playerId: "p1", date: "2026-09-10", amount: 300 }],
+    incomes: [
+      { id: "inc1", date: "2026-09-20", label: "Car wash", amount: 200 },
+    ],
+    expenses: [
+      {
+        id: "exp1",
+        date: "2026-10-01",
+        label: "Tournament entry",
+        amount: 250,
+      },
+    ],
+  };
+  const withOrg: TeamFinances = {
+    ...base,
+    externalOrgFee: { label: "Team Elite Premier", amount: 525 },
+  };
+
+  it("normalizes: trimmed label + cent-rounded amount; null when unset, blank, or non-positive", () => {
+    expect(externalOrgFeeContext(withOrg)).toEqual({
+      label: "Team Elite Premier",
+      amount: 525,
+    });
+    expect(
+      externalOrgFeeContext({
+        externalOrgFee: { label: "  Team Elite Premier  ", amount: 525.018 },
+      }),
+    ).toEqual({ label: "Team Elite Premier", amount: 525.02 });
+    expect(externalOrgFeeContext(base)).toBeNull();
+    expect(externalOrgFeeContext(null)).toBeNull();
+    expect(externalOrgFeeContext(undefined)).toBeNull();
+    expect(
+      externalOrgFeeContext({ externalOrgFee: { label: "   ", amount: 525 } }),
+    ).toBeNull();
+    expect(
+      externalOrgFeeContext({ externalOrgFee: { label: "Org", amount: 0 } }),
+    ).toBeNull();
+    expect(
+      externalOrgFeeContext({ externalOrgFee: { label: "Org", amount: -5 } }),
+    ).toBeNull();
+  });
+
+  it("changes NOTHING in the money engine: budget totals, suggested fees, and the balance are identical with and without it", () => {
+    // Pin the real values too, so a leak on BOTH sides can't cancel out.
+    expect(budgetTotal(withOrg)).toBe(500);
+    expect(budgetTotal(withOrg)).toBe(budgetTotal(base));
+    expect(nextBudgetTotal(withOrg)).toBe(700);
+    expect(nextBudgetTotal(withOrg)).toBe(nextBudgetTotal(base));
+    // 500 budget / 2 payers = 250; the org fee must never offset or inflate it.
+    expect(suggestedFeePerPlayer(withOrg, players)).toBe(250);
+    expect(suggestedFeePerPlayer(withOrg, players)).toBe(
+      suggestedFeePerPlayer(base, players),
+    );
+    expect(suggestedNextFeePerPlayer(withOrg, players)).toBe(350);
+    expect(suggestedNextFeePerPlayer(withOrg, players)).toBe(
+      suggestedNextFeePerPlayer(base, players),
+    );
+    // Balance: 300 collected + 200 income − 250 spent = 250 — untouched.
+    expect(financeSummary(withOrg, players).balanceNow).toBe(250);
+    expect(financeSummary(withOrg, players)).toEqual(
+      financeSummary(base, players),
+    );
+  });
+
+  it("survives the fall roll untouched — a standing fact about the club, not a ledger entry", () => {
+    const rolled = rollFinancesForNewSeason(
+      withOrg,
+      "through Spring 2027",
+      "2027-08-15",
+    )!;
+    expect(rolled.externalOrgFee).toEqual({
+      label: "Team Elite Premier",
+      amount: 525,
+    });
+    // And the new year's ledger got no entry from it.
+    expect(
+      (rolled.incomes || []).every((i) => !/Team Elite/.test(i.label || "")),
+    ).toBe(true);
+  });
+
+  it("nextExternalOrgFee is equally inert: every money aggregate identical with and without it", () => {
+    const withNext: TeamFinances = {
+      ...withOrg,
+      nextExternalOrgFee: { label: "New Umbrella Org", amount: 600 },
+    };
+    expect(budgetTotal(withNext)).toBe(budgetTotal(base));
+    expect(nextBudgetTotal(withNext)).toBe(nextBudgetTotal(base));
+    expect(suggestedFeePerPlayer(withNext, players)).toBe(
+      suggestedFeePerPlayer(base, players),
+    );
+    expect(suggestedNextFeePerPlayer(withNext, players)).toBe(
+      suggestedNextFeePerPlayer(base, players),
+    );
+    expect(financeSummary(withNext, players)).toEqual(
+      financeSummary(base, players),
+    );
+  });
+});
+
+describe("nextExternalOrgFee — staged next-season org fee (the nextClubFee pattern)", () => {
+  const staged: TeamFinances = {
+    externalOrgFee: { label: "Team Elite Premier", amount: 525 },
+    nextExternalOrgFee: { label: "New Umbrella Org", amount: 600 },
+  };
+
+  it("draft burden context prefers the staged value and falls back to the current org fee", () => {
+    expect(nextExternalOrgFeeContext(staged)).toEqual({
+      label: "New Umbrella Org",
+      amount: 600,
+    });
+    // Absent → current externalOrgFee.
+    expect(
+      nextExternalOrgFeeContext({
+        externalOrgFee: { label: "Team Elite Premier", amount: 525 },
+      }),
+    ).toEqual({ label: "Team Elite Premier", amount: 525 });
+    // A malformed staged value (blank label / non-positive amount) also
+    // falls back rather than blanking the context.
+    expect(
+      nextExternalOrgFeeContext({
+        externalOrgFee: { label: "Team Elite Premier", amount: 525 },
+        nextExternalOrgFee: { label: "  ", amount: 600 },
+      }),
+    ).toEqual({ label: "Team Elite Premier", amount: 525 });
+    expect(nextExternalOrgFeeContext({})).toBeNull();
+    expect(nextExternalOrgFeeContext(null)).toBeNull();
+  });
+
+  it("promotes to externalOrgFee on the ACTIVITY roll branch and the consumed key vanishes", () => {
+    const withMoney: TeamFinances = {
+      ...staged,
+      clubFee: 300,
+      payments: [
+        { id: "pay1", playerId: "p1", date: "2026-09-10", amount: 300 },
+      ],
+    };
+    const rolled = rollFinancesForNewSeason(
+      withMoney,
+      "through Spring 2027",
+      "2027-08-15",
+    )!;
+    expect(rolled.externalOrgFee).toEqual({
+      label: "New Umbrella Org",
+      amount: 600,
+    });
+    // Consumed like its siblings — the vanished key becomes an explicit
+    // delete via withFinanceKeyDeletes at persist time.
+    expect("nextExternalOrgFee" in rolled).toBe(false);
+  });
+
+  it("promotes on the PLAN-ONLY roll branch too (no money recorded yet)", () => {
+    const planOnly: TeamFinances = { ...staged };
+    const rolled = rollFinancesForNewSeason(
+      planOnly,
+      "through Spring 2027",
+      "2027-08-15",
+    )!;
+    // The staged org fee alone is a plan worth rolling — not a pass-through.
+    expect(rolled).not.toBe(planOnly);
+    expect(rolled.externalOrgFee).toEqual({
+      label: "New Umbrella Org",
+      amount: 600,
+    });
+    expect("nextExternalOrgFee" in rolled).toBe(false);
+  });
+
+  it("without a staged value the current org fee survives both roll branches unchanged", () => {
+    const current: TeamFinances = {
+      externalOrgFee: { label: "Team Elite Premier", amount: 525 },
+      nextClubFee: 250, // makes the plan-only roll fire
+    };
+    const planRolled = rollFinancesForNewSeason(
+      current,
+      "through Spring 2027",
+      "2027-08-15",
+    )!;
+    expect(planRolled.externalOrgFee).toEqual({
+      label: "Team Elite Premier",
+      amount: 525,
+    });
+    const activityRolled = rollFinancesForNewSeason(
+      {
+        ...current,
+        payments: [
+          { id: "pay1", playerId: "p1", date: "2026-09-10", amount: 100 },
+        ],
+      },
+      "through Spring 2027",
+      "2027-08-15",
+    )!;
+    expect(activityRolled.externalOrgFee).toEqual({
+      label: "Team Elite Premier",
+      amount: 525,
+    });
+  });
+});
+
+describe("BudgetItem.fundedBy — items covered by fundraising, not the team fee", () => {
+  const players = [{ id: "p1" }, { id: "p2" }];
+  const mixed: TeamFinances = {
+    budgetItems: [
+      { id: "b1", label: "Tournaments", amount: 400 },
+      {
+        id: "b2",
+        label: "Pitching machine",
+        amount: 300,
+        fundedBy: "fundraising",
+      },
+    ],
+    nextBudgetItems: [
+      { id: "nb1", label: "Tournaments", amount: 600 },
+      {
+        id: "nb2",
+        label: "Dugout upgrade",
+        amount: 200,
+        fundedBy: "fundraising",
+      },
+    ],
+  };
+
+  it("isFundraiseFunded: only an explicit 'fundraising' flag; absent/fees/null = fee-funded", () => {
+    expect(isFundraiseFunded({ fundedBy: "fundraising" })).toBe(true);
+    expect(isFundraiseFunded({ fundedBy: "fees" })).toBe(false);
+    expect(isFundraiseFunded({})).toBe(false);
+    expect(isFundraiseFunded(null)).toBe(false);
+    expect(isFundraiseFunded(undefined)).toBe(false);
+  });
+
+  it("full totals keep the WHOLE plan; the fee-funded sub-totals exclude fundraise lines", () => {
+    expect(budgetTotal(mixed)).toBe(700);
+    expect(nextBudgetTotal(mixed)).toBe(800);
+    expect(feeFundedBudgetTotal(mixed)).toBe(400);
+    expect(feeFundedNextBudgetTotal(mixed)).toBe(600);
+    expect(fundraisingGoalTotal(mixed)).toBe(300);
+    expect(nextFundraisingGoalTotal(mixed)).toBe(200);
+  });
+
+  it("fee suggestions divide ONLY fee-funded items — both lists", () => {
+    // 400 / 2 payers, NOT 700 / 2 = 350.
+    expect(suggestedFeePerPlayer(mixed, players)).toBe(200);
+    // Draft: 600 / 2, NOT 800 / 2 = 400.
+    expect(suggestedNextFeePerPlayer(mixed, players)).toBe(300);
+    // An all-fundraised budget asks for NO fee at all.
+    expect(
+      suggestedFeePerPlayer(
+        {
+          budgetItems: [
+            { id: "b1", label: "Van", amount: 500, fundedBy: "fundraising" },
+          ],
+        },
+        players,
+      ),
+    ).toBeNull();
+  });
+
+  it("back-compat: no fundedBy (and explicit 'fees') behaves exactly like the legacy fixture", () => {
+    const legacy: TeamFinances = {
+      budgetItems: [{ id: "b1", label: "Tournaments", amount: 500 }],
+      nextBudgetItems: [{ id: "nb1", label: "Tournaments", amount: 700 }],
+    };
+    const explicitFees: TeamFinances = {
+      budgetItems: [
+        { id: "b1", label: "Tournaments", amount: 500, fundedBy: "fees" },
+      ],
+      nextBudgetItems: [
+        { id: "nb1", label: "Tournaments", amount: 700, fundedBy: "fees" },
+      ],
+    };
+    expect(suggestedFeePerPlayer(legacy, players)).toBe(250);
+    expect(suggestedFeePerPlayer(explicitFees, players)).toBe(250);
+    expect(suggestedNextFeePerPlayer(legacy, players)).toBe(350);
+    expect(suggestedNextFeePerPlayer(explicitFees, players)).toBe(350);
+    expect(feeFundedBudgetTotal(legacy)).toBe(budgetTotal(legacy));
+    expect(fundraisingGoalTotal(legacy)).toBe(0);
+    expect(fundraisingGoalSummary(legacy).goal).toBe(0);
+  });
+
+  it("fundraisingGoalSummary: plain Fundraiser income counts; dues-credit, pass-through, carryover, voided, and other sources don't", () => {
+    const f: TeamFinances = {
+      budgetItems: [
+        { id: "b1", label: "Van", amount: 400, fundedBy: "fundraising" },
+      ],
+      incomes: [
+        // Counts: plain income, inferred Fundraisers source.
+        { id: "i1", date: "2026-04-01", label: "Car wash", amount: 100 },
+        // Counts: plain income, STORED fundraiser category.
+        {
+          id: "i2",
+          date: "2026-04-02",
+          label: "Spring event",
+          amount: 50,
+          category: "fundraiser",
+        },
+        // Excluded: dues-credit money already discounts each family's fee.
+        {
+          id: "i3",
+          date: "2026-04-03",
+          label: "Candy bar fundraiser",
+          amount: 80,
+          fundraising: true,
+        },
+        // Excluded: pass-through money is held for families, never club money.
+        {
+          id: "i4",
+          date: "2026-04-04",
+          label: "Hit-a-thon fundraiser",
+          amount: 200,
+          earmark: "familyPayout",
+        },
+        // Excluded: voided rows count $0 everywhere.
+        {
+          id: "i5",
+          date: "2026-04-05",
+          label: "Bake sale",
+          amount: 60,
+          voidedAt: "2026-04-06T00:00:00.000Z",
+        },
+        // Excluded: prior-year carryover infers to Fundraisers but is not
+        // this year's fundraising achievement.
+        {
+          id: "carry-2026-08-15",
+          date: "2026-08-15",
+          label: "Carried over (through Spring 2026)",
+          amount: 500,
+        },
+        // Excluded: a non-fundraising source (interest income).
+        { id: "i6", date: "2026-04-07", label: "Bank interest", amount: 10 },
+      ],
+    };
+    expect(fundraisingGoalSummary(f)).toEqual({
+      goal: 400,
+      raised: 150,
+      remaining: 250,
+    });
+    // Goal met → remaining floors at 0.
+    expect(
+      fundraisingGoalSummary({
+        ...f,
+        budgetItems: [
+          { id: "b1", label: "Van", amount: 120, fundedBy: "fundraising" },
+        ],
+      }),
+    ).toEqual({ goal: 120, raised: 150, remaining: 0 });
+  });
+
+  it("seasonOutlook projects against the fee-funded slice, reporting the goal separately", () => {
+    const f: TeamFinances = { ...mixed, nextClubFee: 300 };
+    const out = seasonOutlook(f, players)!;
+    expect(out.budget).toBe(800); // full plan, archive/meter parity
+    expect(out.feeFundedBudget).toBe(600);
+    expect(out.fundraisingGoal).toBe(200);
+    // Break-even divides the fee-funded slice: 600 / 2 payers.
+    expect(out.breakEvenFee).toBe(300);
+    // At the set $300 fee the fee-funded budget is exactly covered.
+    expect(out.projectedEndBalance).toBe(0);
+  });
+
+  it("the parent fee sheet spreads the fee across fee-funded lines only", () => {
+    const f: TeamFinances = {
+      clubFee: 200,
+      budgetItems: [
+        { id: "b1", label: "Tournaments", amount: 400 },
+        {
+          id: "b2",
+          label: "Pitching machine",
+          amount: 300,
+          fundedBy: "fundraising",
+        },
+      ],
+    };
+    const sheet = buildPlayerFeeBreakdown(f, players)!;
+    expect(sheet.lines.map((l) => l.label)).toEqual(["Tournaments"]);
+    expect(sheet.lines[0].amount).toBe(200); // the whole fee maps to real fee-funded expense
+  });
+
+  it("estimateBudgetFromSeason carries the funding plan into the seeded draft", () => {
+    const f: TeamFinances = {
+      budgetItems: [
+        { id: "b1", label: "Tournaments", amount: 400 },
+        {
+          id: "b2",
+          label: "Pitching machine",
+          amount: 300,
+          fundedBy: "fundraising",
+        },
+      ],
+    };
+    const est = estimateBudgetFromSeason(f)!;
+    const byLabel = Object.fromEntries(est.items.map((i) => [i.label, i]));
+    expect(byLabel["Tournaments"].fundedBy).toBeUndefined();
+    expect(byLabel["Pitching machine"].fundedBy).toBe("fundraising");
   });
 });

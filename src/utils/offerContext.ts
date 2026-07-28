@@ -11,9 +11,16 @@ const isTournamentItem = (item: { label?: string }): boolean =>
 // quantity stays in the list by label like everything else.
 const coveredFromBudget = (finances: {
   budgetItems?: Array<{ label?: string; qty?: number }>;
+  nextBudgetItems?: Array<{ label?: string; qty?: number }>;
   salesTaxPct?: number;
 }): { coveredItems: string[]; tournamentCount: number } => {
-  const items = (finances.budgetItems || []).filter(
+  // Offer letters quote NEXT season, so a drafted next-season budget wins;
+  // without one the current working budget is the best available preview
+  // (same fallback the fee/deposit fields use below).
+  const source = finances.nextBudgetItems?.length
+    ? finances.nextBudgetItems
+    : finances.budgetItems;
+  const items = (source || []).filter(
     (item) => budgetItemAmount(item, finances.salesTaxPct) > 0,
   );
   const tournamentCount = Math.round(

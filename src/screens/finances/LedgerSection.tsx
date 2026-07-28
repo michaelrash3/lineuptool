@@ -100,8 +100,12 @@ interface LedgerSectionProps {
   setTxnCategory: Dispatch<SetStateAction<string>>;
   txnRevenueCategory: RevenueCategoryId | "";
   setTxnRevenueCategory: Dispatch<SetStateAction<RevenueCategoryId | "">>;
+  // Fundraising (dues credit) and the fee-relief earmark are mutually
+  // exclusive — the setters (FinancesTab wrappers) turn the other off.
   txnFundraising: boolean;
-  setTxnFundraising: Dispatch<SetStateAction<boolean>>;
+  setTxnFundraising: (on: boolean) => void;
+  txnEarmark: boolean;
+  setTxnEarmark: (on: boolean) => void;
   txnCreditPlayerId: string;
   setTxnCreditPlayerId: Dispatch<SetStateAction<string>>;
 }
@@ -151,6 +155,8 @@ export const LedgerSection = ({
   setTxnRevenueCategory,
   txnFundraising,
   setTxnFundraising,
+  txnEarmark,
+  setTxnEarmark,
   txnCreditPlayerId,
   setTxnCreditPlayerId,
 }: LedgerSectionProps) => (
@@ -275,6 +281,21 @@ export const LedgerSection = ({
               className="accent-[var(--team-primary)]"
             />
             Fundraising · reduces team fees
+          </label>
+        )}
+        {txnDir === "in" && (
+          <label
+            className="flex items-center gap-1.5 self-center text-xs font-bold text-ink-2 whitespace-nowrap cursor-pointer"
+            title="Proceeds are held and paid back out to families — team fees don't change"
+          >
+            <input
+              type="checkbox"
+              checked={txnEarmark}
+              onChange={(e) => setTxnEarmark(e.target.checked)}
+              aria-label="Fundraiser — paid back to families; doesn't change team fees"
+              className="accent-[var(--team-primary)]"
+            />
+            Fundraiser · paid back to families
           </label>
         )}
         {txnDir === "in" && txnFundraising && players.length > 0 && (
@@ -651,6 +672,14 @@ export const LedgerSection = ({
                             {row.creditedTo
                               ? `credit → ${row.creditedTo}`
                               : "team-fee credit"}
+                          </span>
+                        )}
+                        {row.passThrough && (
+                          <span
+                            className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-surface-2 text-ink-2 align-middle"
+                            title="Fee-relief fundraiser — held to be paid back out to families; team fees don't change"
+                          >
+                            held for families
                           </span>
                         )}
                         {row.voided && (

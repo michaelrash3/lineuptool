@@ -6,6 +6,7 @@
 
 import type {
   BudgetItem,
+  ExternalOrgFee,
   FinanceAttribution,
   FinancePastSeason,
   Player,
@@ -130,14 +131,74 @@ export const budgetItemAmount = (
   return round2(base * (1 + pct / 100));
 };
 
-export const budgetTotal = (
-  finances: TeamFinances | null | undefined,
+const itemsTotal = (
+  items: BudgetItem[] | null | undefined,
+  salesTaxPct?: number,
 ): number =>
   round2(
-    (finances?.budgetItems || []).reduce(
-      (sum, item) => sum + budgetItemAmount(item, finances?.salesTaxPct),
+    (items || []).reduce(
+      (sum, item) => sum + budgetItemAmount(item, salesTaxPct),
       0,
     ),
+  );
+
+// Total of THIS club year's working budget (budgetItems).
+export const budgetTotal = (
+  finances: TeamFinances | null | undefined,
+): number => itemsTotal(finances?.budgetItems, finances?.salesTaxPct);
+
+// Total of NEXT club year's draft budget (nextBudgetItems). 0 until a draft
+// is started — the draft is optional and fall shouldn't be nagged.
+export const nextBudgetTotal = (
+  finances: TeamFinances | null | undefined,
+): number => itemsTotal(finances?.nextBudgetItems, finances?.salesTaxPct);
+
+// An item the coach plans to cover with FUNDRAISING instead of the team fee
+// (BudgetItem.fundedBy). Absent = "fees" — full back-compat: legacy items keep
+// funding the fee math exactly as before. One predicate so the fee-suggestion
+// exclusion, the fundraising goal, and the row badge can never drift apart.
+export const isFundraiseFunded = (
+  item: { fundedBy?: "fees" | "fundraising" } | null | undefined,
+): boolean => item?.fundedBy === "fundraising";
+
+// The slice of a budget list the TEAM FEE must cover: everything not marked
+// fundraise-funded. budgetTotal/nextBudgetTotal deliberately keep the FULL
+// plan (meters and the archive want the whole picture); the fee suggestions
+// divide only this slice.
+export const feeFundedBudgetTotal = (
+  finances: TeamFinances | null | undefined,
+): number =>
+  itemsTotal(
+    (finances?.budgetItems || []).filter((b) => !isFundraiseFunded(b)),
+    finances?.salesTaxPct,
+  );
+
+export const feeFundedNextBudgetTotal = (
+  finances: TeamFinances | null | undefined,
+): number =>
+  itemsTotal(
+    (finances?.nextBudgetItems || []).filter((b) => !isFundraiseFunded(b)),
+    finances?.salesTaxPct,
+  );
+
+// This year's fundraising GOAL: the total of fundraise-marked working-budget
+// items — what the club has committed to raise so those lines never hit the
+// team fee. (The draft's own goal is nextFundraisingGoalTotal; no progress is
+// tracked for it — that year hasn't happened.)
+export const fundraisingGoalTotal = (
+  finances: TeamFinances | null | undefined,
+): number =>
+  itemsTotal(
+    (finances?.budgetItems || []).filter((b) => isFundraiseFunded(b)),
+    finances?.salesTaxPct,
+  );
+
+export const nextFundraisingGoalTotal = (
+  finances: TeamFinances | null | undefined,
+): number =>
+  itemsTotal(
+    (finances?.nextBudgetItems || []).filter((b) => isFundraiseFunded(b)),
+    finances?.salesTaxPct,
   );
 
 // Round up to the next multiple of `increment` (the fee buffer: incidentals
@@ -162,19 +223,35 @@ export const incomeTotal = (
     ),
   );
 
+// A pass-through fee-relief fundraiser: money HELD for disbursement back to
+// families, not club money. One predicate so the exclusions (dues credit,
+// free cash, carryover, outlook) can never drift apart. Precedence: an entry
+// carrying BOTH earmark and fundraising counts as pass-through ONLY — the
+// earmark wins, so held money can never also discount dues (double-count).
+export const isFamilyPayoutEarmark = (
+  e: { earmark?: string } | null | undefined,
+): boolean => e?.earmark === "familyPayout";
+
+// A fee-relief payout row (Reimbursement.kind). Absent kind = the classic
+// volunteer reimbursement — full back-compat.
+const isFeeRelief = (r: { kind?: string } | null | undefined): boolean =>
+  r?.kind === "feeRelief";
+
 // THIS season's ledger income flagged as fundraising — the slice of income
 // that reduces each family's dues. Split into money attributed to a specific
 // child (credits that kid's fee first) and unattributed money (splits evenly).
 // Whether a sponsor's money credits dues is that ENTRY's own choice: a sponsor
 // income carries `fundraising: true` only when the coach left its "reduces
 // team fees" switch on, so this loop needs no sponsor special-casing.
+// Pass-through (earmarked) fundraisers are excluded even if flagged: their
+// money is owed back OUT to families, never a credit against dues.
 const fundraisingBreakdown = (
   finances: TeamFinances | null | undefined,
 ): { byPlayer: Record<string, number>; unattributed: number } => {
   const byPlayer: Record<string, number> = {};
   let unattributed = 0;
   for (const i of finances?.incomes || []) {
-    if (!i?.fundraising || isVoided(i)) continue;
+    if (!i?.fundraising || isVoided(i) || isFamilyPayoutEarmark(i)) continue;
     const amt = money(i?.amount);
     const pid = String(i?.playerId || "");
     if (pid) byPlayer[pid] = (byPlayer[pid] || 0) + amt;
@@ -208,20 +285,43 @@ export const feeOffsetSponsorshipTotal = (
     ),
   );
 
-// Suggested NEXT-season fee per paying player. The Budget Planner plans the
-// coming year in isolation: planned costs minus sponsorships pledged for that
-// year, split across paying players and rounded UP so the club never plans a
-// shortfall. The CURRENT year's ledger (this year's fees, fundraising,
-// spending) stays out of it — leftover cash carries into the new year's
-// ledger when the season advances, it doesn't pre-discount the fee.
-// Fee-exempt players (fall-only pickups, scholarships) don't dilute the
-// split. 0 when sponsorships cover everything; null when there's nothing to
-// split (no budget or no paying players).
+// Suggested THIS-year fee per paying player: what clubFee should be for the
+// working budget (budgetItems) to be covered by this year's roster. Split
+// across the CURRENT paying roster (fee-exempt players don't dilute it) and
+// rounded UP so the club never plans a shortfall. Sponsorship PLEDGES are
+// next-season money by definition (they convert to income at the fall roll),
+// so they offset the DRAFT's suggestion (suggestedNextFeePerPlayer), never
+// this one. Fundraise-funded items are EXCLUDED — they're covered by the
+// fundraising goal, "so that it is all covered without an additional team
+// fee". null when there's nothing to split (no fee-funded budget or no
+// payers).
 export const suggestedFeePerPlayer = (
   finances: TeamFinances | null | undefined,
   players: Array<{ id: string }> | null | undefined,
 ): number | null => {
-  const total = budgetTotal(finances);
+  const total = feeFundedBudgetTotal(finances);
+  if (total <= 0) return null;
+  const payers = currentPayerCount(finances, players);
+  if (payers === 0) return null;
+  // The buffer rounds UP to the nearest $25/$50 so incidentals are covered
+  // and the fee is a clean number; without one, next-dollar ceiling.
+  return roundUpToIncrement(total / payers, finances?.feeBufferIncrement);
+};
+
+// Suggested NEXT-season fee per paying player, computed from the DRAFT budget
+// (nextBudgetItems) in isolation: planned costs minus sponsorships pledged for
+// that year, split across the anticipated roster and rounded UP. The CURRENT
+// year's ledger (this year's fees, fundraising, spending) stays out of it —
+// leftover cash carries into the new year's ledger when the season advances,
+// it doesn't pre-discount the fee. Fundraise-funded draft items are EXCLUDED
+// (same rule as this year's suggestion — the draft's fundraising goal covers
+// them). 0 when sponsorships cover everything; null when there's nothing to
+// split (no fee-funded draft or no paying players).
+export const suggestedNextFeePerPlayer = (
+  finances: TeamFinances | null | undefined,
+  players: Array<{ id: string }> | null | undefined,
+): number | null => {
+  const total = feeFundedNextBudgetTotal(finances);
   if (total <= 0) return null;
   const payers = plannedPayerCount(finances, players);
   if (payers === 0) return null;
@@ -229,21 +329,114 @@ export const suggestedFeePerPlayer = (
   // the rest are planned as plain club income and families split that part
   // of the budget themselves.
   const uncovered = Math.max(0, total - feeOffsetSponsorshipTotal(finances));
-  // The buffer rounds UP to the nearest $25/$50 so incidentals are covered
-  // and the fee is a clean number; without one, next-dollar ceiling.
   return roundUpToIncrement(uncovered / payers, finances?.feeBufferIncrement);
 };
 
-// The divisor for the suggested-fee split: the coach's anticipated roster
-// size for next season when set, otherwise this season's paying players.
+// Start next year's draft from this year's working budget: the same lines
+// with FRESH ids, so draft edits and expense links can never collide with the
+// live list. Pure — the caller writes the result to nextBudgetItems.
+export const draftBudgetFromCurrent = (
+  finances: TeamFinances | null | undefined,
+): BudgetItem[] =>
+  (finances?.budgetItems || []).map(({ id: _replaced, ...rest }) => ({
+    ...rest,
+    id: genId("b"),
+  }));
+
+// THIS year's paying roster: everyone not fee-exempt. The divisor for this
+// year's fee guidance (the draft's divisor is plannedPayerCount, which lets
+// the coach anticipate next season's roster size).
+export const currentPayerCount = (
+  finances: TeamFinances | null | undefined,
+  players: Array<{ id: string }> | null | undefined,
+): number => {
+  const exempt = new Set(finances?.feeExemptIds || []);
+  return (players || []).filter((p) => p?.id && !exempt.has(p.id)).length;
+};
+
+// The outside organization's per-player fee (families pay it DIRECTLY — e.g.
+// a parent org's $525 for insurance/tournaments/facilities). Normalized here
+// so every surface shares one gate: null unless a non-blank label AND a
+// positive amount exist. Display CONTEXT only — deliberately referenced by NO
+// money math. budgetTotal, the suggested fees, financeSummary/balanceNow, and
+// the ledger must never see it; it exists so the coach can show families'
+// TOTAL burden (clubFee + this) beside the team fee.
+export const externalOrgFeeContext = (
+  finances: TeamFinances | null | undefined,
+): ExternalOrgFee | null => {
+  const raw = finances?.externalOrgFee;
+  const label = String(raw?.label || "").trim();
+  const amount = round2(money(raw?.amount));
+  if (!label || amount <= 0) return null;
+  return { label, amount };
+};
+
+// The DRAFT's outside-org burden context: the staged next-season value
+// (nextExternalOrgFee — the nextClubFee pattern) when one is set, else the
+// current externalOrgFee (an org fee is a standing fact about the club, so
+// the draft assumes it continues until the coach stages a change). Same
+// normalization gate as the sibling; display context only, referenced by NO
+// money math.
+export const nextExternalOrgFeeContext = (
+  finances: TeamFinances | null | undefined,
+): ExternalOrgFee | null => {
+  const raw = finances?.nextExternalOrgFee;
+  const label = String(raw?.label || "").trim();
+  const amount = round2(money(raw?.amount));
+  if (label && amount > 0) return { label, amount };
+  return externalOrgFeeContext(finances);
+};
+
+export interface FundraisingGoalSummary {
+  goal: number; // Σ fundraise-funded working-budget items
+  raised: number; // qualifying ledger income (see the rule below)
+  remaining: number; // max(0, goal − raised)
+}
+
+// Progress toward this year's fundraising goal. What counts as `raised` is
+// deliberately narrow — PLAIN income whose revenue source is "Fundraisers"
+// (stored category or inferred from the label), because that's the only money
+// that honestly covers a fundraise-funded budget line:
+//   - pass-through earmarked entries (earmark: "familyPayout") are EXCLUDED —
+//     that money is held to pay back OUT to families, never club money;
+//   - dues-credit entries (fundraising: true) are EXCLUDED — that money is
+//     already discounting each family's fee, and counting it here would let
+//     one dollar serve two purposes;
+//   - season-carryover entries are EXCLUDED — the roll's "Carried over"
+//     income infers to the Fundraisers source (prior-year money), but last
+//     year's closing balance is not this year's fundraising achievement.
+// Voided rows count $0 like everywhere else. The goal card states this rule
+// so the coach knows exactly what moves the meter.
+const isCarryoverIncome = (i: { id?: string; label?: string }): boolean =>
+  String(i.id || "").startsWith("carry-") ||
+  /^Carried over/.test(String(i.label || ""));
+
+export const fundraisingGoalSummary = (
+  finances: TeamFinances | null | undefined,
+): FundraisingGoalSummary => {
+  const goal = fundraisingGoalTotal(finances);
+  let raised = 0;
+  for (const i of finances?.incomes || []) {
+    if (!i || isVoided(i) || isFamilyPayoutEarmark(i) || i.fundraising) {
+      continue;
+    }
+    if (isCarryoverIncome(i) || incomeCategory(i) !== "fundraiser") continue;
+    raised += money(i.amount);
+  }
+  raised = round2(raised);
+  return { goal, raised, remaining: Math.max(0, round2(goal - raised)) };
+};
+
+// The divisor for the NEXT-season suggested-fee split: the coach's
+// anticipated roster size for next season when set, otherwise this season's
+// paying players.
 export const plannedPayerCount = (
   finances: TeamFinances | null | undefined,
   players: Array<{ id: string }> | null | undefined,
 ): number => {
   const planned = Math.round(money(finances?.plannedPlayerCount));
   if (planned > 0) return planned;
-  const exempt = new Set(finances?.feeExemptIds || []);
-  return (players || []).filter((p) => p?.id && !exempt.has(p.id)).length;
+  return currentPayerCount(finances, players);
 };
 
 // Per-player breakdown for the parent-facing fee sheet: the fee one family
@@ -253,13 +446,17 @@ export const plannedPayerCount = (
 // proportionally across the lines folds that internal math invisibly into the
 // numbers, so a document handed to parents never exposes a "buffer" or
 // "sponsorship" line — every dollar of the fee simply maps to a real expense.
-// The fee is next season's set fee when present, otherwise the planner's
-// suggestion. null when there's no fee or no priced expenses to show.
+// The budget and the fee are BOTH this club year's: the active club fee when
+// set, otherwise this year's suggested fee, spread across the working budget.
+// Fundraise-funded items are EXCLUDED from the lines — the family's fee does
+// not pay for them, and a handout must never claim it does.
+// null when there's no fee or no priced expenses to show.
 export const buildPlayerFeeBreakdown = (
   finances: TeamFinances | null | undefined,
   players: Array<{ id: string }> | null | undefined,
 ): { fee: number; lines: Array<{ label: string; amount: number }> } | null => {
   const items = (finances?.budgetItems || [])
+    .filter((item) => !isFundraiseFunded(item))
     .map((item) => ({
       label: (item?.label || "").trim() || "Team expense",
       amount: budgetItemAmount(item, finances?.salesTaxPct),
@@ -268,7 +465,7 @@ export const buildPlayerFeeBreakdown = (
   const total = items.reduce((sum, it) => sum + it.amount, 0);
   if (total <= 0) return null;
 
-  const setFee = money(finances?.nextClubFee);
+  const setFee = money(finances?.clubFee);
   const fee = setFee > 0 ? setFee : suggestedFeePerPlayer(finances, players);
   if (fee == null || fee <= 0) return null;
 
@@ -312,6 +509,9 @@ export const estimateBudgetFromSeason = (
       id: genId("b"),
       label: item.label,
       amount: roundUpToIncrement(basis, 25),
+      // A line the club fundraises for stays fundraise-funded in the seeded
+      // draft — the funding plan is part of the plan being carried forward.
+      ...(isFundraiseFunded(item) ? { fundedBy: "fundraising" as const } : {}),
     });
   }
   if (money(actuals.unplanned) > 0) {
@@ -504,21 +704,29 @@ export const teamFeesStatus = (
   };
 };
 
-// Forward-looking Season Outlook for the Budget Planner — 100% derived from the
-// plan (planned roster size, pledged sponsorships, budget items) plus the set /
-// suggested fee. Answers "are we going to be short?" before the season starts.
-// Nothing is persisted.
+// Forward-looking Season Outlook for the next-season draft — 100% derived
+// from the DRAFT plan (planned roster size, pledged sponsorships,
+// nextBudgetItems) plus the set / suggested next-season fee. Answers "are we
+// going to be short?" before the season starts. Nothing is persisted.
 export interface SeasonOutlook {
   plannedPayers: number; // divisor: anticipated roster or this year's payers
-  budget: number; // total planned cost
+  budget: number; // total planned cost — the FULL draft, fundraised lines included
+  // The slice of `budget` the fee must cover (fundraise-funded lines out) —
+  // the base for breakEvenFee and the projection, mirroring
+  // suggestedNextFeePerPlayer so the outlook can't call the suggested fee
+  // "short" by exactly the fundraising goal.
+  feeFundedBudget: number;
+  fundraisingGoal: number; // budget − feeFundedBudget: planned to be fundraised
   sponsorOffset: number; // pledges whose switch offsets the fee
   feeUsed: number; // the fee the projection assumes (set or suggested)
   feeSource: "set" | "suggested";
-  breakEvenFee: number; // per-player fee that exactly covers the net budget
+  breakEvenFee: number; // per-player fee that exactly covers the net fee-funded budget
   projectedEndBalance: number; // surplus/shortfall if every payer pays feeUsed
   bufferPerPlayer: number; // feeUsed − breakEvenFee (the per-family cushion)
   bufferTotal: number; // cushion × payers (equals projectedEndBalance)
-  carryover: number; // this year's closing balance rolling in
+  // This year's closing balance rolling in, NET of undisbursed pass-through:
+  // money held for families is not club money and never projects forward.
+  carryover: number;
   projectedWithCarryover: number; // carryover + projectedEndBalance
 }
 
@@ -528,29 +736,41 @@ export const seasonOutlook = (
   finances: TeamFinances | null | undefined,
   players: Array<{ id: string }> | null | undefined,
 ): SeasonOutlook | null => {
-  const budget = budgetTotal(finances);
+  const budget = nextBudgetTotal(finances);
   if (budget <= 0) return null;
   const plannedPayers = plannedPayerCount(finances, players);
   if (plannedPayers <= 0) return null;
   const setFee = money(finances?.nextClubFee);
-  const suggested = suggestedFeePerPlayer(finances, players);
+  const suggested = suggestedNextFeePerPlayer(finances, players);
   const feeUsed = setFee > 0 ? setFee : suggested;
   if (feeUsed == null || feeUsed <= 0) return null;
   const feeSource: "set" | "suggested" = setFee > 0 ? "set" : "suggested";
   const sponsorOffset = feeOffsetSponsorshipTotal(finances);
+  // Fees only answer for the fee-funded slice: fundraise-marked lines are the
+  // fundraising goal's problem, so break-even and the projection exclude them
+  // (otherwise the suggested fee would always project "short" by the goal).
+  const feeFundedBudget = feeFundedNextBudgetTotal(finances);
+  const fundraisingGoal = nextFundraisingGoalTotal(finances);
   const breakEvenFee = round2(
-    Math.max(0, budget - sponsorOffset) / plannedPayers,
+    Math.max(0, feeFundedBudget - sponsorOffset) / plannedPayers,
   );
   const projectedEndBalance = round2(
-    feeUsed * plannedPayers + sponsorOffset - budget,
+    feeUsed * plannedPayers + sponsorOffset - feeFundedBudget,
   );
   const bufferPerPlayer = round2(feeUsed - breakEvenFee);
   const bufferTotal = round2(bufferPerPlayer * plannedPayers);
-  const carryover = financeSummary(finances, players).balanceNow;
+  // Held-for-families money (undisbursed pass-through) is inside balanceNow
+  // but is NOT club money — it never carries into next season's projection.
+  const carryover = round2(
+    financeSummary(finances, players).balanceNow -
+      passThroughSummary(finances).undisbursed,
+  );
   const projectedWithCarryover = round2(carryover + projectedEndBalance);
   return {
     plannedPayers,
     budget,
+    feeFundedBudget,
+    fundraisingGoal,
     sponsorOffset,
     feeUsed,
     feeSource,
@@ -564,30 +784,168 @@ export const seasonOutlook = (
 };
 
 export interface ReimbursementsSummary {
-  unpaid: number; // liability still owed to volunteers
-  paid: number; // already reimbursed this season
-  outstanding: number; // = unpaid (money the club still owes back)
+  unpaid: number; // every unpaid payout row, both kinds
+  paid: number; // every paid payout row, both kinds
+  // Money still owed to VOLUNTEERS (= volunteerUnpaid). Fee-relief payouts
+  // are excluded: those are owed to families and already live inside the
+  // undisbursed pass-through liability.
+  outstanding: number;
+  volunteerUnpaid: number;
+  volunteerPaid: number;
+  feeReliefUnpaid: number; // owed to families (subset of undisbursed pass-through)
+  feeReliefPaid: number;
 }
 
-// Volunteer-reimbursements rollup. An UNPAID reimbursement is a liability that
-// does NOT touch balanceNow or the ledger (the cash is still in the bank); it
-// hits cash only when marked paid, posted as a normal expense. `outstanding`
-// drives the coach-only "free cash = balanceNow − outstanding" view.
+// Payout-queue rollup, split by kind so "owed to volunteers" and "owed to
+// families" never blur. An UNPAID row is a liability that does NOT touch
+// balanceNow or the ledger (the cash is still in the bank); it hits cash only
+// when marked paid, posted as a normal expense. `outstanding` (volunteer
+// unpaid) feeds the coach-only free-cash view — fee-relief unpaid must NOT be
+// subtracted there too, because undisbursed pass-through already contains it.
 export const reimbursementsSummary = (
   finances: TeamFinances | null | undefined,
 ): ReimbursementsSummary => {
-  let unpaid = 0;
-  let paid = 0;
+  let volunteerUnpaid = 0;
+  let volunteerPaid = 0;
+  let feeReliefUnpaid = 0;
+  let feeReliefPaid = 0;
   for (const r of finances?.reimbursements || []) {
+    if (isVoided(r)) continue;
     const amt = money(r?.amount);
-    if (r?.status === "paid") paid += amt;
-    else unpaid += amt;
+    if (isFeeRelief(r)) {
+      if (r?.status === "paid") feeReliefPaid += amt;
+      else feeReliefUnpaid += amt;
+    } else if (r?.status === "paid") volunteerPaid += amt;
+    else volunteerUnpaid += amt;
   }
   return {
-    unpaid: round2(unpaid),
-    paid: round2(paid),
-    outstanding: round2(unpaid),
+    unpaid: round2(volunteerUnpaid + feeReliefUnpaid),
+    paid: round2(volunteerPaid + feeReliefPaid),
+    outstanding: round2(volunteerUnpaid),
+    volunteerUnpaid: round2(volunteerUnpaid),
+    volunteerPaid: round2(volunteerPaid),
+    feeReliefUnpaid: round2(feeReliefUnpaid),
+    feeReliefPaid: round2(feeReliefPaid),
   };
+};
+
+// ---- Pass-through fee-relief fundraisers -----------------------------------
+
+export interface PassThroughFundraiser {
+  id: string;
+  label: string;
+  amount: number; // raised (the earmarked income entry)
+  // Σ non-voided feeRelief payout rows linked via sourceIncomeId — UNPAID
+  // AND paid both count: a promised payout is already spoken for.
+  allocated: number;
+  disbursed: number; // the paid slice of `allocated` (cash actually out)
+  // amount − allocated, floored at 0 for display. Over-allocation is
+  // prevented where payout rows are CREATED (the distribute action refuses a
+  // total beyond this), not just clamped here.
+  remaining: number;
+  // amount − disbursed, floored at 0: cash still sitting in the bank that
+  // belongs to families, whether or not payout rows exist for it yet.
+  undisbursed: number;
+}
+
+export interface PassThroughSummary {
+  fundraisers: PassThroughFundraiser[]; // non-voided earmarked incomes, ledger order
+  raised: number;
+  disbursed: number;
+  remaining: number;
+  undisbursed: number; // the held-for-families liability (free-cash subtrahend)
+}
+
+// Per-fundraiser accounting for earmarked (pass-through) incomes:
+//   allocated(E) = Σ non-voided feeRelief rows with sourceIncomeId = E.id
+//   remaining(E) = E.amount − allocated(E)   (floor 0 for display)
+//   undisbursed(E) = E.amount − paidOut(E)   (floor 0; unpaid rows stay inside)
+export const passThroughSummary = (
+  finances: TeamFinances | null | undefined,
+): PassThroughSummary => {
+  const bySource = new Map<string, { allocated: number; disbursed: number }>();
+  for (const r of finances?.reimbursements || []) {
+    if (!isFeeRelief(r) || isVoided(r)) continue;
+    const src = String(r?.sourceIncomeId || "");
+    if (!src) continue;
+    const cur = bySource.get(src) || { allocated: 0, disbursed: 0 };
+    const amt = money(r?.amount);
+    cur.allocated += amt;
+    if (r?.status === "paid") cur.disbursed += amt;
+    bySource.set(src, cur);
+  }
+  const fundraisers: PassThroughFundraiser[] = [];
+  for (const i of finances?.incomes || []) {
+    if (!i || isVoided(i) || !isFamilyPayoutEarmark(i)) continue;
+    const linked = bySource.get(i.id) || { allocated: 0, disbursed: 0 };
+    const amount = round2(money(i.amount));
+    const allocated = round2(linked.allocated);
+    const disbursed = round2(linked.disbursed);
+    fundraisers.push({
+      id: i.id,
+      label: String(i.label || "Fundraiser"),
+      amount,
+      allocated,
+      disbursed,
+      remaining: Math.max(0, round2(amount - allocated)),
+      undisbursed: Math.max(0, round2(amount - disbursed)),
+    });
+  }
+  const sum = (pick: (f: PassThroughFundraiser) => number) =>
+    round2(fundraisers.reduce((acc, f) => acc + pick(f), 0));
+  return {
+    fundraisers,
+    raised: sum((f) => f.amount),
+    disbursed: sum((f) => f.disbursed),
+    remaining: sum((f) => f.remaining),
+    undisbursed: sum((f) => f.undisbursed),
+  };
+};
+
+export interface FreeCashSummary {
+  balanceNow: number;
+  owedToVolunteers: number; // unpaid VOLUNTEER reimbursements only
+  heldForFamilies: number; // undisbursed pass-through
+  // balanceNow − owedToVolunteers − heldForFamilies. NO double counting:
+  // unpaid feeRelief payout rows are already inside heldForFamilies
+  // (amount − paidOut includes them), so they are never subtracted twice.
+  freeCash: number;
+  // Any earmarked fundraiser on the books (drives whether the free-cash /
+  // held-for-families split is shown at all).
+  hasPassThrough: boolean;
+}
+
+// What the club can actually spend: the bank balance minus what's promised to
+// volunteers and what's being held to pay back out to families.
+export const freeCashSummary = (
+  finances: TeamFinances | null | undefined,
+  players: Array<{ id: string }> | null | undefined,
+): FreeCashSummary => {
+  const balanceNow = financeSummary(finances, players).balanceNow;
+  const owedToVolunteers = reimbursementsSummary(finances).outstanding;
+  const passThrough = passThroughSummary(finances);
+  return {
+    balanceNow,
+    owedToVolunteers,
+    heldForFamilies: passThrough.undisbursed,
+    freeCash: round2(balanceNow - owedToVolunteers - passThrough.undisbursed),
+    hasPassThrough: passThrough.fundraisers.length > 0,
+  };
+};
+
+// Split `total` into `n` cent-exact parts that sum EXACTLY to round2(total):
+// floor-to-cents base, leftover cents spread one per row from the front. Used
+// by the fee-relief distribute action so an even split can never exceed a
+// fundraiser's remaining balance by a rounding cent.
+export const splitEvenly = (total: number, n: number): number[] => {
+  if (!(n > 0)) return [];
+  const cents = Math.round(Math.max(0, money(total)) * 100);
+  const base = Math.floor(cents / n);
+  const extra = cents - base * n;
+  return Array.from(
+    { length: n },
+    (_, i) => (base + (i < extra ? 1 : 0)) / 100,
+  );
 };
 
 export interface ReconciliationRow {
@@ -654,6 +1012,9 @@ export interface LedgerRow {
   balanceAfter: number;
   // Income rows flagged as fundraising (they reduce per-player dues).
   fundraising?: boolean;
+  // Income rows earmarked as pass-through fee relief (held for families —
+  // real cash, but never a dues credit and never free cash).
+  passThrough?: boolean;
   // Display name of the child a fundraising row is credited to (when attributed
   // to a specific player); absent when it splits evenly.
   creditedTo?: string;
@@ -729,11 +1090,19 @@ export const transactionLedger = (
       amount: money(inc.amount),
       direction: "in",
       source: "income",
-      ...(inc.fundraising ? { fundraising: true } : {}),
-      ...(inc.fundraising && inc.playerId
+      // Earmark precedence: a pass-through row never wears the fundraising
+      // badge (it isn't a dues credit even if the flag leaked on).
+      ...(isFamilyPayoutEarmark(inc) ? { passThrough: true } : {}),
+      ...(inc.fundraising && !isFamilyPayoutEarmark(inc)
+        ? { fundraising: true }
+        : {}),
+      ...(inc.fundraising && !isFamilyPayoutEarmark(inc) && inc.playerId
         ? { creditedTo: nameOf(String(inc.playerId)) }
         : {}),
-      ...(inc.fundraising && inc.playerId && !byId.has(String(inc.playerId))
+      ...(inc.fundraising &&
+      !isFamilyPayoutEarmark(inc) &&
+      inc.playerId &&
+      !byId.has(String(inc.playerId))
         ? { removedRef: true }
         : {}),
       ...attribution(inc),
@@ -779,12 +1148,18 @@ export const transactionLedger = (
 // (Spring→Fall); the mid-year Fall→Spring advance leaves finances running
 // untouched. On a roll:
 //   - the closing balance carries over (an opening "Carried over" income
-//     entry — or an expense when the club ended in the red),
+//     entry — or an expense when the club ended in the red); money held for
+//     families (undisbursed pass-through fee relief) is carved out of that
+//     cash carry and rolls as its own still-earmarked entries instead,
 //   - the fee-collection cycle resets (payments clear; last year's checks
 //     never look like this year's fees) and fee waivers clear with it,
 //   - the Budget Planner's "next season's fee" is promoted to the active
-//     club fee, and the budget plan is kept as the new season's reference,
-//   - the year's totals are archived as a compact FinancePastSeason row.
+//     club fee, and a non-empty next-season DRAFT budget (nextBudgetItems)
+//     is consumed and becomes the new year's working budgetItems — when no
+//     draft exists the outgoing budget is kept as the new season's reference,
+//   - the year's totals are archived as a compact FinancePastSeason row,
+//     including a snapshot of the outgoing budget plan (planned total +
+//     per-category planned-vs-spent) so last year's plan stays reviewable.
 // Pass-through when there's nothing recorded, so teams that never opened
 // the Finances tab are untouched.
 // Budget vs actual: how much has actually been spent against each Budget
@@ -1132,11 +1507,11 @@ export const ledgerCsv = (
 // runs Fall → Spring: the ledger, collections, and fee schedule carry straight
 // through the mid-year Fall→Spring advance UNTOUCHED, and the money rolls only
 // when a new Fall begins (balance carries over, collections reset, the planned
-// fee is promoted, the year is archived). A planned next-season fee triggers
-// the roll even with no recorded money — the Budget Planner promised it takes
-// effect when the new year starts. No-op when Finances was never used.
-// Extracted from TeamProvider.advanceSeason so the fall→spring guarantee is
-// unit-testable.
+// fee is promoted, the year is archived). A planned next-season fee — or a
+// drafted next-season budget — triggers the roll even with no recorded money:
+// the Budget Planner promised those take effect when the new year starts.
+// No-op when Finances was never used. Extracted from TeamProvider.advanceSeason
+// so the fall→spring guarantee is unit-testable.
 export const shouldRollFinances = (
   nextSeason: string,
   finances: TeamFinances | null | undefined,
@@ -1150,7 +1525,8 @@ export const shouldRollFinances = (
     (finances?.incomes || []).length > 0 ||
     (finances?.expenses || []).length > 0;
   const hasPlannedFee = finances?.nextClubFee != null;
-  return hadActivity || hasPlannedFee;
+  const hasDraftBudget = (finances?.nextBudgetItems || []).length > 0;
+  return hadActivity || hasPlannedFee || hasDraftBudget;
 };
 
 export const rollFinancesForNewSeason = (
@@ -1168,7 +1544,19 @@ export const rollFinancesForNewSeason = (
   const hasPlannedFee = finances?.nextClubFee != null;
   const hasPlannedDeposit =
     finances?.nextDepositAmount != null || !!finances?.nextDepositDueDate;
-  if (!finances || (!hadActivity && !hasPlannedFee && !hasPlannedDeposit))
+  // A staged next-season org fee is a plan too — it promotes at the roll.
+  const hasPlannedOrgFee = finances?.nextExternalOrgFee != null;
+  // A drafted next-season budget is a plan with the same promise as a planned
+  // fee: it takes effect when the new year starts.
+  const draftBudget = finances?.nextBudgetItems || [];
+  if (
+    !finances ||
+    (!hadActivity &&
+      !hasPlannedFee &&
+      !hasPlannedDeposit &&
+      !hasPlannedOrgFee &&
+      !draftBudget.length)
+  )
     return finances;
   const date = String(dateIso || "").slice(0, 10);
   // Sponsorship pledges planned for the incoming year become real income
@@ -1188,13 +1576,15 @@ export const rollFinancesForNewSeason = (
     (r) => r?.status !== "paid",
   );
   if (!hadActivity) {
-    // Plan-only roll: the coach set next season's fee before recording any
-    // money. Promote it so Fall Collections opens on the planned fee; there
-    // is no balance to carry and no year worth archiving.
+    // Plan-only roll: the coach planned next season (fee / deposit / draft
+    // budget) before recording any money. Promote the plan so Fall opens on
+    // it; there is no balance to carry and no year worth archiving.
     const {
       nextClubFee: promoted,
       nextDepositAmount: promotedDeposit,
       nextDepositDueDate: promotedDepositDueDate,
+      nextExternalOrgFee: promotedOrgFee,
+      nextBudgetItems: _consumedDraft,
       feeExemptIds: _cleared,
       feeAdjustments: _clearedAdj,
       sponsorships: _converted,
@@ -1208,6 +1598,16 @@ export const rollFinancesForNewSeason = (
       depositAmount:
         promotedDeposit != null ? promotedDeposit : finances.depositAmount,
       depositDueDate: promotedDepositDueDate || finances.depositDueDate,
+      // The staged next-season org fee becomes the standing fact; without one
+      // the current context (in `rest`) survives untouched. The consumed
+      // `nextExternalOrgFee` key vanishes and withFinanceKeyDeletes turns
+      // that into an explicit delete, like its siblings.
+      ...(promotedOrgFee != null ? { externalOrgFee: promotedOrgFee } : {}),
+
+      // A non-empty draft becomes the new year's working budget (the
+      // nextClubFee → clubFee pattern); otherwise the current budget (in
+      // `rest`) survives as the new season's reference.
+      ...(draftBudget.length > 0 ? { budgetItems: draftBudget } : {}),
       payments: [],
       incomes: pledgedIncomes,
       expenses: [],
@@ -1239,35 +1639,73 @@ export const rollFinancesForNewSeason = (
       ),
     }))
     .filter((o) => o.owed > 0);
+  // Undisbursed pass-through (fee-relief money still owed out to families) is
+  // NOT club money: each earmarked fundraiser rolls as its OWN income entry —
+  // SAME id, so the unpaid feeRelief payout rows that survive the roll keep
+  // their sourceIncomeId links, and next fall the coach still owes exactly
+  // the right families exactly the right amounts. Only the rest of the
+  // balance carries as club cash, so the new year's books still sum to the
+  // old balanceNow while the carryover-discount prompt never sees
+  // held-for-families money.
+  const passThrough = passThroughSummary(finances);
+  const passThroughCarry = passThrough.fundraisers
+    .filter((f) => f.undisbursed > 0)
+    .map((f) => {
+      const src = (finances.incomes || []).find((i) => i?.id === f.id);
+      return {
+        id: f.id,
+        date,
+        label: f.label,
+        amount: f.undisbursed,
+        earmark: "familyPayout" as const,
+        ...(src?.category ? { category: src.category } : {}),
+      };
+    });
+  const cashCarry = round2(balance - passThrough.undisbursed);
   const carryId = genId(`carry-${date}`);
   const incomes = [
-    ...(balance > 0
+    ...(cashCarry > 0
       ? [
           {
             id: carryId,
             date,
             label: `Carried over (${yearLabel})`,
-            amount: balance,
+            amount: cashCarry,
           },
         ]
       : []),
+    ...passThroughCarry,
     ...pledgedIncomes,
   ];
   const expenses =
-    balance < 0
+    cashCarry < 0
       ? [
           {
             id: carryId,
             date,
             label: `Debt carried over (${yearLabel})`,
-            amount: Math.abs(balance),
+            amount: Math.abs(cashCarry),
           },
         ]
       : [];
+  // Snapshot the OUTGOING year's budget plan onto the archive row before the
+  // draft replaces it (or before the kept plan is edited for the new year):
+  // the plan's total plus per-category planned-vs-spent. Skipped when the
+  // closed year never had a plan, keeping those archive rows byte-identical
+  // to the pre-snapshot shape.
+  const planSnapshot =
+    (finances.budgetItems || []).length > 0
+      ? {
+          budgetPlanned: budgetTotal(finances),
+          budgetCategories: budgetByCategory(finances),
+        }
+      : {};
   const {
     nextClubFee: _promoted,
     nextDepositAmount: _promotedDeposit,
     nextDepositDueDate: _promotedDepositDueDate,
+    nextExternalOrgFee: _promotedOrgFee,
+    nextBudgetItems: _consumedDraft,
     feeExemptIds: _cleared,
     feeAdjustments: _clearedAdj,
     sponsorships: _rolled,
@@ -1284,6 +1722,17 @@ export const rollFinancesForNewSeason = (
         ? finances.nextDepositAmount
         : finances.depositAmount,
     depositDueDate: finances.nextDepositDueDate || finances.depositDueDate,
+    // Staged org fee promotes; without one the standing externalOrgFee (in
+    // `rest`) survives the roll exactly as before. The consumed key vanishes
+    // → withFinanceKeyDeletes deletes it server-side, like its siblings.
+    ...(finances.nextExternalOrgFee != null
+      ? { externalOrgFee: finances.nextExternalOrgFee }
+      : {}),
+
+    // A non-empty next-season draft is consumed and becomes the new year's
+    // working budget; without one the outgoing budget (in `rest`) survives
+    // as the new season's reference — exactly the old behavior.
+    ...(draftBudget.length > 0 ? { budgetItems: draftBudget } : {}),
     payments: [],
     incomes,
     expenses,
@@ -1299,6 +1748,7 @@ export const rollFinancesForNewSeason = (
         spent: s.spent,
         closingBalance: balance,
         ...(outstanding.length > 0 ? { outstanding } : {}),
+        ...planSnapshot,
       },
     ],
   };

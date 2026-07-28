@@ -794,6 +794,16 @@ export interface BudgetItem {
   // time (see budgetItemCategory in utils/finances.ts), so legacy items and
   // items typed without a category still roll up.
   category?: FinanceCategoryId;
+  // Who covers this line: the team fee (default) or FUNDRAISING — items the
+  // club plans to fundraise for "so that it is all covered without an
+  // additional team fee". Absent = "fees" (full back-compat: legacy items
+  // keep driving the fee suggestions exactly as before). Fundraise-marked
+  // items stay inside budgetTotal/nextBudgetTotal (meters and the archive
+  // want the whole plan) but are EXCLUDED from suggestedFeePerPlayer /
+  // suggestedNextFeePerPlayer and roll up into the fundraising goal instead
+  // (see fundraisingGoalSummary in utils/finances.ts). Orthogonal to
+  // `category` — a fundraised tournament still reports under Tournaments.
+  fundedBy?: "fees" | "fundraising";
 }
 
 // Who entered a money record and when (audit finding 3.7). Stamped at
@@ -853,6 +863,16 @@ export interface IncomeEntry extends FinanceAttribution {
   // stops the "apply it?" prompt from ever returning. Only set on carryover
   // entries.
   dismissed?: boolean;
+  // Pass-through fee-relief fundraiser: the proceeds are HELD for
+  // disbursement back out to families (e.g. toward an outside org's fee),
+  // not club money. The cash is real, so it counts in balanceNow — but it is
+  // excluded from free cash, the fall-roll carryover, and the Season
+  // Outlook's carryover, and it NEVER touches dues math, suggested fees, or
+  // the fundraising dues-credit machinery. Disbursements are feeRelief
+  // payout rows in `reimbursements` linked back via `sourceIncomeId`.
+  // Mutually exclusive with `fundraising` (the ledger form enforces it); if
+  // a row somehow carries both, the earmark wins and no dues credit applies.
+  earmark?: "familyPayout";
   // A named CURRENT-season sponsor (business/family) recorded in the Budget
   // Planner rather than the ledger's generic income form. Whether it lowers
   // what families owe is that entry's own choice: paired with
@@ -920,6 +940,19 @@ export interface Reimbursement extends FinanceAttribution {
   date?: string; // ISO yyyy-mm-dd, when logged
   paidDate?: string; // ISO yyyy-mm-dd, when reimbursed
   linkedExpenseId?: string; // the ExpenseEntry created on mark-paid
+  // What kind of payout this is. Absent = "volunteer" (the classic
+  // reimbursement above — full back-compat). "feeRelief" = a pass-through
+  // payout to a family from an earmarked fundraiser (IncomeEntry.earmark):
+  // it posts "Fee relief — {to}" on mark-paid, is listed as owed to FAMILIES
+  // rather than volunteers, and — paid or unpaid — draws down its source
+  // fundraiser's remaining balance. Unpaid feeRelief rows are already inside
+  // the undisbursed pass-through liability, so free cash never subtracts
+  // them a second time.
+  kind?: "volunteer" | "feeRelief";
+  // The child whose family a feeRelief payout is for (display/linkage only).
+  playerId?: PlayerId;
+  // The earmarked IncomeEntry a feeRelief payout draws down.
+  sourceIncomeId?: string;
 }
 
 // A month-end reconciliation: the real bank/cash balance the coach entered for
@@ -949,12 +982,40 @@ export interface FinancePastSeason {
   // here. Names are resolved at roll time — those players may leave the
   // roster afterwards.
   outstanding?: Array<{ playerId: string; name: string; owed: number }>;
+  // Snapshot of the OUTGOING year's budget plan, taken at roll time so
+  // "what did we plan vs spend last year" survives the roll (the live
+  // budgetItems list is replaced by the promoted draft, or kept and then
+  // edited for the new year). `budgetPlanned` is the plan's total;
+  // `budgetCategories` is the per-category planned-vs-spent rollup
+  // (budgetByCategory at the moment of the roll). Absent when the closed
+  // year had no budget plan, and on rows archived before this feature.
+  budgetPlanned?: number;
+  budgetCategories?: Array<{
+    category: FinanceCategoryId;
+    label: string;
+    planned: number;
+    spent: number;
+  }>;
+}
+
+// A per-player fee families pay DIRECTLY to an outside organization (e.g. a
+// parent org collecting $525/player for insurance/tournaments/facilities).
+// Pure display context: it never enters budget totals, dues math, the club
+// balance, suggested fees, or the ledger — it exists so the coach sees the
+// TOTAL family burden while setting the team fee.
+export interface ExternalOrgFee {
+  label: string;
+  amount: number;
 }
 
 export interface TeamFinances {
   // THIS season's per-player club fee in dollars — what Collections tracks.
   // Fees are an annual (Spring) cycle; Fall pickups are typically waived.
   clubFee?: number;
+  // Outside org fee CONTEXT (see ExternalOrgFee) — display-only, maintained
+  // by the coach in the planner settings. Survives the season roll (a
+  // standing fact about the club, not a ledger entry).
+  externalOrgFee?: ExternalOrgFee;
   // Optional up-front deposit each family pays toward the team fee, with its
   // own earlier due date; the remaining balance is due by feeDueDate. Payments
   // count toward the single fee total — the deposit is just the first slice a
@@ -974,6 +1035,13 @@ export interface TeamFinances {
   // depositDueDate when the season advances.
   nextDepositAmount?: number;
   nextDepositDueDate?: string;
+  // NEXT season's outside-org fee, staged like nextClubFee: editable in the
+  // draft planner, used by the DRAFT's burden context (Season Outlook /
+  // next-fee guidance), and promoted to externalOrgFee at the fall roll.
+  // Absent → the draft's burden context falls back to the current
+  // externalOrgFee (a standing fact about the club). Display-only like its
+  // sibling — never enters any money math.
+  nextExternalOrgFee?: ExternalOrgFee;
   // Players exempt from the club fee (fall-only pickups, full scholarships).
   // They never count toward "still owed" or the suggested-fee split.
   feeExemptIds?: PlayerId[];
@@ -990,7 +1058,17 @@ export interface TeamFinances {
   // How many paying players the coach anticipates NEXT season — the divisor
   // for the suggested-fee split. Unset = this season's paying roster size.
   plannedPlayerCount?: number;
+  // THIS club year's working budget: drives the budget-vs-actual meters and
+  // this year's fee guidance (what clubFee should be). Mid-season edits are
+  // normal and only touch this year's numbers.
   budgetItems?: BudgetItem[];
+  // NEXT club year's DRAFT budget (same item shape). Editable any time
+  // without disturbing this year's meters; drives the next-season suggested
+  // fee and Season Outlook. On the fall roll a non-empty draft is consumed
+  // and becomes the new year's budgetItems (the nextClubFee → clubFee
+  // pattern); when absent, the current budget survives as the new year's
+  // reference exactly as before.
+  nextBudgetItems?: BudgetItem[];
   // Sponsorships pledged toward NEXT season's budget (Budget Planner).
   // The only money that offsets the suggested next-season fee — this
   // year's ledger never leaks into next year's planning.

@@ -82,6 +82,31 @@ describe("makeOfferLetterContext", () => {
     expect(ctx.tournamentCount).toBe(7);
   });
 
+  it("prefers the next-season DRAFT budget over the live one (letters quote next year)", () => {
+    const ctx = makeOfferLetterContext(
+      {
+        name: "Trash Pandas",
+        finances: {
+          budgetItems: [{ id: "b1", label: "Fall league", amount: 199 }],
+          nextBudgetItems: [
+            { id: "d1", label: "Spring league", amount: 499 },
+            {
+              id: "d2",
+              label: "Tournaments",
+              amount: 0,
+              qty: 6,
+              unitAmount: 450,
+            },
+          ],
+        },
+      },
+      { displayName: "Coach", email: "coach@example.com" },
+      "Ava",
+    );
+    expect(ctx.coveredItems).toEqual(["Spring league"]);
+    expect(ctx.tournamentCount).toBe(6);
+  });
+
   it("keeps a flat tournament item in the list when no quantity is planned", () => {
     const ctx = makeOfferLetterContext(
       {

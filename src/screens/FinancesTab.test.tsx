@@ -276,11 +276,21 @@ describe("FinancesTab", () => {
     expect(within(panel).getByText("$300")).toBeInTheDocument();
   });
 
-  it("suggests next season's fee from the budget minus pledged sponsorships and stores it as nextClubFee", () => {
+  it("suggests next season's fee from the DRAFT budget minus pledged sponsorships and stores it as nextClubFee", () => {
     const sponsored: any = {
       ...baseTeam,
       finances: {
         ...baseTeam.finances,
+        nextBudgetItems: [
+          {
+            id: "d1",
+            label: "Tournaments",
+            qty: 4,
+            unitAmount: 100,
+            amount: 400,
+          },
+          { id: "d2", label: "Uniform printing", amount: 100 },
+        ],
         sponsorships: [{ id: "s1", sponsor: "Smith Hardware", amount: 200 }],
       },
     };
@@ -292,8 +302,8 @@ describe("FinancesTab", () => {
         team: { team: sponsored },
       },
     );
-    // (budget 500 − sponsorships 200) / 2 paying players = 150. This year's
-    // ledger (payments/income/expenses in the fixture) must not change it.
+    // (draft 500 − sponsorships 200) / 2 paying players = 150. This year's
+    // ledger AND this year's live budget must not change it.
     fireEvent.click(
       screen.getByRole("button", { name: /Set as next season's fee/i }),
     );
@@ -557,6 +567,16 @@ describe("FinancesTab", () => {
       finances: {
         ...baseTeam.finances,
         feeBufferIncrement: 25,
+        nextBudgetItems: [
+          {
+            id: "d1",
+            label: "Tournaments",
+            qty: 4,
+            unitAmount: 100,
+            amount: 400,
+          },
+          { id: "d2", label: "Uniform printing", amount: 100 },
+        ],
         sponsorships: [{ id: "s1", sponsor: "Smith Hardware", amount: 180 }],
       },
     };
@@ -599,22 +619,22 @@ describe("FinancesTab", () => {
     ).toMatchObject({ taxable: true });
   });
 
-  it("taxed items raise the budget and the suggested fee", () => {
+  it("taxed items raise the DRAFT budget and its suggested fee", () => {
     const taxed: any = {
       ...baseTeam,
       finances: {
         ...baseTeam.finances,
         salesTaxPct: 10,
-        budgetItems: [
+        nextBudgetItems: [
           {
-            id: "b1",
+            id: "d1",
             label: "Tournaments",
             qty: 4,
             unitAmount: 100,
             amount: 400,
             taxable: true,
           },
-          { id: "b2", label: "Uniform printing", amount: 100 },
+          { id: "d2", label: "Uniform printing", amount: 100 },
         ],
       },
     };
@@ -626,7 +646,7 @@ describe("FinancesTab", () => {
         team: { team: taxed },
       },
     );
-    // Budget 440 + 100 = 540 → 540 / 2 = 270.
+    // Draft 440 + 100 = 540 → 540 / 2 = 270.
     fireEvent.click(
       screen.getByRole("button", { name: /Set as next season's fee/i }),
     );
@@ -1088,10 +1108,23 @@ describe("FinancesTab", () => {
     expect(appliedFinances(teamValue)).toEqual(
       expect.objectContaining({ plannedPlayerCount: 10 }),
     );
-    // With the override stored: budget 500 / 10 anticipated players = 50.
+    // With the override stored: draft 500 / 10 anticipated players = 50.
     const planned: any = {
       ...baseTeam,
-      finances: { ...baseTeam.finances, plannedPlayerCount: 10 },
+      finances: {
+        ...baseTeam.finances,
+        plannedPlayerCount: 10,
+        nextBudgetItems: [
+          {
+            id: "d1",
+            label: "Tournaments",
+            qty: 4,
+            unitAmount: 100,
+            amount: 400,
+          },
+          { id: "d2", label: "Uniform printing", amount: 100 },
+        ],
+      },
     };
     const second = renderWithProviders(
       <MemoryRouter>
@@ -1143,7 +1176,7 @@ describe("FinancesTab", () => {
     });
   });
 
-  it("offers a one-tap budget seeded from this season when the planner is empty", () => {
+  it("offers a one-tap DRAFT seeded from this season's actuals when the draft is empty", () => {
     const fresh: any = {
       ...baseTeam,
       finances: {
@@ -1162,13 +1195,72 @@ describe("FinancesTab", () => {
         team: { team: fresh },
       },
     );
-    // $80 unplanned spend rounds up to a clean $100 starting point.
-    fireEvent.click(screen.getByLabelText("Seed budget from this season"));
+    // $80 unplanned spend rounds up to a clean $100 starting point — written
+    // to the DRAFT; the live list is never overwritten by seeding.
+    fireEvent.click(
+      screen.getByLabelText("Seed draft from this season's actual spending"),
+    );
     const patch = { finances: appliedFinances(teamValue) };
-    expect(patch.finances.budgetItems).toHaveLength(1);
-    expect(patch.finances.budgetItems[0]).toMatchObject({
+    expect(patch.finances.budgetItems).toEqual([]);
+    expect(patch.finances.nextBudgetItems).toHaveLength(1);
+    expect(patch.finances.nextBudgetItems[0]).toMatchObject({
       label: "Other (unplanned this season)",
       amount: 100,
+    });
+  });
+
+  it("copies this season's budget into the draft with fresh ids", () => {
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
+    fireEvent.click(
+      screen.getByLabelText("Copy this season's budget into the draft"),
+    );
+    const patch = { finances: appliedFinances(teamValue) };
+    // The live list is untouched; the draft is a fresh-id copy of it.
+    expect(patch.finances.budgetItems).toEqual(baseTeam.finances.budgetItems);
+    expect(patch.finances.nextBudgetItems).toHaveLength(2);
+    expect(patch.finances.nextBudgetItems[0]).toMatchObject({
+      label: "Tournaments",
+      qty: 4,
+      unitAmount: 100,
+      amount: 400,
+    });
+    const liveIds = new Set(
+      baseTeam.finances.budgetItems.map((b: any) => b.id),
+    );
+    for (const item of patch.finances.nextBudgetItems) {
+      expect(liveIds.has(item.id)).toBe(false);
+    }
+  });
+
+  it("the draft add form writes to nextBudgetItems, never the live list", () => {
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
+    fireEvent.change(screen.getByLabelText("Budget item (draft)"), {
+      target: { value: "Spring league" },
+    });
+    fireEvent.change(screen.getByLabelText("Budget amount (draft)"), {
+      target: { value: "499" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add (draft)" }));
+    const patch = { finances: appliedFinances(teamValue) };
+    expect(patch.finances.budgetItems).toEqual(baseTeam.finances.budgetItems);
+    expect(patch.finances.nextBudgetItems).toHaveLength(1);
+    expect(patch.finances.nextBudgetItems[0]).toMatchObject({
+      label: "Spring league",
+      amount: 499,
     });
   });
 
@@ -1543,37 +1635,48 @@ describe("FinancesTab", () => {
     expect(screen.getByText(/Nothing logged yet/i)).toBeInTheDocument();
   });
 
-  it("composes the Budget Planner from flat sibling sub-cards (Fragment discipline)", () => {
+  it("composes both budget sections from flat sibling sub-cards (Fragment discipline)", () => {
     renderWithProviders(
       <MemoryRouter>
         <FinancesTab />
       </MemoryRouter>,
       { team: { team: baseTeam } },
     );
-    // The planner card body holds every sub-card's blocks as DIRECT children:
-    // each extracted sub-card (BudgetItemsCard / BudgetPresetsCard /
-    // SponsorshipSection / PlannedRosterCard) returns a Fragment, so a stray
+    // Each section's card body holds every sub-card's blocks as DIRECT
+    // children: the extracted sub-cards (BudgetItemsCard / BudgetPresetsCard /
+    // SponsorshipSection / PlannedRosterCard) return Fragments, so a stray
     // wrapper <div> would nest these and change the space-y-3 spacing even
     // though the text-based tests would still pass.
-    const section = screen
-      .getByText("Budget Planner — next season")
+    const liveSection = screen
+      .getByText("Budget — this season")
       .closest("section")!;
-    const body = section.querySelector(".space-y-3");
-    expect(body).toBeTruthy();
-    const kids = Array.from(body!.children);
-    // BudgetPresetsCard: the add-item <form> is a direct child.
+    const liveKids = Array.from(
+      liveSection.querySelector(".space-y-3")!.children,
+    );
+    // Live BudgetPresetsCard: the add-item <form> is a direct child.
     const addForm = (
       screen.getByLabelText("Budget item") as HTMLElement
     ).closest("form");
-    expect(addForm && kids.includes(addForm)).toBe(true);
-    // BudgetItemsCard: the by-category rollup block is a direct child.
-    expect(kids.some((el) => el.textContent?.includes("By category"))).toBe(
+    expect(addForm && liveKids.includes(addForm)).toBe(true);
+    // Live BudgetItemsCard: the by-category rollup block is a direct child.
+    expect(liveKids.some((el) => el.textContent?.includes("By category"))).toBe(
       true,
     );
-    // PlannedRosterCard: the budget-total block is a direct child.
-    expect(kids.some((el) => el.textContent?.includes("Budget total:"))).toBe(
-      true,
+    const draftSection = screen
+      .getByText("Budget draft — next season")
+      .closest("section")!;
+    const draftKids = Array.from(
+      draftSection.querySelector(".space-y-3")!.children,
     );
+    // Draft BudgetPresetsCard: its own add form is a direct child.
+    const draftForm = (
+      screen.getByLabelText("Budget item (draft)") as HTMLElement
+    ).closest("form");
+    expect(draftForm && draftKids.includes(draftForm)).toBe(true);
+    // PlannedRosterCard (draft numbers): the draft-total block is direct.
+    expect(
+      draftKids.some((el) => el.textContent?.includes("Draft budget total:")),
+    ).toBe(true);
   });
 
   it("marks the sorted ledger column header with aria-sort", () => {
@@ -1708,6 +1811,587 @@ describe("FinancesTab", () => {
     expect(calls[1][0]).toMatchObject({
       op: "mapEntries",
       key: "reimbursements",
+    });
+  });
+
+  // ---- Pass-through fee-relief fundraisers ----------------------------------
+
+  // Spirit night raised $300 for families; $90 already paid to Ava, $90 still
+  // queued for Ben → allocated 180, remaining 120, undisbursed 210. One $40
+  // volunteer IOU sits beside it so the two kinds must not blur.
+  const passThroughTeam = (): any => ({
+    ...baseTeam,
+    finances: {
+      ...baseTeam.finances,
+      incomes: [
+        ...baseTeam.finances.incomes,
+        {
+          id: "pt1",
+          date: "2026-03-02",
+          label: "Spirit night",
+          amount: 300,
+          earmark: "familyPayout",
+        },
+      ],
+      reimbursements: [
+        { id: "vol1", to: "Coach Bo", amount: 40, status: "unpaid" },
+        {
+          id: "fr1",
+          to: "Ava",
+          amount: 90,
+          status: "paid",
+          kind: "feeRelief",
+          playerId: "kid1",
+          sourceIncomeId: "pt1",
+        },
+        {
+          id: "fr2",
+          to: "Ben",
+          amount: 90,
+          status: "unpaid",
+          kind: "feeRelief",
+          playerId: "kid2",
+          sourceIncomeId: "pt1",
+        },
+      ],
+    },
+  });
+
+  it("the money-in form's third option writes the earmark — mutually exclusive with fundraising", () => {
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Money in" }));
+    // Turn fundraising on FIRST, then the earmark: the earmark must win and
+    // switch fundraising off (never both on one entry).
+    fireEvent.click(
+      screen.getByLabelText("Fundraising — reduces player team fees"),
+    );
+    fireEvent.click(
+      screen.getByLabelText(
+        "Fundraiser — paid back to families; doesn't change team fees",
+      ),
+    );
+    expect(
+      (
+        screen.getByLabelText(
+          "Fundraising — reduces player team fees",
+        ) as HTMLInputElement
+      ).checked,
+    ).toBe(false);
+    fireEvent.change(screen.getByLabelText("Transaction description"), {
+      target: { value: "Spirit night" },
+    });
+    fireEvent.change(screen.getByLabelText("Transaction amount"), {
+      target: { value: "300" },
+    });
+    fireEvent.submit(
+      screen.getByLabelText("Transaction description").closest("form")!,
+    );
+    const patch = { finances: appliedFinances(teamValue) };
+    const added = patch.finances.incomes[patch.finances.incomes.length - 1];
+    expect(added).toMatchObject({
+      label: "Spirit night",
+      amount: 300,
+      earmark: "familyPayout",
+    });
+    expect(added.fundraising).toBeUndefined();
+    expect(added.playerId).toBeUndefined();
+  });
+
+  it("checking fundraising unchecks the earmark (the exclusivity runs both ways)", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Money in" }));
+    const earmarkBox = () =>
+      screen.getByLabelText(
+        "Fundraiser — paid back to families; doesn't change team fees",
+      ) as HTMLInputElement;
+    fireEvent.click(earmarkBox());
+    expect(earmarkBox().checked).toBe(true);
+    fireEvent.click(
+      screen.getByLabelText("Fundraising — reduces player team fees"),
+    );
+    expect(earmarkBox().checked).toBe(false);
+  });
+
+  it("hero shows free cash vs held-for-families only when an earmark exists", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: passThroughTeam() } },
+    );
+    // balanceNow = 100 + 60 + 300 − 80 = 380; held = 300 − 90 paid = 210;
+    // free cash = 380 − 40 volunteer − 210 held = 130.
+    const heldTile = screen.getByText("Held for families")
+      .parentElement as HTMLElement;
+    expect(within(heldTile).getByText("$210")).toBeInTheDocument();
+    const freeTile = screen.getByText("Free cash").parentElement as HTMLElement;
+    expect(within(freeTile).getByText("$130")).toBeInTheDocument();
+    // The earmarked ledger row wears its badge, not the dues-credit one.
+    expect(screen.getByText("held for families")).toBeInTheDocument();
+    expect(screen.queryByText("team-fee credit")).not.toBeInTheDocument();
+  });
+
+  it("the hero split is invisible when no earmark exists", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
+    expect(screen.queryByText("Held for families")).not.toBeInTheDocument();
+    expect(screen.queryByText("Free cash")).not.toBeInTheDocument();
+  });
+
+  it("the payout queue splits owed-to-volunteers from owed-to-families", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: passThroughTeam() } },
+    );
+    const volunteers = screen
+      .getByText("Owed to volunteers")
+      .closest("div") as HTMLElement;
+    expect(within(volunteers).getByText("$40")).toBeInTheDocument();
+    const families = screen
+      .getByText("Owed to families (fee relief)")
+      .closest("div") as HTMLElement;
+    expect(within(families).getByText("$90")).toBeInTheDocument();
+    // Ben's unpaid payout row is badged by kind.
+    expect(screen.getByText("fee relief")).toBeInTheDocument();
+  });
+
+  it("distribute splits the remaining balance evenly into editable feeRelief payouts", () => {
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: passThroughTeam() } },
+    );
+    // Card math: raised 300 / disbursed 90 / remaining 120.
+    expect(
+      screen.getByText(/raised \$300 · disbursed \$90 · remaining \$120/),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByLabelText("Distribute Spirit night to families"),
+    );
+    // Even split of the $120 remaining across 2 paying families.
+    expect(
+      (screen.getByLabelText("Payout amount for Ava") as HTMLInputElement)
+        .value,
+    ).toBe("60");
+    expect(
+      (screen.getByLabelText("Payout amount for Ben") as HTMLInputElement)
+        .value,
+    ).toBe("60");
+    // Amounts are editable before confirm.
+    fireEvent.change(screen.getByLabelText("Payout amount for Ava"), {
+      target: { value: "70" },
+    });
+    fireEvent.change(screen.getByLabelText("Payout amount for Ben"), {
+      target: { value: "50" },
+    });
+    fireEvent.click(
+      screen.getByLabelText("Confirm fee-relief payouts for Spirit night"),
+    );
+    const calls = (teamValue.updateFinances as jest.Mock).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0]).toMatchObject({ op: "append", key: "reimbursements" });
+    expect(calls[0][0].entry).toMatchObject({
+      to: "Ava",
+      amount: 70,
+      status: "unpaid",
+      kind: "feeRelief",
+      playerId: "kid1",
+      sourceIncomeId: "pt1",
+    });
+    expect(calls[1][0].entry).toMatchObject({
+      to: "Ben",
+      amount: 50,
+      kind: "feeRelief",
+      sourceIncomeId: "pt1",
+    });
+  });
+
+  it("refuses a distribution that exceeds the fundraiser's remaining balance", () => {
+    const { teamValue, toastValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: passThroughTeam() } },
+    );
+    fireEvent.click(
+      screen.getByLabelText("Distribute Spirit night to families"),
+    );
+    // 100 + 60 = 160 > the 120 remaining → refused at entry, nothing written.
+    fireEvent.change(screen.getByLabelText("Payout amount for Ava"), {
+      target: { value: "100" },
+    });
+    fireEvent.click(
+      screen.getByLabelText("Confirm fee-relief payouts for Spirit night"),
+    );
+    expect(teamValue.updateFinances).not.toHaveBeenCalled();
+    expect(toastValue.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "That's more than the fundraiser has left",
+      }),
+    );
+    // The editor stays open for correction.
+    expect(screen.getByLabelText("Payout amount for Ava")).toBeInTheDocument();
+  });
+
+  it("marking a feeRelief payout paid posts a 'Fee relief' expense (volunteers unchanged)", () => {
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: passThroughTeam() } },
+    );
+    fireEvent.click(screen.getByLabelText("Mark fee relief to Ben paid"));
+    const calls = (teamValue.updateFinances as jest.Mock).mock.calls;
+    expect(calls[0][0]).toMatchObject({ op: "append", key: "expenses" });
+    expect(calls[0][0].entry).toMatchObject({
+      label: "Fee relief — Ben",
+      amount: 90,
+    });
+    expect(calls[1][0]).toMatchObject({
+      op: "mapEntries",
+      key: "reimbursements",
+    });
+  });
+
+  it("the carryover discount card never offers pass-through money", () => {
+    const carried: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        incomes: [
+          {
+            id: "carry-2026-08-01-abc123",
+            date: "2026-08-01",
+            label: "Carried over (through Spring 2026)",
+            amount: 240,
+          },
+          // The rolled pass-through entry: still earmarked, still owed to
+          // families — even with a carry-shaped label it must never be
+          // offered as a dues discount.
+          {
+            id: "pt1",
+            date: "2026-08-01",
+            label: "Carried over fee relief",
+            amount: 210,
+            earmark: "familyPayout",
+          },
+        ],
+      },
+    };
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: carried } },
+    );
+    // Only the $240 club cash is offered: $120 off per family across 2 payers
+    // — NOT $225 (which would include the held $210).
+    expect(screen.getByText(/\$120 off per/)).toBeInTheDocument();
+    expect(screen.queryByText(/\$225 off per/)).not.toBeInTheDocument();
+  });
+
+  describe("outside-org fee context (externalOrgFee — display only)", () => {
+    const orgTeam: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        externalOrgFee: { label: "Team Elite Premier", amount: 525 },
+      },
+    };
+
+    it("shows the total family burden in Collections and the fee guidance; totals stay untouched", () => {
+      renderWithProviders(
+        <MemoryRouter>
+          <FinancesTab />
+        </MemoryRouter>,
+        { team: { team: orgTeam } },
+      );
+      // Collections (fee-setting seam) + this year's fee guidance both carry
+      // the context line: $100 club fee + $525 org fee = $625 total burden.
+      const lines = screen.getAllByText(/Families also pay/);
+      expect(lines.length).toBeGreaterThanOrEqual(2);
+      expect(screen.getAllByText("$625").length).toBeGreaterThanOrEqual(2);
+      // Display only: the P&L is EXACTLY what it is without the org fee —
+      // fees 100 + income 60 − spent 80 = 80; once-all-paid 180.
+      expect(screen.getByText("$180")).toBeInTheDocument();
+      expect(screen.queryByText("$705")).not.toBeInTheDocument(); // 180+525 never leaks
+    });
+
+    it("stays invisible when unset", () => {
+      renderWithProviders(
+        <MemoryRouter>
+          <FinancesTab />
+        </MemoryRouter>,
+        { team: { team: baseTeam } },
+      );
+      expect(screen.queryByText(/Families also pay/)).not.toBeInTheDocument();
+    });
+
+    it("is set from the Collections inline editor (the this-season fee seam) via a narrow set op", () => {
+      const { teamValue } = renderWithProviders(
+        <MemoryRouter>
+          <FinancesTab />
+        </MemoryRouter>,
+        { team: { team: baseTeam } },
+      );
+      // Placement: the CURRENT-year editor lives inside the Collections
+      // section — where the coach sets this year's fee — not in the draft.
+      const collections = screen
+        .getByText(/Collections — this season/)
+        .closest("section") as HTMLElement;
+      expect(
+        within(collections).getByLabelText("Outside org name"),
+      ).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("Outside org name"), {
+        target: { value: "  Team Elite Premier " },
+      });
+      fireEvent.change(screen.getByLabelText("Outside org fee per player"), {
+        target: { value: "525" },
+      });
+      fireEvent.blur(screen.getByLabelText("Outside org fee per player"));
+      const patch = { finances: appliedFinances(teamValue) };
+      expect(patch.finances.externalOrgFee).toEqual({
+        label: "Team Elite Premier",
+        amount: 525,
+      });
+      // Nothing else about finances changed.
+      expect(patch.finances.clubFee).toBe(100);
+      expect(patch.finances.budgetItems).toEqual(baseTeam.finances.budgetItems);
+    });
+
+    it("clearing both fields clears the stored context", () => {
+      const { teamValue } = renderWithProviders(
+        <MemoryRouter>
+          <FinancesTab />
+        </MemoryRouter>,
+        { team: { team: orgTeam } },
+      );
+      fireEvent.change(screen.getByLabelText("Outside org name"), {
+        target: { value: "" },
+      });
+      fireEvent.change(screen.getByLabelText("Outside org fee per player"), {
+        target: { value: "" },
+      });
+      fireEvent.blur(screen.getByLabelText("Outside org fee per player"));
+      const patch = { finances: appliedFinances(teamValue) };
+      expect(patch.finances.externalOrgFee).toBeUndefined();
+    });
+
+    it("the draft planner stages nextExternalOrgFee via its own editor — the current context is untouched", () => {
+      const { teamValue } = renderWithProviders(
+        <MemoryRouter>
+          <FinancesTab />
+        </MemoryRouter>,
+        { team: { team: orgTeam } },
+      );
+      fireEvent.change(screen.getByLabelText("Next season outside org name"), {
+        target: { value: "New Umbrella Org" },
+      });
+      fireEvent.change(
+        screen.getByLabelText("Next season outside org fee per player"),
+        { target: { value: "600" } },
+      );
+      fireEvent.blur(
+        screen.getByLabelText("Next season outside org fee per player"),
+      );
+      const patch = { finances: appliedFinances(teamValue) };
+      expect(patch.finances.nextExternalOrgFee).toEqual({
+        label: "New Umbrella Org",
+        amount: 600,
+      });
+      // Staged only — this year's standing fact is untouched.
+      expect(patch.finances.externalOrgFee).toEqual({
+        label: "Team Elite Premier",
+        amount: 525,
+      });
+    });
+
+    it("the draft's burden line uses the staged org fee, falling back to the current one", () => {
+      // With a set next-season fee ($200) the draft summary renders its
+      // burden line. Staged next org fee ($600) → total family cost $800.
+      const stagedTeam: any = {
+        ...orgTeam,
+        finances: {
+          ...orgTeam.finances,
+          nextClubFee: 200,
+          nextExternalOrgFee: { label: "New Umbrella Org", amount: 600 },
+        },
+      };
+      const { unmount } = renderWithProviders(
+        <MemoryRouter>
+          <FinancesTab />
+        </MemoryRouter>,
+        { team: { team: stagedTeam } },
+      );
+      expect(screen.getByText(/to New Umbrella Org directly/)).toBeVisible();
+      expect(screen.getByText("$800")).toBeInTheDocument(); // 200 + 600
+      unmount();
+      // Without a staged value the draft falls back to the CURRENT org fee:
+      // total family cost 200 + 525 = $725.
+      const fallbackTeam: any = {
+        ...orgTeam,
+        finances: { ...orgTeam.finances, nextClubFee: 200 },
+      };
+      renderWithProviders(
+        <MemoryRouter>
+          <FinancesTab />
+        </MemoryRouter>,
+        { team: { team: fallbackTeam } },
+      );
+      expect(
+        screen.queryByText(/to New Umbrella Org directly/),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("$725")).toBeInTheDocument();
+    });
+  });
+
+  describe("fundedBy — fundraise-funded budget lines", () => {
+    const fundedTeam: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        budgetItems: [
+          ...baseTeam.finances.budgetItems,
+          {
+            id: "b3",
+            label: "Pitching machine",
+            amount: 300,
+            fundedBy: "fundraising",
+          },
+        ],
+        nextBudgetItems: [{ id: "nb1", label: "Dugout upgrade", amount: 200 }],
+      },
+    };
+
+    it("the row toggle marks an item fundraise-funded through a mapEntries op", () => {
+      const { teamValue } = renderWithProviders(
+        <MemoryRouter>
+          <FinancesTab />
+        </MemoryRouter>,
+        { team: { team: baseTeam } },
+      );
+      fireEvent.click(
+        screen.getByLabelText("Toggle fundraising funding for Tournaments"),
+      );
+      const items = appliedFinances(teamValue).budgetItems;
+      expect(items[0]).toMatchObject({
+        label: "Tournaments",
+        fundedBy: "fundraising",
+      });
+    });
+
+    it("toggling back DROPS the key (absent = fees, byte-identical to legacy)", () => {
+      const { teamValue } = renderWithProviders(
+        <MemoryRouter>
+          <FinancesTab />
+        </MemoryRouter>,
+        { team: { team: fundedTeam } },
+      );
+      fireEvent.click(
+        screen.getByLabelText(
+          "Toggle fundraising funding for Pitching machine",
+        ),
+      );
+      const items = appliedFinances(teamValue).budgetItems;
+      const machine = items.find((b: any) => b.id === "b3");
+      expect("fundedBy" in machine).toBe(false);
+    });
+
+    it("the draft list carries its own toggle (suffix-disambiguated)", () => {
+      const { teamValue } = renderWithProviders(
+        <MemoryRouter>
+          <FinancesTab />
+        </MemoryRouter>,
+        { team: { team: fundedTeam } },
+      );
+      fireEvent.click(
+        screen.getByLabelText(
+          "Toggle fundraising funding for Dugout upgrade (draft)",
+        ),
+      );
+      const draft = appliedFinances(teamValue).nextBudgetItems;
+      expect(draft[0]).toMatchObject({
+        label: "Dugout upgrade",
+        fundedBy: "fundraising",
+      });
+      // The live list is untouched.
+      expect((teamValue.updateFinances as jest.Mock).mock.calls[0][0].key).toBe(
+        "nextBudgetItems",
+      );
+    });
+
+    it("shows the goal/progress readout in the this-season budget section and the goal-only line in the draft", () => {
+      // $300 goal (Pitching machine); $100 plain car-wash income counts,
+      // the $60 sponsorship income does not (Sponsorships source).
+      const withProgress: any = {
+        ...fundedTeam,
+        finances: {
+          ...fundedTeam.finances,
+          incomes: [
+            ...fundedTeam.finances.incomes,
+            { id: "i2", date: "2026-03-02", label: "Car wash", amount: 100 },
+          ],
+          nextBudgetItems: [
+            {
+              id: "nb1",
+              label: "Dugout upgrade",
+              amount: 200,
+              fundedBy: "fundraising",
+            },
+          ],
+        },
+      };
+      renderWithProviders(
+        <MemoryRouter>
+          <FinancesTab />
+        </MemoryRouter>,
+        { team: { team: withProgress } },
+      );
+      expect(screen.getByText("Fundraising goal")).toBeInTheDocument();
+      expect(screen.getByText(/raised \$100 of \$300/)).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("Fundraising goal progress"),
+      ).toBeInTheDocument();
+      // The card says what it counts.
+      expect(
+        screen.getByText(/Counts plain Fundraiser income/),
+      ).toBeInTheDocument();
+      // Draft side: goal total only, no progress meter for next season.
+      expect(
+        screen.getByText(/Next season's fundraising goal is/),
+      ).toBeInTheDocument();
+    });
+
+    it("fee guidance splits the budget total into fee-funded + fundraised", () => {
+      renderWithProviders(
+        <MemoryRouter>
+          <FinancesTab />
+        </MemoryRouter>,
+        { team: { team: fundedTeam } },
+      );
+      // 800 total = 500 from fees + 300 fundraised; suggested = 500 / 2 = 250.
+      expect(
+        screen.getByText(/\$500 from fees \+ \$300 fundraised/),
+      ).toBeInTheDocument();
     });
   });
 });
