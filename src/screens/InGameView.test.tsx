@@ -228,6 +228,48 @@ describe("InGameView", () => {
     expect(evan.title).toMatch(/planned to pitch vs Cubs/);
   });
 
+  it("marks a relieved arm as done and never offers it for a one-tap re-pin", () => {
+    // Alice pitched innings 1-2, Bob relieved her for inning 3 (Alice moved
+    // to 1B). Viewing inning 3: Alice is a dead arm — her Used row says so
+    // and she must not appear in the Available re-pin pool (the engine's
+    // documented coach-override door stays shut at the UI).
+    const inn12 = oneInning();
+    const inn3 = {
+      P: bob,
+      C: cara,
+      "1B": alice,
+      "2B": dave,
+      BENCH: [evan],
+    };
+    const game = makeGame({ lineup: [inn12, oneInning(), inn3] });
+    renderInGame({
+      game,
+      team: { teamAge: "10U", pitchingFormat: "Kid Pitch" },
+      ui: { inGameInning: 2 },
+    });
+    expect(
+      screen.getByText("Relieved — done for this game"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/pulled arm can't return to the mound/i),
+    ).toBeInTheDocument();
+    // No one-tap re-pin button for the relieved arm…
+    expect(screen.queryByTitle(/Make Alice the pitcher/)).toBeNull();
+    // …while a fresh arm is still offered.
+    expect(screen.getByTitle(/Make Evan the pitcher/)).toBeInTheDocument();
+  });
+
+  it("shows no relieved marking while one arm has held the whole game", () => {
+    const game = makeGame({ lineup: [oneInning(), oneInning()] });
+    renderInGame({
+      game,
+      team: { teamAge: "10U", pitchingFormat: "Kid Pitch" },
+      ui: { inGameInning: 1 },
+    });
+    expect(screen.queryByText(/Relieved — done for this game/)).toBeNull();
+    expect(screen.queryByText(/pulled arm can't return/i)).toBeNull();
+  });
+
   it("injury removal also persists an Out health status by default", () => {
     const { removePlayerMidGame, setPlayerHealth } = renderInGame();
     fireEvent.click(

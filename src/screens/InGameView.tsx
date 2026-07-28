@@ -19,6 +19,7 @@ import { A11yDialog } from "../components/shared";
 import { featureEnabled } from "../constants/features";
 import { useNavigate } from "react-router-dom";
 import { laterPlannedGamesForPlayer } from "../utils/tournamentPitching";
+import { relievedArmIds } from "../utils/pitchingWorkload";
 import {
   liveMarginAdvisory,
   tournamentForGame,
@@ -1028,12 +1029,23 @@ export const InGameView = memo(() => {
                 usedPitcherList.push({ player: pitcher, firstInning: i + 1 });
               }
             }
+            // Dead-arm rule at the UI (Phase A closes this in the engine, this
+            // closes the coach-override door): an arm already used AND relieved
+            // this game is done pitching — it must never be offered for a
+            // one-tap re-pin, and its Used row explains why it's not coming
+            // back. The current arm (latest inning's P) stays on the mound.
+            const relievedIds = relievedArmIds(liveLineup, currentInning);
             // Available pool: present players not yet used, eligible by rest rules
             const targetDate =
               game.date || new Date().toISOString().slice(0, 10);
             const presentPlayers = team.players.filter(
               (p: any) =>
-                game.attendance?.[p.id] !== false && !usedPitcherIds.has(p.id),
+                game.attendance?.[p.id] !== false &&
+                !usedPitcherIds.has(p.id) &&
+                // Defensive: relieved arms are a subset of used arms above,
+                // but keep the dead-arm exclusion explicit so a refactor of
+                // the used scan can't silently reopen the override gap.
+                !relievedIds.has(p.id),
             );
             // Eligibility (rest rules + age pitch limit) lives in the engine —
             // use it directly so this view can't drift from the canonical rules.
@@ -1071,22 +1083,43 @@ export const InGameView = memo(() => {
                       Used This Game
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      {usedPitcherList.map(({ player, firstInning }) => (
-                        <div
-                          key={player.id}
-                          className="flex items-center gap-2 bg-surface border border-line rounded-md px-2 py-1.5"
-                        >
-                          <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                            <span className="text-[11px] font-bold text-ink truncate">
-                              {player.name}
-                            </span>
-                            <span className="text-ink-3 text-[9px] font-medium shrink-0">
-                              (Inn {firstInning})
-                            </span>
+                      {usedPitcherList.map(({ player, firstInning }) => {
+                        const relieved = relievedIds.has(player.id);
+                        return (
+                          <div
+                            key={player.id}
+                            className={`flex items-center gap-2 bg-surface border border-line rounded-md px-2 py-1.5 ${
+                              relieved ? "opacity-70" : ""
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className={`text-[11px] font-bold truncate ${
+                                  relieved ? "text-ink-3" : "text-ink"
+                                }`}
+                              >
+                                {player.name}
+                              </span>
+                              <span className="text-ink-3 text-[9px] font-medium shrink-0">
+                                (Inn {firstInning})
+                              </span>
+                              {relieved && (
+                                <span className="text-[9px] font-black uppercase tracking-widest text-loss shrink-0">
+                                  Relieved — done for this game
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
+                    {relievedIds.size > 0 && (
+                      <div className="text-[10px] text-ink-3 font-medium mt-1.5 leading-snug">
+                        A pulled arm can't return to the mound this game
+                        (one-pitcher rule), so relieved pitchers aren't offered
+                        below.
+                      </div>
+                    )}
                   </div>
                 )}
                 <div>

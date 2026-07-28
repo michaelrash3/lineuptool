@@ -269,6 +269,12 @@ export interface Game {
   playerStats?: Record<PlayerId, PlayerStats>;
   // When the per-game stat line was last imported (ISO instant).
   statsImportedAt?: string;
+  // Planned pitching assignments for a STANDALONE game (one not claimed by a
+  // stored Tournament). Games inside a stored tournament keep their plan in
+  // tournament.pitchPlan[gameId] — utils/weekPlanning.planForGame resolves the
+  // right source, so the week planner and the tournament panel never disagree.
+  // null (not just absent) is the "plan cleared" write shape.
+  pitchPlan?: PlannedOuting[] | null;
   isHome?: boolean | null;
   location?: string;
   // ISO instant of first pitch; drives the displayed time. null for all-day

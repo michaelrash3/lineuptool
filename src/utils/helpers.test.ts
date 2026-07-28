@@ -23,6 +23,9 @@ import {
   revertOptimisticUpdate,
   buildScheduleIcs,
   recordPitchingOuting,
+  updatePitchingOutingEntry,
+  removePitchingOutingEntry,
+  addPitchingOutingEntry,
   summarizePitchingWorkload,
   estimateDocSizeBytes,
   FIRESTORE_DOC_LIMIT_BYTES,
@@ -79,6 +82,8 @@ import {
   ledgerCsv,
   yearComparison,
   rollFinancesForNewSeason,
+  effectiveGameType,
+  gameTypeLabel,
 } from "./helpers";
 
 describe("extractAdvancedStats (section-aware GameChanger stats)", () => {
@@ -1315,16 +1320,37 @@ describe("recordPitchingOuting", () => {
     expect(p.log).toEqual([{ date: "2026-05-01", pitches: 48 }]);
   });
 
-  it("caps the log at 12 entries", () => {
+  it("caps the log at 60 entries — deep enough for a full season", () => {
     let p = null;
-    for (let i = 1; i <= 15; i++) {
-      const d = `2026-05-${String(i).padStart(2, "0")}`;
-      p = recordPitchingOuting(p, d, i);
+    const iso = (i: number) => {
+      const d = new Date(2026, 0, 1 + i); // Jan 1 + i days, local
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    };
+    for (let i = 0; i < 65; i++) {
+      p = recordPitchingOuting(p, iso(i), i + 1);
     }
-    expect(p!.log).toHaveLength(12);
+    expect(p!.log).toHaveLength(60);
     // Newest retained, oldest dropped.
-    expect(p!.log[0].date).toBe("2026-05-15");
-    expect(p!.log[p!.log.length - 1].date).toBe("2026-05-04");
+    expect(p!.log[0].date).toBe(iso(64));
+    expect(p!.log[p!.log.length - 1].date).toBe(iso(5));
+  });
+
+  it("keeps both dates when the same game finishes on a second date (suspended game)", () => {
+    // Suspended after 40 pitches, finished two days later: the re-import for
+    // the same gameId on the NEW date must ADD an entry, not replace the
+    // first date's pitches — rest math has to see both throwing days.
+    let p = recordPitchingOuting(null, "2026-05-01", 40, "g1");
+    p = recordPitchingOuting(p, "2026-05-03", 22, "g1");
+    expect(p!.log).toEqual([
+      { date: "2026-05-03", pitches: 22, gameId: "g1" },
+      { date: "2026-05-01", pitches: 40, gameId: "g1" },
+    ]);
+    // …while re-importing the same game+date still replaces (correction).
+    p = recordPitchingOuting(p, "2026-05-03", 25, "g1");
+    expect(p!.log).toEqual([
+      { date: "2026-05-03", pitches: 25, gameId: "g1" },
+      { date: "2026-05-01", pitches: 40, gameId: "g1" },
+    ]);
   });
 
   it("preserves other pitching fields", () => {
@@ -1356,6 +1382,110 @@ describe("recordPitchingOuting", () => {
       { date: "2026-05-01", pitches: 33, gameId: "g2" },
       { date: "2026-05-01", pitches: 20 },
     ]);
+  });
+});
+
+describe("pitching log editing helpers", () => {
+  // Suspended-game starting point: one imported 60-pitch entry.
+  const imported = () => recordPitchingOuting(null, "2026-05-01", 60, "g1");
+
+  it("updatePitchingOutingEntry edits amount + date and preserves gameId", () => {
+    const p = updatePitchingOutingEntry(imported(), 0, {
+      date: "2026-05-02",
+      pitches: 35,
+    });
+    expect(p.log).toEqual([{ date: "2026-05-02", pitches: 35, gameId: "g1" }]);
+    // Recency mirrors follow the edited entry.
+    expect(p.lastPitchDate).toBe("2026-05-02");
+    expect(p.recentPitches).toBe(35);
+  });
+
+  it("supports the split flow: 60 imported → 35/25 across the two real dates", () => {
+    // Coach corrects the imported day-1 entry to 35…
+    let p = updatePitchingOutingEntry(imported(), 0, { pitches: 35 });
+    // …and adds the 25 thrown when the suspended game resumed.
+    p = addPitchingOutingEntry(p, "2026-05-03", 25);
+    expect(p.log).toEqual([
+      { date: "2026-05-03", pitches: 25 },
+      { date: "2026-05-01", pitches: 35, gameId: "g1" },
+    ]);
+    expect(p.lastPitchDate).toBe("2026-05-03");
+    expect(p.recentPitches).toBe(25);
+    expect(summarizePitchingWorkload(p as any).totalPitches).toBe(60);
+  });
+
+  it("recomputes recency from the log when an edit backdates the newest entry", () => {
+    let p = recordPitchingOuting(null, "2026-05-01", 40, "g1");
+    p = recordPitchingOuting(p, "2026-05-08", 55, "g2");
+    // The 05-08 entry actually happened on 04-25 — after the edit the most
+    // recent day is 05-01, and the mirrors must say so (they can't just echo
+    // the edited entry the way an import echoes a new outing).
+    const out = updatePitchingOutingEntry(p, 0, { date: "2026-04-25" });
+    expect(out.log.map((o: any) => o.date)).toEqual([
+      "2026-05-01",
+      "2026-04-25",
+    ]);
+    expect(out.lastPitchDate).toBe("2026-05-01");
+    expect(out.recentPitches).toBe(40);
+  });
+
+  it("recentPitches after an edit is the latest DAY total (doubleheader summed)", () => {
+    let p = recordPitchingOuting(null, "2026-05-01", 30, "g1");
+    p = recordPitchingOuting(p, "2026-05-01", 25, "g2");
+    const out = updatePitchingOutingEntry(p, 0, { pitches: 20 });
+    expect(out.recentPitches).toBe(50); // 30 + 20, matching mostRecentDayPitches
+    expect(out.lastPitchDate).toBe("2026-05-01");
+  });
+
+  it("updatePitchingOutingEntry ignores invalid indexes and invalid patch fields", () => {
+    const base = imported();
+    expect(updatePitchingOutingEntry(base, 5, { pitches: 10 })).toBe(base);
+    expect(updatePitchingOutingEntry(base, -1, { pitches: 10 })).toBe(base);
+    // Invalid pitches/date keep the entry's existing values.
+    const out = updatePitchingOutingEntry(base, 0, {
+      pitches: 0,
+      date: "",
+    });
+    expect(out.log).toEqual([
+      { date: "2026-05-01", pitches: 60, gameId: "g1" },
+    ]);
+  });
+
+  it("removePitchingOutingEntry deletes one entry and resets mirrors when emptied", () => {
+    let p = recordPitchingOuting(null, "2026-05-01", 40, "g1");
+    p = recordPitchingOuting(p, "2026-05-08", 55, "g2");
+    let out = removePitchingOutingEntry(p, 0); // drop the 05-08 outing
+    expect(out.log).toEqual([
+      { date: "2026-05-01", pitches: 40, gameId: "g1" },
+    ]);
+    expect(out.lastPitchDate).toBe("2026-05-01");
+    expect(out.recentPitches).toBe(40);
+    out = removePitchingOutingEntry(out, 0);
+    expect(out.log).toEqual([]);
+    // Back to the "hasn't pitched" state — rest math stops seeing the outing.
+    expect(out.lastPitchDate).toBeNull();
+    expect(out.recentPitches).toBe(0);
+    expect(removePitchingOutingEntry(out, 0)).toBe(out); // empty: no-op
+  });
+
+  it("addPitchingOutingEntry never replaces an existing entry and rejects junk", () => {
+    const base = imported();
+    // Same date as the imported entry: both kept (explicit add ≠ import dedupe).
+    const p = addPitchingOutingEntry(base, "2026-05-01", 10);
+    expect(p.log).toHaveLength(2);
+    expect(p.recentPitches).toBe(70); // day total
+    expect(addPitchingOutingEntry(base, "", 10)).toBe(base);
+    expect(addPitchingOutingEntry(base, "2026-05-02", 0)).toBe(base);
+    expect(addPitchingOutingEntry(base, "2026-05-02", NaN)).toBe(base);
+  });
+
+  it("preserves unrelated pitching fields through edits", () => {
+    const base = { ...imported(), someFlag: true };
+    expect(updatePitchingOutingEntry(base, 0, { pitches: 12 }).someFlag).toBe(
+      true,
+    );
+    expect(removePitchingOutingEntry(base, 0).someFlag).toBe(true);
+    expect(addPitchingOutingEntry(base, "2026-05-09", 9).someFlag).toBe(true);
   });
 });
 
@@ -1606,6 +1736,30 @@ describe("evalStatHint", () => {
   });
 });
 
+describe("effectiveGameType", () => {
+  it("an explicit stamp always wins, on any rule set", () => {
+    expect(effectiveGameType({ gameType: "bracket" }, "NKB")).toBe("bracket");
+    expect(
+      effectiveGameType({ gameType: "league", leagueRuleSet: "USSSA" }),
+    ).toBe("league");
+  });
+
+  it("unstamped games default from the rule set they play under", () => {
+    expect(effectiveGameType({ leagueRuleSet: "USSSA" }, "NKB")).toBe("pool");
+    expect(effectiveGameType({}, "USSSA")).toBe("pool");
+    expect(effectiveGameType({}, "NKB")).toBe("league");
+    expect(effectiveGameType(null, undefined)).toBe("league");
+    // A junk stamp falls back rather than leaking through.
+    expect(effectiveGameType({ gameType: "??" }, "USSSA")).toBe("pool");
+  });
+
+  it("labels read Rec / Pool / Bracket", () => {
+    expect(gameTypeLabel("league")).toBe("Rec");
+    expect(gameTypeLabel("pool")).toBe("Pool");
+    expect(gameTypeLabel("bracket")).toBe("Bracket");
+  });
+});
+
 describe("deriveTournaments", () => {
   it("clusters same-weekend Tournament games (pool + bracket) into one event", () => {
     const games = [
@@ -1681,6 +1835,17 @@ describe("recordCatchingOuting + sameDayRoleSets", () => {
       { date: "2026-05-10", innings: 4, gameId: "g1" },
     ]);
     expect(c.log).toHaveLength(2);
+  });
+
+  it("keeps both dates when the same game finishes on a second date", () => {
+    // Same (gameId, date) dedupe as the pitching log: a suspended game's
+    // second date adds an entry instead of replacing the first day's innings.
+    let c = recordCatchingOuting(null, "2026-05-10", 3, "g1");
+    c = recordCatchingOuting(c, "2026-05-12", 2, "g1");
+    expect(c.log).toEqual([
+      { date: "2026-05-12", innings: 2, gameId: "g1" },
+      { date: "2026-05-10", innings: 3, gameId: "g1" },
+    ]);
   });
 
   it("derives who pitched/caught on a date, excluding the current game", () => {

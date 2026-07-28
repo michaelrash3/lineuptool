@@ -97,6 +97,11 @@ export const mergeGcEventsIntoGames = (
         id: genId("g"),
         ...fields,
         leagueRuleSet: defaults.leagueRuleSet,
+        // Stamp the classification like manual add does (useGameCrud.addGame):
+        // Tournament (USSSA) feeds default to pool play, anything else to
+        // rec/league. Feed-created games used to carry NO gameType, which left
+        // them invisible to classification chips and engine pool sizing.
+        gameType: defaults.leagueRuleSet === "USSSA" ? "pool" : "league",
         pitchingFormat: defaults.pitchingFormat,
         defenseSize: defaults.defenseSize,
         battingSize: defaults.battingSize,

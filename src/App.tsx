@@ -236,6 +236,11 @@ const GameChangerImportPage = lazy(() =>
     default: m.GameChangerImportPage,
   })),
 );
+const WeekPlannerPage = lazy(() =>
+  import("./screens/schedule/WeekPlannerPage").then((m) => ({
+    default: m.WeekPlannerPage,
+  })),
+);
 const TournamentCreatePage = lazy(() =>
   import("./screens/schedule/TournamentCreatePage").then((m) => ({
     default: m.TournamentCreatePage,
@@ -973,6 +978,7 @@ const MainShell = () => {
                   path="/schedule/import/gamechanger"
                   element={<GameChangerImportPage />}
                 />
+                <Route path="/schedule/week" element={<WeekPlannerPage />} />
                 <Route
                   path="/schedule/tournaments/new"
                   element={<TournamentCreatePage />}

@@ -302,6 +302,35 @@ describe("ScheduleTab", () => {
   });
 });
 
+describe("ScheduleTab — game classification is a real per-game control", () => {
+  it("shows the Game Type selector for REC games and writes gameType directly", async () => {
+    const { teamValue } = renderGameEditor("NKB");
+    const select = screen.getByLabelText("Game type") as HTMLSelectElement;
+    expect(select.value).toBe("league"); // unstamped rec game defaults to Rec
+    await userEvent.selectOptions(select, "bracket");
+    expect(teamValue.updateGame).toHaveBeenCalledWith("g1", {
+      gameType: "bracket",
+    });
+  });
+
+  it("defaults an unstamped Tournament game to Pool Play", () => {
+    renderGameEditor("USSSA");
+    expect(
+      (screen.getByLabelText("Game type") as HTMLSelectElement).value,
+    ).toBe("pool");
+  });
+
+  it("switching Game Rules no longer rewrites the classification", async () => {
+    const { teamValue } = renderGameEditor("NKB");
+    // The Game Rules select currently displays "Rec" (NKB).
+    await userEvent.selectOptions(screen.getByDisplayValue("Rec"), "USSSA");
+    const calls = (teamValue.updateGame as jest.Mock).mock.calls;
+    const rulesCall = calls.find((c: any[]) => c[1]?.leagueRuleSet === "USSSA");
+    expect(rulesCall).toBeTruthy();
+    expect(rulesCall![1]).not.toHaveProperty("gameType");
+  });
+});
+
 describe("ScheduleTab — 9U+ pitching format is fixed to Kid Pitch", () => {
   it("shows a read-only Kid Pitch pill instead of a dropdown at 10U", () => {
     renderGameEditor("USSSA");
