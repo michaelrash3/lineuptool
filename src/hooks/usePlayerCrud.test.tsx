@@ -159,6 +159,44 @@ describe("usePlayerCrud", () => {
       expect(restored.games[0].lineup[0].P).toMatchObject({ id: "p1" });
     });
 
+    it("strips the removed player from STANDALONE game pitch plans, and Undo restores them", async () => {
+      // The week planner writes standalone plans to game.pitchPlan — a
+      // deleted player must leave those too (the tournament path already
+      // does), or the entry keeps folding into cross-game rest math.
+      const withPlans = {
+        ...team,
+        games: [
+          {
+            ...team.games[0],
+            pitchPlan: [
+              { playerId: "p1", role: "start", plannedPitches: 40 },
+              { playerId: "p2", role: "relief" },
+            ],
+          },
+          {
+            id: "g2",
+            pitchPlan: [{ playerId: "p1", role: "start" }],
+          },
+        ],
+      };
+      const { result, teamData, updateTeamArrays, toast } = setup(withPlans);
+      await act(async () => result.current.removePlayer("p1"));
+      const next = applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0]);
+      // p1 gone from g1's plan; g2's plan (p1 only) clears to null — the
+      // stored "plan cleared" shape, matching the week planner's writes.
+      expect(next.games[0].pitchPlan).toEqual([
+        { playerId: "p2", role: "relief" },
+      ]);
+      expect(next.games[1].pitchPlan).toBeNull();
+
+      // Undo restores the whole pre-delete games snapshot, plans included.
+      const undo = (toast.push as jest.Mock).mock.calls[0][0].action;
+      act(() => undo.onClick());
+      const restored = applyTeamOps(next, updateTeamArrays.mock.calls[1][0]);
+      expect(restored.games[0].pitchPlan).toEqual(withPlans.games[0].pitchPlan);
+      expect(restored.games[1].pitchPlan).toEqual(withPlans.games[1].pitchPlan);
+    });
+
     it("strips the removed player from tournament pitch plans in the same write, and Undo restores them", async () => {
       const tournaments = [
         {

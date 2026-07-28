@@ -12,9 +12,11 @@
 //     free-text money-out / money-in boxes, and DEPOSIT_QUICK_PICKS → chips on
 //     the next-season deposit field.
 //
-// A future PR (docs/finance-categories.md) may promote these into a structured
-// `category` field for by-category reporting; until then they are suggestions,
-// never a constraint.
+// The by-category reporting layer this catalog fed has since shipped
+// (docs/finance-categories.md PR2/PR3): budget items carry an optional
+// structured `category`, income entries an optional revenue `category`, and
+// the taxonomies + inference helpers live further down this file. The presets
+// remain what they always were — suggestions, never a constraint.
 
 // The seven spending areas a youth-baseball budget divides into. Kept as a
 // string union (the labels double as the on-screen group headers).
@@ -424,12 +426,9 @@ export const REVENUE_CATEGORIES: Array<{
   { id: "other-income", label: "Other income" },
 ];
 
-const REVENUE_LABELS: Record<RevenueCategoryId, string> = Object.fromEntries(
-  REVENUE_CATEGORIES.map((c) => [c.id, c.label]),
-) as Record<RevenueCategoryId, string>;
-
-export const revenueCategoryLabel = (id: RevenueCategoryId): string =>
-  REVENUE_LABELS[id] || "Other income";
+// (No revenueCategoryLabel twin of categoryLabel here: every revenue consumer
+// renders labels straight off REVENUE_CATEGORIES rows — incomeByCategory
+// returns the label with each row — so an id→label lookup has no caller.)
 
 // Keyword inference for legacy/untagged income entries — mirrors
 // inferCategory on the spend side. First matching source wins; order puts

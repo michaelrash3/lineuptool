@@ -1057,19 +1057,20 @@ export const InGameView = memo(() => {
                 checkPitchEligibility(p, targetDate, ageGroup, pitchRules) &&
                 canPitchDual(p.id),
             );
-            // Advisory only: an arm penciled into a LATER game of this
-            // weekend's stored tournament stays selectable — using them now
-            // just burns tomorrow's plan, and the coach should see that at
-            // the decision moment.
+            // Advisory only: an arm penciled into a LATER game — a stored
+            // tournament's plan OR a standalone game's week-planner plan —
+            // stays selectable; using them now just burns tomorrow's plan,
+            // and the coach should see that at the decision moment. The
+            // tournaments toggle only hides the stored-tournament layer
+            // (standalone game.pitchPlan is written by the always-available
+            // week planner), so the lookup itself always runs.
             const laterPlannedFor = (playerId: string) =>
-              featureEnabled(team, "tournaments")
-                ? laterPlannedGamesForPlayer(
-                    team.tournaments,
-                    team.games,
-                    playerId,
-                    game.id,
-                  )[0]
-                : undefined;
+              laterPlannedGamesForPlayer(
+                featureEnabled(team, "tournaments") ? team.tournaments : [],
+                team.games,
+                playerId,
+                game.id,
+              )[0];
 
             return (
               <div className="bg-warn-bg border border-line rounded-xl p-3 mb-3">

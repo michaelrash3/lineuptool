@@ -79,6 +79,48 @@ describe("StartingPitcherPicker", () => {
     expect(screen.getByText("Lefty").closest("button")).toBeEnabled();
   });
 
+  it("marks a STANDALONE game's week-planner starter as Planned", () => {
+    // The week planner writes standalone plans to game.pitchPlan — no stored
+    // tournament involved. The picker must honor them the same way.
+    const planned = {
+      ...g2,
+      pitchingFormat: "Kid Pitch",
+      pitchPlan: [{ playerId: "p2", role: "start", plannedPitches: 50 }],
+    };
+    renderWithProviders(<StartingPitcherPicker game={planned} />, {
+      team: {
+        team: baseTeam({ games: [g1, planned] }),
+        currentRole: "head",
+        generateLineup: jest.fn(),
+      },
+    });
+    expect(screen.getByText("Planned")).toBeInTheDocument();
+    expect(screen.queryByText("Suggested")).not.toBeInTheDocument();
+  });
+
+  it("discounts an arm planned for an earlier STANDALONE game", () => {
+    // Wednesday's rec-game plan (game.pitchPlan) burns the arm for the
+    // weekend even though neither game is in a stored tournament — the
+    // pre-fix blind spot.
+    const wed = {
+      ...g1,
+      pitchPlan: [{ playerId: "p1", role: "start", plannedPitches: 60 }],
+    };
+    renderWithProviders(
+      <StartingPitcherPicker game={{ ...g2, pitchingFormat: "Kid Pitch" }} />,
+      {
+        team: {
+          team: baseTeam({ games: [wed, g2] }),
+          currentRole: "head",
+          generateLineup: jest.fn(),
+        },
+      },
+    );
+    expect(screen.getByText("Rest")).toBeInTheDocument();
+    expect(screen.getByText("Ace").closest("button")).toBeDisabled();
+    expect(screen.getByText("Lefty").closest("button")).toBeEnabled();
+  });
+
   it("keeps the heuristic recommendation when the game has no tournament plan", () => {
     renderWithProviders(
       <StartingPitcherPicker game={{ ...g1, pitchingFormat: "Kid Pitch" }} />,

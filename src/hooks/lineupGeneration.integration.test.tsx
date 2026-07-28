@@ -140,11 +140,17 @@ describe("lineup generation integration (real engine through the bridge)", () =>
   });
 
   it("undo restores the previous lineup through the bridge", () => {
-    const { result, ui } = setup();
+    const { result, ui, toast } = setup();
     act(() => result.current.generateLineup()); // first build (no previous)
     const firstLineup = ui.lineup;
     act(() => result.current.regenerateLineup()); // second build, snapshots first
-    act(() => result.current.undoLineup());
+    // The re-roll toast's Undo action is the snapshot's only reader (the hook
+    // deliberately exports no undo function).
+    const undo = (toast.push as jest.Mock).mock.calls
+      .map((c) => c[0])
+      .filter((t) => t.action)
+      .pop()!.action;
+    act(() => undo.onClick());
     expect(ui.lineup).toEqual(firstLineup);
   });
 });

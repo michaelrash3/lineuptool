@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, act, screen } from "@testing-library/react";
+import { render, act, fireEvent, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 // Team-scoped state that must not outlive a team switch — the bug class #583
@@ -256,6 +256,15 @@ const defenseSizeWrites = (teamId: string) =>
       (call[1] as { defenseSize?: string })?.defenseSize !== undefined,
   );
 
+// The snapshot's only reader is the re-roll toast's Undo button (undo is not
+// on the team context), and ToastProvider is real here — click the newest
+// still-live Undo. Clicking also dismisses that toast, so tests that need a
+// second undo attempt re-roll first to mint a fresh one.
+const clickUndo = () => {
+  const buttons = screen.getAllByRole("button", { name: "Undo" });
+  fireEvent.click(buttons[buttons.length - 1]);
+};
+
 beforeEach(() => {
   listeners.length = 0;
   applied.length = 0;
@@ -277,13 +286,15 @@ describe("TeamProvider — the lineup undo buffer is team-scoped", () => {
 
     // The buffer really is armed: undo on team A restores team A's players.
     // Without this the "nothing restored" assertion below would pass against a
-    // buffer that was never populated in the first place.
+    // buffer that was never populated in the first place. (Clicking consumes
+    // the toast, so re-roll again to leave a live Undo for the switch below.)
     applied.length = 0;
-    await act(async () => {
-      teamApi.undoLineup();
-    });
+    clickUndo();
     expect(applied).toHaveLength(1);
     expect(appliedPlayerIds()).toContain("ta1");
+    await act(async () => {
+      teamApi.regenerateBatting();
+    });
 
     // Switch to team B and let its doc land. The coach is now editing a
     // different team with the re-roll toast — and its live Undo button — still
@@ -295,9 +306,7 @@ describe("TeamProvider — the lineup undo buffer is team-scoped", () => {
 
     wireBridge("tb");
     applied.length = 0;
-    await act(async () => {
-      teamApi.undoLineup();
-    });
+    clickUndo();
 
     // Nothing restored: the snapshot belonged to a team the coach left. The
     // PII assertion goes first so a failure names the actual harm — team A's
@@ -323,9 +332,7 @@ describe("TeamProvider — the lineup undo buffer is team-scoped", () => {
     await emitDoc(teamPath("tb"), null);
 
     applied.length = 0;
-    await act(async () => {
-      teamApi.undoLineup();
-    });
+    clickUndo();
     expect(applied).toHaveLength(0);
   });
 
@@ -347,9 +354,7 @@ describe("TeamProvider — the lineup undo buffer is team-scoped", () => {
       teamApi.regenerateBatting();
     });
     applied.length = 0;
-    await act(async () => {
-      teamApi.undoLineup();
-    });
+    clickUndo();
     expect(applied).toHaveLength(1);
     expect(appliedPlayerIds()).toContain("tb1");
     expect(foreignIds("ta")).toEqual([]);

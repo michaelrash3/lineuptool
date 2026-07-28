@@ -156,9 +156,13 @@ export interface Player {
   // carries a season label and the stats for that year; the engine uses the
   // two most recent past seasons when current-year AB count is low.
   pastSeasons?: PlayerPastSeason[];
-  // Legacy pitching log (pre-v5 schema). The canonical fields migrated to
-  // PlayerStats (pTopMph, pTopMphDate); this sub-object still appears on
-  // older player docs and is read by the pitching-plan engine.
+  // Live pitching workload state — actively WRITTEN by the per-game stats
+  // import (utils/helpers.recordPitchingOuting) and the Arm Care log editor,
+  // and read by the engine's rest/eligibility rules. `log` is the rolling
+  // outing history; recentPitches/lastPitchDate mirror the most recent
+  // throwing day for players saved before the log existed. Only `topMph` is
+  // legacy here — velocity moved to PlayerStats.pTopMph and this field
+  // remains as a read fallback.
   pitching?: {
     log?: Array<{ date?: string; pitches?: number }>;
     recentPitches?: number;
@@ -1272,9 +1276,10 @@ export interface PlayerProfile {
 }
 
 // Top-level argument bundle for generateLineup / generateBattingOnly. Stays
-// permissive (lots of optionals) — call sites in App.jsx pass a slightly
-// different shape on each path. Tightening individual fields is an iterative
-// follow-up, not part of this conversion PR.
+// permissive (lots of optionals) — call sites (useLineupActions and friends,
+// extracted from App.tsx) pass a slightly different shape on each path.
+// Tightening individual fields is an iterative follow-up, not part of this
+// conversion PR.
 export interface EngineInput {
   activePlayers: Player[];
   allPlayers?: Player[];

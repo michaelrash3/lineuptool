@@ -371,10 +371,11 @@ export const useImportExportFlows = ({
           }
 
           // Pitch counts now come from per-game stat imports (uploadGameStatsCsv
-          // logs each outing to the pitcher's arm-care log), so the old manual
-          // pitchCounts-vs-CSV sanity check has been retired along with manual
-          // pitch entry. The season importer still records totalPitches as a
-          // season aggregate stat; nothing to reconcile here.
+          // logs each outing to the pitcher's arm-care log; the Arm Care panel
+          // still supports hand-entered outings for games no CSV covers), so
+          // the old game-day pitchCounts-vs-CSV sanity check has been retired.
+          // The season importer still records totalPitches as a season
+          // aggregate stat; nothing to reconcile here.
           const todayIso = new Date().toISOString().slice(0, 10);
 
           const patch: Record<string, any> = {
@@ -501,11 +502,12 @@ export const useImportExportFlows = ({
 
             // Log this game's pitching/catching outings from the imported
             // line — the box score, not the planned lineup, now drives
-            // arm-care rest. Both logs dedupe by (gameId, date): re-importing
-            // the same game on the same date replaces (never double-counts)
-            // its outing, while a suspended game finished on a second date
-            // adds a second entry — the coach can then split the total across
-            // the two days in the Arm Care log editor. Pitching
+            // arm-care rest. Both logs dedupe by gameId (recordPitchingOuting):
+            // a re-import replaces the game's lone entry even when its date
+            // changed (a corrected game date, or an Arm Care date edit), so
+            // it never double-counts; only a log already split into several
+            // entries for the gameId (a suspended game across two dates)
+            // keeps per-(gameId, date) matching. Pitching
             // is already stripped for machine/coach games at import, so a
             // non-kid game leaves totalPitches undefined and logs nothing.
             const line = playerStats[p.id] || {};

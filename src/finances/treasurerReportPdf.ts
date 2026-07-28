@@ -12,6 +12,7 @@ import {
   financeSummary,
   formatCurrency,
   isFamilyPayoutEarmark,
+  isVoided,
   passThroughSummary,
   reimbursementsSummary,
   reconciliationStatus,
@@ -79,10 +80,15 @@ export const buildTreasurerReportData = (
   finances: TeamFinances | null | undefined,
   players: Array<{ id: string; name?: string }> | null | undefined,
 ): TreasurerReportData | null => {
+  // Voided rows are $0 audit stubs, not activity — a ledger where every row
+  // has been voided has nothing to report either.
+  const hasLive = (
+    rows: Array<{ voidedAt?: string }> | null | undefined,
+  ): boolean => (rows || []).some((r) => !isVoided(r));
   const hasActivity =
-    (finances?.payments || []).length > 0 ||
-    (finances?.incomes || []).length > 0 ||
-    (finances?.expenses || []).length > 0 ||
+    hasLive(finances?.payments) ||
+    hasLive(finances?.incomes) ||
+    hasLive(finances?.expenses) ||
     Number(finances?.clubFee) > 0 ||
     (finances?.pastSeasons || []).length > 0;
   if (!finances || !hasActivity) return null;
@@ -94,6 +100,9 @@ export const buildTreasurerReportData = (
   let other = 0;
   let passThroughIncome = 0;
   for (const inc of finances.incomes || []) {
+    // Voided rows count for $0 here exactly as in financeSummary — the
+    // by-source slices must agree with the summary tiles on the same page.
+    if (isVoided(inc)) continue;
     const amt = Number(inc?.amount) || 0;
     // Earmark precedence: held-for-families money is never club revenue,
     // whatever other flags the row carries.
@@ -105,6 +114,9 @@ export const buildTreasurerReportData = (
 
   let refundsTotal = 0;
   for (const pay of finances.payments || []) {
+    // A voided refund never happened — financeSummary's net-of-refunds
+    // collected figure skips it, so the "net of $X refunded" note must too.
+    if (isVoided(pay)) continue;
     if (pay?.refund) refundsTotal += Number(pay?.amount) || 0;
   }
 

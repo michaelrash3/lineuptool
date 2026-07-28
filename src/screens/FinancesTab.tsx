@@ -27,6 +27,8 @@ import {
   incomeByCategory,
   financeSummary,
   financeIntegrity,
+  isFamilyPayoutEarmark,
+  isVoided,
   seasonOutlook,
   reimbursementsSummary,
   passThroughSummary,
@@ -126,14 +128,17 @@ export const FinancesTab = memo(() => {
     () => financeIntegrity(finances, players),
     [finances, players],
   );
-  const orphanCount = integrity.orphanPlayerRefs + integrity.orphanExpenseLinks;
+  const orphanCount =
+    integrity.orphanPlayerRefs +
+    integrity.orphanExpenseLinks +
+    integrity.orphanFeeReliefLinks;
   // Forward-looking projection for the Budget Planner (pure-derived, no writes).
   const outlook = useMemo(
     () => seasonOutlook(finances, players),
     [finances, players],
   );
   const toast = useToast();
-  const { promptText } = useConfirm();
+  const { promptText, confirm } = useConfirm();
   // THIS club year's working budget and its fee guidance (what clubFee should
   // be). Sponsorship pledges are next-season money — they never offset this.
   // `budget` stays the FULL plan (meters want the whole picture); the fee
@@ -815,7 +820,14 @@ export const FinancesTab = memo(() => {
   // but counts it for $0 everywhere (isVoided in utils/finances.ts); hard
   // delete (removeLedgerRow) stays available for a genuine mistake. mapEntries
   // is used per key so a concurrent edit to a DIFFERENT row is preserved.
-  const voidLedgerRow = (
+  // Voiding an income with linked feeRelief payout rows also REMOVES the
+  // unpaid ones — a promised payout from a fundraiser that never really
+  // happened was never a real liability, and leaving it would keep it in
+  // "owed to families" and markable-as-paid. PAID rows stay: they posted real
+  // expenses and are history. That removal doesn't come back on unvoid, so
+  // this one variant confirms first (same danger-confirm the app uses for
+  // other destructive actions).
+  const voidLedgerRow = async (
     source: "income" | "expense" | "payment",
     id: string,
   ) => {
@@ -825,9 +837,43 @@ export const FinancesTab = memo(() => {
           ? { ...x, voidedBy: user?.uid, voidedAt: new Date().toISOString() }
           : x,
       );
-    if (source === "income")
+    if (source === "income") {
+      const unpaidLinked = (finances.reimbursements || []).filter(
+        (r) =>
+          r.kind === "feeRelief" &&
+          r.sourceIncomeId === id &&
+          r.status !== "paid" &&
+          !isVoided(r),
+      );
+      if (unpaidLinked.length > 0) {
+        const income = (finances.incomes || []).find((i) => i.id === id);
+        const total = round2(
+          unpaidLinked.reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+        );
+        const n = unpaidLinked.length;
+        const ok = await confirm({
+          title: `Void ${income?.label || "this fundraiser"}?`,
+          message: `${n === 1 ? "One queued fee-relief payout" : `${n} queued fee-relief payouts`} (${formatCurrency(total)}) drawn from it will be removed — that money was never paid out. Payouts already paid stay as history.`,
+          confirmLabel: "Void fundraiser",
+          danger: true,
+        });
+        if (!ok) return;
+        updateFinances({ op: "mapEntries", key: "incomes", map: apply });
+        const removeIds = new Set(unpaidLinked.map((r) => r.id));
+        updateFinances({
+          op: "mapEntries",
+          key: "reimbursements",
+          map: (items) => items.filter((r) => !removeIds.has(r.id)),
+        });
+        toast.push({
+          kind: "success",
+          title: "Fundraiser voided",
+          message: `Removed ${n === 1 ? "its queued fee-relief payout" : `${n} queued fee-relief payouts`} (${formatCurrency(total)}); payouts already paid stay in the ledger.`,
+        });
+        return;
+      }
       updateFinances({ op: "mapEntries", key: "incomes", map: apply });
-    else if (source === "expense")
+    } else if (source === "expense")
       updateFinances({ op: "mapEntries", key: "expenses", map: apply });
     else updateFinances({ op: "mapEntries", key: "payments", map: apply });
   };
@@ -868,6 +914,7 @@ export const FinancesTab = memo(() => {
     amount: "",
     budgetItemId: "",
     fundraising: false,
+    earmark: false,
     playerId: "",
   });
   const startLedgerEdit = (row: {
@@ -891,7 +938,10 @@ export const FinancesTab = memo(() => {
       label: row.label,
       amount: String(row.amount ?? ""),
       budgetItemId: exp?.budgetItemId || "",
-      fundraising: !!inc?.fundraising,
+      // Earmark precedence mirrors the read side: a row carrying both flags
+      // opens as pass-through only, so saving it can't resurrect the credit.
+      fundraising: !!inc?.fundraising && !isFamilyPayoutEarmark(inc),
+      earmark: isFamilyPayoutEarmark(inc),
       playerId: inc?.playerId || "",
     });
   };
@@ -931,14 +981,23 @@ export const FinancesTab = memo(() => {
                     ...x,
                     ...patch,
                     ...editStamp(),
-                    fundraising: editDraft.fundraising,
                     // Fundraising and the fee-relief earmark are mutually
-                    // exclusive: turning the dues credit on strips the
-                    // earmark (undefined is scrubbed from the write).
-                    ...(editDraft.fundraising ? { earmark: undefined } : {}),
+                    // exclusive here exactly as on the create form
+                    // (addTransaction): the earmark wins, so a plain income
+                    // can be promoted to pass-through and an earmarked one
+                    // deliberately demoted. undefined values are scrubbed
+                    // from the write.
+                    earmark: editDraft.earmark
+                      ? ("familyPayout" as const)
+                      : undefined,
+                    fundraising: editDraft.earmark
+                      ? false
+                      : editDraft.fundraising,
                     // Credit only applies to fundraising entries; clear otherwise.
                     playerId:
-                      editDraft.fundraising && editDraft.playerId
+                      !editDraft.earmark &&
+                      editDraft.fundraising &&
+                      editDraft.playerId
                         ? editDraft.playerId
                         : undefined,
                   }
@@ -1218,9 +1277,10 @@ export const FinancesTab = memo(() => {
         >
           <Icons.Alert className="w-4 h-4 shrink-0 mt-0.5 text-warnfg" />
           <p className="t-meta text-ink-2">
-            {orphanCount} transaction{orphanCount === 1 ? "" : "s"} reference a
-            removed player or budget item. They still count toward the balance —
-            open the Ledger to re-attribute or void them.
+            {orphanCount} record{orphanCount === 1 ? "" : "s"} reference a
+            removed player or budget item, or a fee-relief payout whose
+            fundraiser was voided. They still count toward the totals — review
+            the Ledger and payout queue to re-attribute or remove them.
           </p>
         </div>
       )}

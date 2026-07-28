@@ -103,9 +103,12 @@ every dollar went. Spend (PR2) is untouched; PR3 adds the revenue side.
   distinct from `FinanceCategoryId`: `RevenueCategoryId` + `REVENUE_CATEGORIES`
   (display order) — Registration & dues, Sponsorships, Fundraisers, Donations,
   Grants, Concessions & snack bar, Merchandise & spirit wear, Tournament
-  winnings, Interest income, Other income — plus `revenueCategoryLabel` and
-  `inferRevenueCategory(label)` (keyword heuristics mirroring `inferCategory`;
-  every `INCOME_LABEL_SUGGESTIONS` entry resolves to a real source).
+  winnings, Interest income, Other income — plus `inferRevenueCategory(label)`
+  (keyword heuristics mirroring `inferCategory`; every
+  `INCOME_LABEL_SUGGESTIONS` entry resolves to a real source). A
+  `revenueCategoryLabel` twin of `categoryLabel` shipped here originally but
+  was later removed: every revenue consumer renders labels straight off
+  `REVENUE_CATEGORIES` rows, so the id→label lookup never gained a caller.
 - **`src/types.ts`** — optional `IncomeEntry.category?: RevenueCategoryId`.
   Club-fee `PaymentEntry` rows stay implicitly "Registration & dues" — no
   per-payment picker; the tracker already knows what they are.

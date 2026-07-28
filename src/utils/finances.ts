@@ -1188,6 +1188,13 @@ export interface FinanceIntegrity {
   // Non-voided expenses linked to a budget item that no longer exists (they
   // silently fall back to "unplanned" in budgetActuals).
   orphanExpenseLinks: number;
+  // Non-voided UNPAID feeRelief payout rows whose source fundraiser is gone —
+  // the linked income is missing, voided, or no longer earmarked. They still
+  // show as owed to families and stay markable-as-paid even though the money
+  // behind them was struck (residue from before the void cleanup in
+  // FinancesTab.voidLedgerRow, or from a deliberately demoted earmark). Paid
+  // rows are skipped: they posted real expenses and are history.
+  orphanFeeReliefLinks: number;
 }
 
 // Non-blocking data-health check behind the reconcile nudge: how many finance
@@ -1219,7 +1226,22 @@ export const financeIntegrity = (
       orphanExpenseLinks += 1;
     }
   }
-  return { orphanPlayerRefs, orphanExpenseLinks };
+  // Unpaid fee-relief payouts whose sourceIncomeId no longer resolves to a
+  // live earmarked fundraiser: liabilities pointing at money that was struck.
+  const incomeById = new Map(
+    (finances?.incomes || []).filter((i) => i?.id).map((i) => [i.id, i]),
+  );
+  let orphanFeeReliefLinks = 0;
+  for (const r of finances?.reimbursements || []) {
+    if (isVoided(r) || !isFeeRelief(r) || r?.status === "paid") continue;
+    const src = String(r?.sourceIncomeId || "");
+    if (!src) continue;
+    const inc = incomeById.get(src);
+    if (!inc || isVoided(inc) || !isFamilyPayoutEarmark(inc)) {
+      orphanFeeReliefLinks += 1;
+    }
+  }
+  return { orphanPlayerRefs, orphanExpenseLinks, orphanFeeReliefLinks };
 };
 
 // ---- By-category reporting (docs/finance-categories.md PR2) -----------------
@@ -1261,7 +1283,6 @@ export const budgetByCategory = (
   finances: TeamFinances | null | undefined,
 ): CategoryBudgetRow[] => {
   const items = finances?.budgetItems || [];
-  const byId = new Map(items.map((b) => [b.id, b]));
   const planned: Partial<Record<FinanceCategoryId, number>> = {};
   const spent: Partial<Record<FinanceCategoryId, number>> = {};
   for (const b of items) {
@@ -1271,8 +1292,9 @@ export const budgetByCategory = (
   }
   for (const e of finances?.expenses || []) {
     if (!e || isVoided(e)) continue;
-    const item = e.budgetItemId ? byId.get(e.budgetItemId) : undefined;
-    const cat = item ? budgetItemCategory(item) : inferCategory(e.label);
+    // expenseCategory owns the linked-item-else-label rule — one reader, so
+    // this rollup can never drift from a row-level category resolution.
+    const cat = expenseCategory(e, items);
     spent[cat] = (spent[cat] || 0) + money(e.amount);
   }
   return FINANCE_CATEGORIES.map((c) => ({

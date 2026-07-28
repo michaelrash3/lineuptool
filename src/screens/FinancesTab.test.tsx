@@ -2072,6 +2072,191 @@ describe("FinancesTab", () => {
     });
   });
 
+  it("the ledger editor promotes a plain income to a fee-relief earmark", () => {
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
+    fireEvent.click(screen.getByLabelText("Edit entry Hardware sponsorship"));
+    fireEvent.click(
+      screen.getByLabelText(
+        "Edit held-for-families earmark for Hardware sponsorship",
+      ),
+    );
+    fireEvent.click(screen.getByLabelText("Save entry Hardware sponsorship"));
+    const op = (teamValue.updateFinances as jest.Mock).mock.calls[0][0];
+    expect(op).toMatchObject({ op: "mapEntries", key: "incomes" });
+    const next = appliedFinances(teamValue);
+    const inc = next.incomes.find((i: any) => i.id === "i1");
+    expect(inc.earmark).toBe("familyPayout");
+    // The earmark never rides with the dues credit or a per-child credit.
+    expect(inc.fundraising).toBe(false);
+    expect(inc.playerId).toBeUndefined();
+  });
+
+  it("the ledger editor demotes an earmarked income back to plain club money", () => {
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: passThroughTeam() } },
+    );
+    fireEvent.click(screen.getByLabelText("Edit entry Spirit night"));
+    const earmarkBox = screen.getByLabelText(
+      "Edit held-for-families earmark for Spirit night",
+    ) as HTMLInputElement;
+    // Opens reflecting the stored earmark.
+    expect(earmarkBox.checked).toBe(true);
+    fireEvent.click(earmarkBox);
+    fireEvent.click(screen.getByLabelText("Save entry Spirit night"));
+    const next = appliedFinances(teamValue);
+    const inc = next.incomes.find((i: any) => i.id === "pt1");
+    // undefined is scrubbed from the write — the earmark key is gone.
+    expect(inc.earmark).toBeUndefined();
+    expect(inc.fundraising).toBe(false);
+  });
+
+  it("the edit form keeps the earmark and the fundraising credit mutually exclusive", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
+    fireEvent.click(screen.getByLabelText("Edit entry Hardware sponsorship"));
+    const fundraisingBox = () =>
+      screen.getByLabelText(
+        "Edit fundraising flag for Hardware sponsorship",
+      ) as HTMLInputElement;
+    const earmarkBox = () =>
+      screen.getByLabelText(
+        "Edit held-for-families earmark for Hardware sponsorship",
+      ) as HTMLInputElement;
+    fireEvent.click(fundraisingBox());
+    expect(fundraisingBox().checked).toBe(true);
+    fireEvent.click(earmarkBox());
+    expect(earmarkBox().checked).toBe(true);
+    expect(fundraisingBox().checked).toBe(false); // earmark wins
+    fireEvent.click(fundraisingBox());
+    expect(fundraisingBox().checked).toBe(true);
+    expect(earmarkBox().checked).toBe(false); // and both ways
+  });
+
+  it("voiding a fundraiser with queued payouts confirms, removes the unpaid rows, and keeps paid ones", async () => {
+    // No ConfirmProvider in tests — useConfirm falls back to window.confirm.
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
+    const { teamValue, toastValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: passThroughTeam() } },
+    );
+    fireEvent.click(screen.getByLabelText("Void entry Spirit night"));
+    await waitFor(() =>
+      expect(teamValue.updateFinances).toHaveBeenCalledTimes(2),
+    );
+    const calls = (teamValue.updateFinances as jest.Mock).mock.calls;
+    expect(calls[0][0]).toMatchObject({ op: "mapEntries", key: "incomes" });
+    expect(calls[1][0]).toMatchObject({
+      op: "mapEntries",
+      key: "reimbursements",
+    });
+    // Fold both ops over the fixture to read the resulting state.
+    const next = calls.reduce(
+      (acc: any, c: any) => applyFinanceUpdate(acc, c[0]),
+      (teamValue.team as any).finances,
+    );
+    expect(next.incomes.find((i: any) => i.id === "pt1").voidedAt).toBeTruthy();
+    const ids = next.reimbursements.map((r: any) => r.id);
+    expect(ids).not.toContain("fr2"); // the unpaid promise is removed
+    expect(ids).toContain("fr1"); // the paid payout stays — it's history
+    expect(ids).toContain("vol1"); // the volunteer IOU is untouched
+    // The toast says what happened to the queued payouts.
+    expect(toastValue.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Fundraiser voided",
+        message: expect.stringMatching(/fee-relief payout.*paid stay/i),
+      }),
+    );
+    confirmSpy.mockRestore();
+  });
+
+  it("declining the void confirm leaves the fundraiser and its payouts untouched", async () => {
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(false);
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: passThroughTeam() } },
+    );
+    fireEvent.click(screen.getByLabelText("Void entry Spirit night"));
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
+    expect(teamValue.updateFinances).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it("voiding an income with no linked payouts stays a one-tap void (no confirm)", async () => {
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(false); // must never be consulted
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
+    fireEvent.click(screen.getByLabelText("Void entry Hardware sponsorship"));
+    await waitFor(() =>
+      expect(teamValue.updateFinances).toHaveBeenCalledTimes(1),
+    );
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(
+      (teamValue.updateFinances as jest.Mock).mock.calls[0][0],
+    ).toMatchObject({ op: "mapEntries", key: "incomes" });
+    confirmSpy.mockRestore();
+  });
+
+  it("the reconcile nudge counts fee-relief payouts left behind by a voided fundraiser", () => {
+    const residue: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        incomes: [
+          ...baseTeam.finances.incomes,
+          {
+            id: "pt1",
+            date: "2026-03-02",
+            label: "Struck night",
+            amount: 300,
+            earmark: "familyPayout",
+            voidedAt: "2026-03-03T00:00:00.000Z",
+          },
+        ],
+        // Pre-fix residue: an unpaid payout still pointing at the voided row.
+        reimbursements: [
+          {
+            id: "fr1",
+            to: "Ava",
+            amount: 90,
+            status: "unpaid",
+            kind: "feeRelief",
+            playerId: "kid1",
+            sourceIncomeId: "pt1",
+          },
+        ],
+      },
+    };
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: residue } },
+    );
+    expect(
+      screen.getByText(/fee-relief payout whose fundraiser was voided/i),
+    ).toBeInTheDocument();
+  });
+
   it("the carryover discount card never offers pass-through money", () => {
     const carried: any = {
       ...baseTeam,

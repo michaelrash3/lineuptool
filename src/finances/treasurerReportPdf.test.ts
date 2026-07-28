@@ -175,6 +175,112 @@ describe("buildTreasurerReportData", () => {
     });
   });
 
+  it("voided rows appear in NO section and the by-source slices agree with the summary", () => {
+    const withVoids: TeamFinances = {
+      ...finances,
+      incomes: [
+        ...(finances.incomes || []),
+        // One voided row per by-source slice — none may leak through.
+        {
+          id: "v1",
+          date: "2026-02-20",
+          label: "Bad sponsor entry",
+          amount: 500,
+          sponsor: true,
+          voidedAt: "2026-02-21T00:00:00.000Z",
+        },
+        {
+          id: "v2",
+          date: "2026-02-22",
+          label: "Duplicate car wash",
+          amount: 90,
+          fundraising: true,
+          voidedAt: "2026-02-23T00:00:00.000Z",
+        },
+        {
+          id: "v3",
+          date: "2026-02-24",
+          label: "Voided spirit night",
+          amount: 400,
+          earmark: "familyPayout",
+          voidedAt: "2026-02-25T00:00:00.000Z",
+        },
+      ],
+      payments: [
+        ...(finances.payments || []),
+        // A voided refund never happened — the net-of-refunds note skips it.
+        {
+          id: "vref",
+          playerId: "p2",
+          date: "2026-04-02",
+          amount: 60,
+          refund: true,
+          voidedAt: "2026-04-03T00:00:00.000Z",
+        },
+      ],
+    };
+    const d = buildTreasurerReportData(withVoids, players)!;
+    // Identical to the all-live fixture: every voided row counts for $0.
+    expect(d.incomeBySource).toEqual({
+      sponsors: 200,
+      fundraising: 80,
+      other: 50,
+      passThrough: 0,
+    });
+    expect(d.refundsTotal).toBe(25);
+    expect(d.heldForFamilies).toBe(0);
+    // The by-source slices sum EXACTLY to financeSummary's non-fee subtotal
+    // shown on the same page — the two can no longer disagree over voids.
+    const { sponsors, fundraising, other, passThrough } = d.incomeBySource;
+    expect(sponsors + fundraising + other + passThrough).toBe(d.otherIncome);
+  });
+
+  it("an all-voided ledger is no activity — the report stays null", () => {
+    const allVoided: TeamFinances = {
+      payments: [
+        {
+          id: "pay1",
+          playerId: "p1",
+          date: "2026-03-01",
+          amount: 100,
+          voidedAt: "2026-03-02T00:00:00.000Z",
+        },
+      ],
+      incomes: [
+        {
+          id: "i1",
+          date: "2026-02-01",
+          label: "Sponsor",
+          amount: 200,
+          voidedAt: "2026-02-02T00:00:00.000Z",
+        },
+      ],
+      expenses: [
+        {
+          id: "e1",
+          date: "2026-03-05",
+          label: "Entry",
+          amount: 300,
+          voidedAt: "2026-03-06T00:00:00.000Z",
+        },
+      ],
+    };
+    expect(buildTreasurerReportData(allVoided, players)).toBeNull();
+    // One live row anywhere brings the report back.
+    expect(
+      buildTreasurerReportData(
+        {
+          ...allVoided,
+          expenses: [
+            ...(allVoided.expenses || []),
+            { id: "e2", date: "2026-03-07", label: "Balls", amount: 40 },
+          ],
+        },
+        players,
+      ),
+    ).not.toBeNull();
+  });
+
   it("includes the reimbursement liability and reconciled months", () => {
     const withExtras: TeamFinances = {
       ...finances,

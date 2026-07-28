@@ -41,7 +41,11 @@ interface EditDraft {
   label: string;
   amount: string;
   budgetItemId: string;
+  // Mutually exclusive, exactly like the create form's pair: checking either
+  // checkbox in the edit row unchecks the other (the earmark also clears the
+  // per-child credit — held money never credits dues).
   fundraising: boolean;
+  earmark: boolean;
   playerId: string;
 }
 interface LedgerSort {
@@ -68,7 +72,11 @@ interface LedgerSectionProps {
     source: "income" | "expense" | "payment",
     id: string,
   ) => void;
-  voidLedgerRow: (source: "income" | "expense" | "payment", id: string) => void;
+  // Async: voiding an income with queued fee-relief payouts confirms first.
+  voidLedgerRow: (
+    source: "income" | "expense" | "payment",
+    id: string,
+  ) => void | Promise<void>;
   unvoidLedgerRow: (
     source: "income" | "expense" | "payment",
     id: string,
@@ -533,12 +541,43 @@ export const LedgerSection = ({
                                       setEditDraft((d) => ({
                                         ...d,
                                         fundraising: e.target.checked,
+                                        // Mutually exclusive with the earmark
+                                        // (same rule as the create form).
+                                        ...(e.target.checked
+                                          ? { earmark: false }
+                                          : {}),
                                       }))
                                     }
                                     aria-label={`Edit fundraising flag for ${row.label}`}
                                     className="accent-[var(--team-primary)]"
                                   />
                                   Fundraising
+                                </label>
+                              )}
+                              {row.source === "income" && (
+                                <label
+                                  className="flex items-center gap-1 text-[10px] font-bold text-ink-2 whitespace-nowrap cursor-pointer"
+                                  title="Proceeds are held and paid back out to families — team fees don't change"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={editDraft.earmark}
+                                    onChange={(e) =>
+                                      setEditDraft((d) => ({
+                                        ...d,
+                                        earmark: e.target.checked,
+                                        // The earmark wins: held-for-families
+                                        // money never credits dues, so it
+                                        // clears the credit fields too.
+                                        ...(e.target.checked
+                                          ? { fundraising: false, playerId: "" }
+                                          : {}),
+                                      }))
+                                    }
+                                    aria-label={`Edit held-for-families earmark for ${row.label}`}
+                                    className="accent-[var(--team-primary)]"
+                                  />
+                                  Held for families
                                 </label>
                               )}
                               {row.source === "income" &&
@@ -738,7 +777,9 @@ export const LedgerSection = ({
                             <button
                               type="button"
                               aria-label={`Void entry ${row.label}`}
-                              onClick={() => voidLedgerRow(row.source, row.id)}
+                              onClick={() =>
+                                void voidLedgerRow(row.source, row.id)
+                              }
                               title="Void keeps the row as an audit trail but removes it from every total"
                               className="text-ink-3 hover:text-warnfg text-[11px] font-bold underline mr-1"
                             >
