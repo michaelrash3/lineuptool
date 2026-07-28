@@ -5,11 +5,15 @@ export const SortHeader = ({
   active,
   asc,
   onClick,
+  context = "",
 }: {
   label: string;
   active: boolean;
   asc: boolean;
   onClick: () => void;
+  // Optional aria-only disambiguator (e.g. " (draft)") for pages that render
+  // the same sortable columns twice; never shown visually.
+  context?: string;
 }) => (
   <button
     type="button"
@@ -18,7 +22,7 @@ export const SortHeader = ({
     // uses a div layout (no columnheader role), where aria-sort is invalid —
     // this keeps the direction announced there. The ledger <th> also sets
     // aria-sort for table semantics.
-    aria-label={`Sort by ${label}${
+    aria-label={`Sort by ${label}${context}${
       active ? `, sorted ${asc ? "ascending" : "descending"}` : ""
     }`}
     className={`t-eyebrow inline-flex items-center gap-1 min-h-[24px] hover:text-ink transition-colors ${

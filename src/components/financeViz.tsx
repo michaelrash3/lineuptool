@@ -78,6 +78,10 @@ export const MoneyMeter = ({
 
 // Gradient scoreboard-style hero: big club balance + balance trend + the
 // same metric labels the old tiles used (tests and muscle memory survive).
+// When a pass-through (fee-relief) fundraiser exists, an extra band splits
+// the balance into free cash vs money held for families; with no earmark on
+// the books (`heldForFamilies` null) the band is invisible and the hero is
+// byte-identical to before.
 export const FinanceHero = ({
   balanceNow,
   collected,
@@ -86,6 +90,8 @@ export const FinanceHero = ({
   stillOwed,
   balanceOnceAllPaid,
   months,
+  freeCash = null,
+  heldForFamilies = null,
 }: {
   balanceNow: number;
   collected: number;
@@ -94,6 +100,8 @@ export const FinanceHero = ({
   stillOwed: number;
   balanceOnceAllPaid: number;
   months: CashflowMonth[];
+  freeCash?: number | null;
+  heldForFamilies?: number | null;
 }) => (
   <div
     className="cc-card relative overflow-hidden text-white"
@@ -136,6 +144,21 @@ export const FinanceHero = ({
         </div>
       ))}
     </div>
+    {heldForFamilies != null && (
+      <div className="grid grid-cols-2 divide-x divide-white/15 border-t border-white/15 bg-black/10">
+        {[
+          { label: "Free cash", value: freeCash ?? 0 },
+          { label: "Held for families", value: heldForFamilies },
+        ].map((m) => (
+          <div key={m.label} className="px-3 py-2.5 text-center">
+            <div className="t-eyebrow text-white/60">{m.label}</div>
+            <div className="text-sm font-black tabular-nums">
+              {formatCurrency(m.value)}
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
   </div>
 );
 

@@ -29,6 +29,9 @@ interface BudgetPresetsCardProps {
   unitNoun: string;
   budgetCategory: FinanceCategoryId | "";
   setBudgetCategory: Dispatch<SetStateAction<FinanceCategoryId | "">>;
+  // Disambiguates every aria-label (and the submit button's accessible name)
+  // when TWO instances render — the live budget's add form and the draft's.
+  labelSuffix?: string;
 }
 
 // The add-controls of the Budget Planner card: the quick-add preset catalog,
@@ -51,6 +54,7 @@ export const BudgetPresetsCard = ({
   unitNoun,
   budgetCategory,
   setBudgetCategory,
+  labelSuffix = "",
 }: BudgetPresetsCardProps) => (
   <>
     {/* Quick-add catalog: tap a common youth-baseball line item to
@@ -65,6 +69,7 @@ export const BudgetPresetsCard = ({
               <button
                 key={preset.label}
                 type="button"
+                aria-label={`+ ${preset.label}${labelSuffix}`}
                 onClick={() => applyPreset(preset)}
                 className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-surface-2 hover:bg-line text-ink-2 transition-colors"
               >
@@ -80,7 +85,7 @@ export const BudgetPresetsCard = ({
     <div className="flex flex-wrap items-center gap-2">
       <button
         type="button"
-        aria-label="Toggle count mode"
+        aria-label={`Toggle count mode${labelSuffix}`}
         aria-pressed={qtyMode}
         onClick={() => setQtyMode((v) => !v)}
         className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest transition-colors ${
@@ -101,7 +106,7 @@ export const BudgetPresetsCard = ({
       </button>
       <button
         type="button"
-        aria-label="Toggle sales tax on the new item"
+        aria-label={`Toggle sales tax on the new item${labelSuffix}`}
         aria-pressed={budgetTaxable}
         title="Add this item's cost pre-tax; sales tax is applied in the planner totals."
         onClick={() => setBudgetTaxable((v) => !v)}
@@ -120,7 +125,7 @@ export const BudgetPresetsCard = ({
         value={budgetLabel}
         onChange={(e) => setBudgetLabel(e.target.value)}
         placeholder="Tournaments, uniforms, field rental…"
-        aria-label="Budget item"
+        aria-label={`Budget item${labelSuffix}`}
         className={`${FORM_INPUT_CLASS} flex-1`}
         style={FORM_INPUT_RING_STYLE}
       />
@@ -132,7 +137,7 @@ export const BudgetPresetsCard = ({
             value={budgetQty}
             onChange={(e) => setBudgetQty(e.target.value)}
             placeholder="How many?"
-            aria-label="Count"
+            aria-label={`Count${labelSuffix}`}
             className={`${FORM_INPUT_CLASS} sm:w-28 tabular-nums`}
             style={FORM_INPUT_RING_STYLE}
           />
@@ -147,7 +152,7 @@ export const BudgetPresetsCard = ({
         value={budgetAmount}
         onChange={(e) => setBudgetAmount(e.target.value)}
         placeholder={qtyMode ? `$ ${unitNoun}` : "$ amount"}
-        aria-label={qtyMode ? "Cost per unit" : "Budget amount"}
+        aria-label={`${qtyMode ? "Cost per unit" : "Budget amount"}${labelSuffix}`}
         className={`${FORM_INPUT_CLASS} sm:w-40 tabular-nums`}
         style={FORM_INPUT_RING_STYLE}
       />
@@ -158,7 +163,7 @@ export const BudgetPresetsCard = ({
         onChange={(e) =>
           setBudgetCategory(e.target.value as FinanceCategoryId | "")
         }
-        aria-label="New item category"
+        aria-label={`New item category${labelSuffix}`}
         className={`${FORM_INPUT_CLASS} sm:w-44`}
         style={FORM_INPUT_RING_STYLE}
       >
@@ -169,7 +174,14 @@ export const BudgetPresetsCard = ({
           </option>
         ))}
       </select>
-      <Button type="submit" variant="secondary" size="md">
+      <Button
+        type="submit"
+        variant="secondary"
+        size="md"
+        // The suffix keeps the two Add buttons distinguishable; the live form's
+        // accessible name stays exactly "Add".
+        {...(labelSuffix ? { "aria-label": `Add${labelSuffix}` } : {})}
+      >
         <Icons.Plus className="w-4 h-4" /> Add
       </Button>
     </form>

@@ -8,6 +8,17 @@ taxonomy and a **money-in-by-source** rollup. All non-breaking: categories are
 optional and inferred from the label when absent, so legacy items and untagged
 entries roll up without a migration write._
 
+_Note (post-PR3): the single "Budget Planner — next season" card has since
+split into two sections — "Budget — this season" (the live `budgetItems`
+working budget with budget-vs-actual meters) and "Budget draft — next season"
+(the `nextBudgetItems` draft, consumed into `budgetItems` at the fall roll).
+Everything below about categories, presets, and the add form applies to BOTH
+sections: each renders its own `BudgetPresetsCard`/`BudgetItemsCard` instance
+via the shared `useBudgetListEditor` hook, and `BudgetItem.category` works the
+same on draft items. At the fall roll the outgoing plan's by-category
+planned-vs-spent rollup is snapshotted onto the `FinancePastSeason` archive
+row (`budgetCategories`)._
+
 ## The need
 
 The Finances tab and Budget Planner were all free-text: the planner add form was

@@ -12,8 +12,8 @@ import {
   formatCurrency,
   budgetItemCategory,
   budgetByCategory,
-  estimateBudgetFromSeason,
   financeSummary,
+  isFundraiseFunded,
 } from "../../../utils/helpers";
 import {
   FINANCE_CATEGORIES,
@@ -35,7 +35,6 @@ interface BudgetItemsCardProps {
   team: Team;
   summary: ReturnType<typeof financeSummary>;
   feeSheetReady: boolean;
-  budgetEstimate: ReturnType<typeof estimateBudgetFromSeason>;
   budgetRows: { item: BudgetItem; planned: number; spent: number }[];
   categoryRows: ReturnType<typeof budgetByCategory>;
   budgetSort: { key: BudgetSortKey; asc: boolean } | null;
@@ -46,23 +45,32 @@ interface BudgetItemsCardProps {
   saveItemEdit: () => void;
   stepBudgetQty: (id: string, delta: number) => void;
   toggleItemTax: (id: string) => void;
+  toggleItemFunding: (id: string) => void;
   removeBudgetItem: (id: string) => void;
-  seedBudgetFromEstimate: () => void;
   toast: ToastContextValue;
+  // Disambiguates every aria-label when TWO instances render (this season's
+  // budget + next season's draft) — e.g. " (draft)". Screen readers and tests
+  // can then tell "Edit Tournaments" from "Edit Tournaments (draft)".
+  labelSuffix?: string;
+  // The draft card leads with this season's actual spend as drafting context;
+  // the live card doesn't (its meters already show spend).
+  showSpendReference?: boolean;
+  // The draft has no actuals, so its table hides the Spent column.
+  showSpent?: boolean;
 }
 
-// The head of the Budget Planner card: the estimate/reference lead, the
-// budget-items table (quantity stepper, inline edit, +tax, spent-of-planned
-// meter), the by-category budget-vs-actual rollup, and the printable player
-// fee sheet. Presentational — every value and handler threads in from
-// FinancesTab; returns a Fragment of the exact elements it replaced.
+// The list half of a budget planner section: the budget-items table (quantity
+// stepper, inline edit, +tax, spent-of-planned meter), the by-category
+// budget-vs-actual rollup, and the printable player fee sheet. Renders twice —
+// once for this season's working budget, once for next season's draft (which
+// hides the actual-spend affordances). Presentational — every value and
+// handler threads in from FinancesTab; returns a Fragment of direct siblings.
 export const BudgetItemsCard = ({
   finances,
   players,
   team,
   summary,
   feeSheetReady,
-  budgetEstimate,
   budgetRows,
   categoryRows,
   budgetSort,
@@ -73,32 +81,16 @@ export const BudgetItemsCard = ({
   saveItemEdit,
   stepBudgetQty,
   toggleItemTax,
+  toggleItemFunding,
   removeBudgetItem,
-  seedBudgetFromEstimate,
   toast,
+  labelSuffix = "",
+  showSpendReference = false,
+  showSpent = true,
 }: BudgetItemsCardProps) => (
   <>
-    {/* Rough estimate learned from this season's money. Empty planner →
-        one-tap seed; otherwise a reference line beside the plan. */}
-    {(finances.budgetItems || []).length === 0 && budgetEstimate ? (
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-2 p-3">
-        <p className="t-body text-ink-2 flex-1 min-w-[14rem]">
-          Based on this season&apos;s money, a rough starting budget is{" "}
-          <span className="font-black text-ink tabular-nums">
-            {formatCurrency(budgetEstimate.total)}
-          </span>
-          . Seed the planner with it and tune from there.
-        </p>
-        <Button
-          variant="secondary"
-          size="sm"
-          aria-label="Seed budget from this season"
-          onClick={seedBudgetFromEstimate}
-        >
-          <Icons.Plus className="w-4 h-4" /> Seed from this season
-        </Button>
-      </div>
-    ) : summary.spent > 0 ? (
+    {/* This season's real spending, as context while drafting next year. */}
+    {showSpendReference && summary.spent > 0 && (
       <p className="t-meta text-ink-3">
         For reference, this season&apos;s actual spend so far is{" "}
         <span className="font-black tabular-nums">
@@ -106,13 +98,14 @@ export const BudgetItemsCard = ({
         </span>
         .
       </p>
-    ) : null}
+    )}
     {budgetRows.length > 0 && (
       <>
         <div className="flex items-center gap-3 pb-1 border-b border-line">
           <span className="flex-1">
             <SortHeader
               label="Item"
+              context={labelSuffix}
               active={budgetSort?.key === "label"}
               asc={budgetSort?.asc ?? true}
               onClick={() => toggleBudgetSort("label")}
@@ -120,18 +113,23 @@ export const BudgetItemsCard = ({
           </span>
           <SortHeader
             label="Count"
+            context={labelSuffix}
             active={budgetSort?.key === "qty"}
             asc={budgetSort?.asc ?? true}
             onClick={() => toggleBudgetSort("qty")}
           />
-          <SortHeader
-            label="Spent"
-            active={budgetSort?.key === "spent"}
-            asc={budgetSort?.asc ?? true}
-            onClick={() => toggleBudgetSort("spent")}
-          />
+          {showSpent && (
+            <SortHeader
+              label="Spent"
+              context={labelSuffix}
+              active={budgetSort?.key === "spent"}
+              asc={budgetSort?.asc ?? true}
+              onClick={() => toggleBudgetSort("spent")}
+            />
+          )}
           <SortHeader
             label="Planned"
+            context={labelSuffix}
             active={budgetSort?.key === "planned"}
             asc={budgetSort?.asc ?? true}
             onClick={() => toggleBudgetSort("planned")}
@@ -152,7 +150,7 @@ export const BudgetItemsCard = ({
                           d ? { ...d, label: e.target.value } : d,
                         )
                       }
-                      aria-label={`Edit label for ${item.label}`}
+                      aria-label={`Edit label for ${item.label}${labelSuffix}`}
                       className={`${FORM_INPUT_CLASS} flex-1 !py-1.5`}
                       style={FORM_INPUT_RING_STYLE}
                     />
@@ -167,7 +165,7 @@ export const BudgetItemsCard = ({
                               d ? { ...d, qty: e.target.value } : d,
                             )
                           }
-                          aria-label={`Edit count for ${item.label}`}
+                          aria-label={`Edit count for ${item.label}${labelSuffix}`}
                           className={`${FORM_INPUT_CLASS} sm:w-24 tabular-nums !py-1.5`}
                           style={FORM_INPUT_RING_STYLE}
                         />
@@ -183,7 +181,7 @@ export const BudgetItemsCard = ({
                               d ? { ...d, unitAmount: e.target.value } : d,
                             )
                           }
-                          aria-label={`Edit cost per unit for ${item.label}`}
+                          aria-label={`Edit cost per unit for ${item.label}${labelSuffix}`}
                           className={`${FORM_INPUT_CLASS} sm:w-32 tabular-nums !py-1.5`}
                           style={FORM_INPUT_RING_STYLE}
                         />
@@ -198,7 +196,7 @@ export const BudgetItemsCard = ({
                             d ? { ...d, amount: e.target.value } : d,
                           )
                         }
-                        aria-label={`Edit amount for ${item.label}`}
+                        aria-label={`Edit amount for ${item.label}${labelSuffix}`}
                         className={`${FORM_INPUT_CLASS} sm:w-32 tabular-nums !py-1.5`}
                         style={FORM_INPUT_RING_STYLE}
                       />
@@ -217,7 +215,7 @@ export const BudgetItemsCard = ({
                             : d,
                         )
                       }
-                      aria-label={`Edit category for ${item.label}`}
+                      aria-label={`Edit category for ${item.label}${labelSuffix}`}
                       className={`${FORM_INPUT_CLASS} sm:w-40 !py-1.5`}
                       style={FORM_INPUT_RING_STYLE}
                     >
@@ -231,14 +229,14 @@ export const BudgetItemsCard = ({
                     <Button
                       variant="primary"
                       size="sm"
-                      aria-label={`Save ${item.label}`}
+                      aria-label={`Save ${item.label}${labelSuffix}`}
                       onClick={saveItemEdit}
                     >
                       <Icons.Check className="w-3.5 h-3.5" /> Save
                     </Button>
                     <button
                       type="button"
-                      aria-label="Cancel item edit"
+                      aria-label={`Cancel item edit${labelSuffix}`}
                       onClick={() => setItemEdit(null)}
                       className="text-ink-3 hover:text-ink text-xs font-bold underline"
                     >
@@ -263,7 +261,7 @@ export const BudgetItemsCard = ({
                     <span className="flex items-center gap-1.5 tabular-nums text-sm font-bold text-ink-2">
                       <button
                         type="button"
-                        aria-label={`Fewer ${item.label}`}
+                        aria-label={`Fewer ${item.label}${labelSuffix}`}
                         onClick={() => stepBudgetQty(item.id, -1)}
                         className="p-1 rounded-lg bg-surface-2 hover:bg-line text-ink transition-colors"
                       >
@@ -274,7 +272,7 @@ export const BudgetItemsCard = ({
                       </span>
                       <button
                         type="button"
-                        aria-label={`More ${item.label}`}
+                        aria-label={`More ${item.label}${labelSuffix}`}
                         onClick={() => stepBudgetQty(item.id, 1)}
                         className="p-1 rounded-lg bg-surface-2 hover:bg-line text-ink transition-colors"
                       >
@@ -283,9 +281,25 @@ export const BudgetItemsCard = ({
                       <span>× {formatCurrency(item.unitAmount)}</span>
                     </span>
                   )}
+                  {/* Funding toggle doubles as the row badge: highlighted =
+                      covered by fundraising, not the team fee. Orthogonal to
+                      the category and the by-category rollup. */}
                   <button
                     type="button"
-                    aria-label={`Toggle sales tax on ${item.label}`}
+                    aria-label={`Toggle fundraising funding for ${item.label}${labelSuffix}`}
+                    aria-pressed={isFundraiseFunded(item)}
+                    onClick={() => toggleItemFunding(item.id)}
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
+                      isFundraiseFunded(item)
+                        ? "text-win-ink bg-win/10"
+                        : "text-ink-3 bg-surface-2 hover:bg-line"
+                    }`}
+                  >
+                    fundraise
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Toggle sales tax on ${item.label}${labelSuffix}`}
                     onClick={() => toggleItemTax(item.id)}
                     className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
                       item.taxable
@@ -300,7 +314,7 @@ export const BudgetItemsCard = ({
                   </span>
                   <button
                     type="button"
-                    aria-label={`Edit ${item.label}`}
+                    aria-label={`Edit ${item.label}${labelSuffix}`}
                     onClick={() => startItemEdit(item)}
                     className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-ink transition-colors"
                   >
@@ -308,7 +322,7 @@ export const BudgetItemsCard = ({
                   </button>
                   <button
                     type="button"
-                    aria-label={`Remove ${item.label}`}
+                    aria-label={`Remove ${item.label}${labelSuffix}`}
                     onClick={() => removeBudgetItem(item.id)}
                     className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-loss transition-colors"
                   >
@@ -322,7 +336,7 @@ export const BudgetItemsCard = ({
                       value={spentSoFar}
                       max={planned}
                       className="flex-1"
-                      ariaLabel={`${item.label}: spent of planned`}
+                      ariaLabel={`${item.label}: spent of planned${labelSuffix}`}
                     />
                     <span
                       className={`t-meta tabular-nums whitespace-nowrap ${

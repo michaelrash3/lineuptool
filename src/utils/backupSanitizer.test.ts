@@ -132,6 +132,46 @@ describe("sanitizeBackup", () => {
     expect(payment.amount).toBe(0);
   });
 
+  it("keeps the pass-through fee-relief fields on restore (earmark + payout links)", () => {
+    const { data } = sanitizeBackup(
+      {
+        players: [],
+        finances: {
+          incomes: [
+            {
+              id: "pt1",
+              date: "2026-09-20",
+              label: "Spirit night",
+              amount: 300,
+              earmark: "familyPayout",
+            },
+          ],
+          // reimbursements aren't date-repaired; the whole array must survive
+          // the spread-copy with the feeRelief linkage fields intact.
+          reimbursements: [
+            {
+              id: "fr1",
+              to: "Ava",
+              amount: 90,
+              status: "unpaid",
+              kind: "feeRelief",
+              playerId: "p1",
+              sourceIncomeId: "pt1",
+            },
+          ],
+        },
+      },
+      TODAY,
+    );
+    const fin = data.finances as any;
+    expect(fin.incomes[0].earmark).toBe("familyPayout");
+    expect(fin.reimbursements[0]).toMatchObject({
+      kind: "feeRelief",
+      playerId: "p1",
+      sourceIncomeId: "pt1",
+    });
+  });
+
   it("passes through a backup without finances untouched", () => {
     const { data, repairedFinanceDates } = sanitizeBackup(
       { players: [{ id: "p1", name: "Ava" }] },

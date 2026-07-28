@@ -87,7 +87,60 @@ describe("buildTreasurerReportData", () => {
       sponsors: 200,
       fundraising: 80,
       other: 50,
+      passThrough: 0,
     });
+    expect(d.heldForFamilies).toBe(0);
+  });
+
+  it("carves earmarked pass-through money into its own slice (earmark beats every other flag) and reports the held-for-families liability", () => {
+    const withPassThrough: TeamFinances = {
+      ...finances,
+      incomes: [
+        ...(finances.incomes || []),
+        {
+          id: "pt1",
+          date: "2026-03-01",
+          label: "Spirit night (fee relief)",
+          amount: 300,
+          earmark: "familyPayout",
+          // A leaked fundraising flag must NOT reclassify it: the earmark wins.
+          fundraising: true,
+        },
+      ],
+      reimbursements: [
+        { id: "r1", to: "Coach", amount: 45, status: "unpaid" },
+        {
+          id: "fr1",
+          to: "Ava",
+          amount: 100,
+          status: "paid",
+          kind: "feeRelief",
+          playerId: "p1",
+          sourceIncomeId: "pt1",
+        },
+        {
+          id: "fr2",
+          to: "Ben",
+          amount: 100,
+          status: "unpaid",
+          kind: "feeRelief",
+          playerId: "p2",
+          sourceIncomeId: "pt1",
+        },
+      ],
+    };
+    const d = buildTreasurerReportData(withPassThrough, players)!;
+    expect(d.incomeBySource).toEqual({
+      sponsors: 200,
+      fundraising: 80,
+      other: 50,
+      passThrough: 300,
+    });
+    // Held for families = 300 raised − 100 actually paid out (the unpaid $100
+    // payout row is still inside, never double-counted elsewhere).
+    expect(d.heldForFamilies).toBe(200);
+    // "Owed to volunteers" excludes fee-relief payouts entirely.
+    expect(d.reimbursementsOutstanding).toBe(45);
   });
 
   it("pairs budget rows with their actual spend and the unplanned bucket", () => {

@@ -53,17 +53,42 @@ The feature is substantially complete for a manual, single-treasurer ledger:
 - **Charts** — monthly cash-flow bars + balance line, spending-by-category
   donut with an "Unplanned" bucket, year-over-year comparison from
   `pastSeasons`.
-- **Budget Planner (next season)** — preset chips, flat or qty × unit items,
-  per-item sales-tax toggle, seed-from-this-season estimate, budget-vs-actual
-  meters, fee buffer rounding, planned-player-count override, suggested fee →
-  "set as next season's fee", parent fee-sheet PDF.
+- **Budget (two sections)** — the planner is split into "Budget — this
+  season" (the live `budgetItems` working budget: preset chips, flat or
+  qty × unit items, per-item sales-tax toggle, budget-vs-actual meters,
+  this-year fee guidance, parent fee-sheet PDF) and "Budget draft — next
+  season" (the `nextBudgetItems` draft: its own list + add form, seedable by
+  copying this season's budget or estimating from actuals, sponsorship
+  pledges, fee buffer rounding, planned-player-count override, suggested fee →
+  "set as next season's fee", Season Outlook). Sponsorship pledges offset only
+  the DRAFT's suggested fee — they're next-season money by definition.
 - **Sponsorships** — current-season (posts income) vs next-season pledges,
   each with its own "reduces team fees" switch.
+- **Payout queue + pass-through fee relief** — money owed back OUT, split by
+  kind (`Reimbursement.kind`): volunteer reimbursements (fronted expenses;
+  mark-paid posts one "Reimbursement — {to}" expense) and fee-relief payouts
+  to families from a pass-through fundraiser (`IncomeEntry.earmark:
+"familyPayout"` — proceeds held for families, e.g. toward an outside org
+  fee, never club revenue). An earmarked fundraiser counts in `balanceNow`
+  but never in dues math or suggested fees; a Fee-relief card shows
+  raised / disbursed / remaining and distributes the remaining balance
+  evenly (editable, over-allocation refused) into unpaid `feeRelief` rows
+  linked via `sourceIncomeId`; mark-paid posts "Fee relief — {to}". The hero
+  splits free cash (`balanceNow` − unpaid volunteer IOUs − undisbursed
+  pass-through) from held-for-families whenever an earmark exists; the
+  treasurer PDF reports the pass-through slice and liability.
 - **Season rollover** (`rollFinancesForNewSeason`, `finances.ts:699`) — fires
-  on the Spring→Fall advance: closing balance carries over, collections and
-  waivers reset, planned fee/deposit promote, pledges convert to income, the
-  year archives to `pastSeasons`; tryout deposits seed the new season's
-  payments.
+  on the Spring→Fall advance: closing balance carries over (undisbursed
+  pass-through fee relief is carved out of the cash carry and rolls as its
+  own still-earmarked entries — same ids, so surviving unpaid payout rows
+  keep their links and the discount prompt never sees family money),
+  collections and waivers reset, planned fee/deposit promote, a non-empty
+  next-season draft
+  budget is consumed and becomes the new year's `budgetItems` (without one the
+  outgoing budget survives as reference), pledges convert to income, the
+  year archives to `pastSeasons` with a snapshot of the outgoing plan
+  (`budgetPlanned` + per-category `budgetCategories`); tryout deposits seed
+  the new season's payments.
 - **Integration** — HomeTab "Team Fees" action cards (`teamFeesStatus`,
   consumed at `HomeTab.tsx:1594`), offer letters quote next-season fee +
   deposit + the coach's Venmo link (`types.ts:506-507`).

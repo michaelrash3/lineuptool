@@ -5,10 +5,11 @@ import {
   FORM_INPUT_CLASS,
   FORM_INPUT_RING_STYLE,
 } from "../../../components/shared";
-import { formatCurrency } from "../../../utils/helpers";
+import { formatCurrency, round2 } from "../../../utils/helpers";
 import { DEPOSIT_QUICK_PICKS } from "../../../constants/financeCategories";
-import type { TeamFinances } from "../../../types";
+import type { ExternalOrgFee, TeamFinances } from "../../../types";
 import type { FinanceSetFields } from "../../../utils/financeUpdates";
+import { OrgFeeEditor } from "../OrgFeeEditor";
 
 interface PlannedRosterCardProps {
   finances: TeamFinances;
@@ -17,6 +18,9 @@ interface PlannedRosterCardProps {
   payerCount: number;
   plannedCount: number;
   budget: number;
+  // Σ fundraise-marked draft items — the draft's own fundraising goal. Shown
+  // as a goal total only (no progress meter: that year hasn't happened).
+  fundraiseGoal: number;
   sponsoredOffset: number;
   suggested: number | null;
   nextFee: number | null;
@@ -29,6 +33,18 @@ interface PlannedRosterCardProps {
   nextDepositInput: string | null;
   setNextDepositInput: Dispatch<SetStateAction<string | null>>;
   commitNextDeposit: () => void;
+  // The DRAFT's outside-org burden context (nextExternalOrgFeeContext):
+  // the staged next-season value, falling back to the current externalOrgFee.
+  // Display only: never enters any planner math.
+  orgFee: ExternalOrgFee | null;
+  // Inline editor for the STAGED next-season org fee (nextExternalOrgFee) —
+  // promoted to externalOrgFee at the fall roll, like nextClubFee. The
+  // current-year editor lives beside the team fee in Collections.
+  nextOrgFeeLabelInput: string | null;
+  setNextOrgFeeLabelInput: Dispatch<SetStateAction<string | null>>;
+  nextOrgFeeAmountInput: string | null;
+  setNextOrgFeeAmountInput: Dispatch<SetStateAction<string | null>>;
+  commitNextExternalOrgFee: () => void;
 }
 
 // The tail of the Budget Planner card: planner settings (sales tax + fee
@@ -43,6 +59,7 @@ export const PlannedRosterCard = ({
   payerCount,
   plannedCount,
   budget,
+  fundraiseGoal,
   sponsoredOffset,
   suggested,
   nextFee,
@@ -55,6 +72,12 @@ export const PlannedRosterCard = ({
   nextDepositInput,
   setNextDepositInput,
   commitNextDeposit,
+  orgFee,
+  nextOrgFeeLabelInput,
+  setNextOrgFeeLabelInput,
+  nextOrgFeeAmountInput,
+  setNextOrgFeeAmountInput,
+  commitNextExternalOrgFee,
 }: PlannedRosterCardProps) => (
   <>
     {/* Planner settings: sales tax on flagged items + fee round-up buffer */}
@@ -124,6 +147,22 @@ export const PlannedRosterCard = ({
           splits the fee (blank = current roster)
         </span>
       </label>
+      {/* STAGED next-season outside-org fee — what families will pay the
+          parent organization DIRECTLY next year. Promoted to externalOrgFee
+          at the fall roll (the nextClubFee pattern); blank = the current
+          org fee carries into the draft's burden context. Display context
+          only: never enters the budget, the suggested fee, or the balance. */}
+      <OrgFeeEditor
+        eyebrow="Outside org fee next season"
+        ariaPrefix="Next season outside org"
+        stored={finances.nextExternalOrgFee}
+        labelInput={nextOrgFeeLabelInput}
+        setLabelInput={setNextOrgFeeLabelInput}
+        amountInput={nextOrgFeeAmountInput}
+        setAmountInput={setNextOrgFeeAmountInput}
+        commit={commitNextExternalOrgFee}
+        hint="per player, paid directly — blank keeps this year's org fee for context"
+      />
     </div>
 
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-line bg-surface-2/40 p-3">
@@ -199,10 +238,15 @@ export const PlannedRosterCard = ({
     </div>
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-line">
       <div className="t-body text-ink-2">
-        Budget total:{" "}
+        Draft budget total:{" "}
         <span className="font-black text-ink tabular-nums">
           {formatCurrency(budget)}
         </span>
+        {/* Fundraise-marked lines come off before the fee split — the goal
+            covers them "without an additional team fee". */}
+        {fundraiseGoal > 0 && (
+          <> − fundraising goal {formatCurrency(fundraiseGoal)}</>
+        )}
         {sponsoredOffset > 0 && (
           <> − sponsorships {formatCurrency(sponsoredOffset)}</>
         )}
@@ -223,6 +267,35 @@ export const PlannedRosterCard = ({
               </span>
             )}
           </>
+        )}
+        {/* The draft's own goal total — no progress meter, the year hasn't
+            happened yet. */}
+        {fundraiseGoal > 0 && (
+          <div className="t-meta text-ink-3 mt-1">
+            Next season&apos;s fundraising goal is{" "}
+            <span className="font-black tabular-nums">
+              {formatCurrency(fundraiseGoal)}
+            </span>{" "}
+            — those lines are planned to be covered by fundraising, not the team
+            fee.
+          </div>
+        )}
+        {/* Total family burden at the planned (or suggested) fee — the
+            outside-org fee is context only, never part of the math above. */}
+        {orgFee && (nextFee != null || suggested != null) && (
+          <div className="t-meta text-ink-3 mt-1">
+            Families also pay{" "}
+            <span className="font-black tabular-nums">
+              {formatCurrency(orgFee.amount)}
+            </span>{" "}
+            to {orgFee.label} directly — total family cost{" "}
+            <span className="font-black tabular-nums">
+              {formatCurrency(
+                round2((nextFee ?? suggested ?? 0) + orgFee.amount),
+              )}
+            </span>{" "}
+            at the {nextFee != null ? "planned" : "suggested"} fee.
+          </div>
         )}
         {nextFee != null && (
           <div className="t-meta text-ink-3 mt-1">

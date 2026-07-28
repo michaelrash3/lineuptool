@@ -61,7 +61,10 @@ import {
   blockedRosterWipeReason,
   formatCurrency,
   budgetTotal,
+  nextBudgetTotal,
   suggestedFeePerPlayer,
+  suggestedNextFeePerPlayer,
+  draftBudgetFromCurrent,
   buildPlayerFeeBreakdown,
   financeSummary,
   teamFeesStatus,
@@ -2126,7 +2129,7 @@ describe("blockedRosterWipeReason (empty-roster write guard)", () => {
 describe("buildPlayerFeeBreakdown (parent fee sheet)", () => {
   it("spreads the fee across expenses so lines total exactly the fee", () => {
     const fin = {
-      nextClubFee: 200,
+      clubFee: 200,
       budgetItems: [
         { id: "b1", label: "Tournaments", amount: 3000 },
         { id: "b2", label: "Uniforms", amount: 1000 },
@@ -2146,7 +2149,7 @@ describe("buildPlayerFeeBreakdown (parent fee sheet)", () => {
 
   it("lands rounding drift on the largest line so the column sums to the fee", () => {
     const fin = {
-      nextClubFee: 100,
+      clubFee: 100,
       budgetItems: [
         { id: "b1", label: "A", amount: 1 },
         { id: "b2", label: "B", amount: 1 },
@@ -2158,7 +2161,7 @@ describe("buildPlayerFeeBreakdown (parent fee sheet)", () => {
     expect(Math.round(sum * 100) / 100).toBe(100);
   });
 
-  it("falls back to the suggested fee when no next-season fee is set", () => {
+  it("falls back to this year's suggested fee when no club fee is set", () => {
     const fin = {
       budgetItems: [{ id: "b1", label: "Tournaments", amount: 1000 }],
     };
@@ -2171,9 +2174,7 @@ describe("buildPlayerFeeBreakdown (parent fee sheet)", () => {
 
   it("returns null without priced expenses or without a fee", () => {
     expect(
-      buildPlayerFeeBreakdown({ nextClubFee: 200, budgetItems: [] }, [
-        { id: "a" },
-      ]),
+      buildPlayerFeeBreakdown({ clubFee: 200, budgetItems: [] }, [{ id: "a" }]),
     ).toBeNull();
     expect(
       buildPlayerFeeBreakdown(
@@ -2296,9 +2297,9 @@ describe("finances money math", () => {
     expect(incomeTotal(null)).toBe(0);
   });
 
-  it("suggestedFeePerPlayer splits the budget minus pledged sponsorships — this year's ledger stays out", () => {
+  it("suggestedFeePerPlayer splits THIS year's budget across this year's payers — ledger and pledges stay out", () => {
     // Current-year payments/incomes/expenses in the fixture must NOT
-    // discount next season's fee: (3850.5 − 0) / 3 = 1283.5 → 1284.
+    // discount this year's fee guidance: 3850.5 / 3 = 1283.5 → 1284.
     expect(suggestedFeePerPlayer(finances, players)).toBe(1284);
     const withSponsors = {
       ...finances,
@@ -2307,11 +2308,49 @@ describe("finances money math", () => {
         { id: "s2", sponsor: "Dairy Bar", amount: 250.5 },
       ],
     };
-    // (3850.5 − 850.5) / 3 = 1000.
-    expect(suggestedFeePerPlayer(withSponsors, players)).toBe(1000);
+    // Pledges are NEXT-season money (they convert at the fall roll) — the
+    // live suggestion no longer subtracts them.
+    expect(suggestedFeePerPlayer(withSponsors, players)).toBe(1284);
+    // The anticipated NEXT-season roster never dilutes this year's guidance.
+    expect(
+      suggestedFeePerPlayer({ ...finances, plannedPlayerCount: 30 }, players),
+    ).toBe(1284);
     expect(suggestedFeePerPlayer(finances, [])).toBeNull();
     expect(suggestedFeePerPlayer({ budgetItems: [] }, players)).toBeNull();
     expect(suggestedFeePerPlayer(null, players)).toBeNull();
+  });
+
+  it("suggestedNextFeePerPlayer splits the DRAFT minus pledged sponsorships", () => {
+    const draft = {
+      ...finances,
+      nextBudgetItems: [
+        { id: "d1", label: "Tournaments", amount: 3600 },
+        { id: "d2", label: "Balls", amount: 250.5 },
+      ],
+      sponsorships: [
+        { id: "s1", sponsor: "Smith Hardware", amount: 600 },
+        { id: "s2", sponsor: "Dairy Bar", amount: 250.5 },
+      ],
+    };
+    expect(nextBudgetTotal(draft)).toBeCloseTo(3850.5);
+    // (3850.5 − 850.5) / 3 = 1000.
+    expect(suggestedNextFeePerPlayer(draft, players)).toBe(1000);
+    // The anticipated roster override drives the draft's split.
+    expect(
+      suggestedNextFeePerPlayer({ ...draft, plannedPlayerCount: 5 }, players),
+    ).toBe(600);
+    // No draft → nothing to suggest, even with a live budget present.
+    expect(suggestedNextFeePerPlayer(finances, players)).toBeNull();
+  });
+
+  it("draftBudgetFromCurrent copies the live items with fresh ids", () => {
+    const copies = draftBudgetFromCurrent(finances);
+    expect(copies).toHaveLength(2);
+    expect(copies.map((c) => c.label)).toEqual(["Tournaments", "Balls"]);
+    expect(copies[0]).toMatchObject({ qty: 8, unitAmount: 450, amount: 3600 });
+    const liveIds = new Set(finances.budgetItems.map((b) => b.id));
+    for (const c of copies) expect(liveIds.has(c.id)).toBe(false);
+    expect(draftBudgetFromCurrent({})).toEqual([]);
   });
 
   it("suggestedFeePerPlayer excludes fee-exempt players from the split", () => {
@@ -2320,12 +2359,12 @@ describe("finances money math", () => {
     expect(suggestedFeePerPlayer(withWaiver, players)).toBe(1926);
   });
 
-  it("suggestedFeePerPlayer is 0 (not negative) when sponsorships cover everything", () => {
+  it("suggestedNextFeePerPlayer is 0 (not negative) when sponsorships cover everything", () => {
     const covered = {
-      budgetItems: [{ id: "b", label: "Balls", amount: 500 }],
+      nextBudgetItems: [{ id: "b", label: "Balls", amount: 500 }],
       sponsorships: [{ id: "s", sponsor: "Sponsor", amount: 800 }],
     };
-    expect(suggestedFeePerPlayer(covered, [{ id: "kid1" }])).toBe(0);
+    expect(suggestedNextFeePerPlayer(covered, [{ id: "kid1" }])).toBe(0);
   });
 
   it("sponsorshipTotal sums next-season pledges and tolerates junk", () => {
@@ -2598,6 +2637,23 @@ describe("finances money math", () => {
         otherIncome: 600,
         spent: 160,
         closingBalance: 675,
+        // The outgoing plan is snapshotted so plan-vs-spent survives the roll.
+        budgetPlanned: 3850.5,
+        budgetCategories: [
+          {
+            category: "tournaments",
+            label: "Tournaments & games",
+            planned: 3600,
+            spent: 0,
+          },
+          {
+            category: "gear",
+            label: "Gear & equipment",
+            planned: 250.5,
+            spent: 60,
+          },
+          { category: "other", label: "Other", planned: 0, spent: 100 },
+        ],
       },
     ]);
   });

@@ -25,6 +25,7 @@
 import type {
   BudgetItem,
   ExpenseEntry,
+  ExternalOrgFee,
   FeeAdjustment,
   IncomeEntry,
   PaymentEntry,
@@ -48,6 +49,7 @@ export interface FinanceArrayTypes {
   expenses: ExpenseEntry;
   sponsorships: SponsorshipEntry;
   budgetItems: BudgetItem;
+  nextBudgetItems: BudgetItem;
   feeAdjustments: FeeAdjustment;
   reimbursements: Reimbursement;
   reconciliations: Reconciliation;
@@ -66,10 +68,15 @@ export type FinanceScalarKey =
   | "feeExemptIds"
   | "salesTaxPct"
   | "feeBufferIncrement"
-  | "plannedPlayerCount";
+  | "plannedPlayerCount"
+  // Display-only outside-org fee context ({label, amount}) — a single small
+  // map written/cleared atomically, so it rides the scalar `set` op. The
+  // `next` sibling stages the coming year's value (the nextClubFee pattern).
+  | "externalOrgFee"
+  | "nextExternalOrgFee";
 
 export type FinanceSetFields = Partial<
-  Record<FinanceScalarKey, number | string | string[] | null>
+  Record<FinanceScalarKey, number | string | string[] | ExternalOrgFee | null>
 >;
 
 export type FinanceUpdate =
