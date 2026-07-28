@@ -1507,9 +1507,12 @@ export const ledgerCsv = (
 // runs Fall → Spring: the ledger, collections, and fee schedule carry straight
 // through the mid-year Fall→Spring advance UNTOUCHED, and the money rolls only
 // when a new Fall begins (balance carries over, collections reset, the planned
-// fee is promoted, the year is archived). A planned next-season fee — or a
-// drafted next-season budget — triggers the roll even with no recorded money:
-// the Budget Planner promised those take effect when the new year starts.
+// fee is promoted, the year is archived). ANY staged next-season plan — fee,
+// deposit, org-fee context, or a drafted budget — triggers the roll even with
+// no recorded money: the Budget Planner promised those take effect when the
+// new year starts. This gate must list every plan field the plan-only branch
+// of rollFinancesForNewSeason promotes, or a staged value silently never
+// promotes (the roll is only invoked when this returns true).
 // No-op when Finances was never used. Extracted from TeamProvider.advanceSeason
 // so the fall→spring guarantee is unit-testable.
 export const shouldRollFinances = (
@@ -1525,8 +1528,17 @@ export const shouldRollFinances = (
     (finances?.incomes || []).length > 0 ||
     (finances?.expenses || []).length > 0;
   const hasPlannedFee = finances?.nextClubFee != null;
+  const hasPlannedDeposit =
+    finances?.nextDepositAmount != null || !!finances?.nextDepositDueDate;
+  const hasPlannedOrgFee = finances?.nextExternalOrgFee != null;
   const hasDraftBudget = (finances?.nextBudgetItems || []).length > 0;
-  return hadActivity || hasPlannedFee || hasDraftBudget;
+  return (
+    hadActivity ||
+    hasPlannedFee ||
+    hasPlannedDeposit ||
+    hasPlannedOrgFee ||
+    hasDraftBudget
+  );
 };
 
 export const rollFinancesForNewSeason = (

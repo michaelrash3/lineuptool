@@ -104,6 +104,32 @@ describe("shouldRollFinances — when the money rolls", () => {
     // …but a planned fee still never rolls mid-year.
     expect(shouldRollFinances("Spring 2027", { nextClubFee: 250 })).toBe(false);
   });
+
+  it("rolls into Fall on EVERY staged plan-only field its roll branch promotes", () => {
+    // The gate must cover each plan field rollFinancesForNewSeason's plan-only
+    // branch consumes — a field listed there but not here would stay staged
+    // forever (the roll is only invoked when the gate passes).
+    expect(shouldRollFinances("Fall 2026", { nextDepositAmount: 75 })).toBe(
+      true,
+    );
+    expect(
+      shouldRollFinances("Fall 2026", { nextDepositDueDate: "2026-09-01" }),
+    ).toBe(true);
+    expect(
+      shouldRollFinances("Fall 2026", {
+        nextExternalOrgFee: { label: "Metro League", amount: 525 },
+      }),
+    ).toBe(true);
+    // …and none of them roll mid-year.
+    expect(shouldRollFinances("Spring 2027", { nextDepositAmount: 75 })).toBe(
+      false,
+    );
+    expect(
+      shouldRollFinances("Spring 2027", {
+        nextExternalOrgFee: { label: "Metro League", amount: 525 },
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("Fall→Spring keeps the ledger intact (the provider contract)", () => {
