@@ -120,4 +120,26 @@ describe("applyLineupSwap", () => {
     // carries.
     expect(ssIds(out)).toEqual(["alice", "ed", "bob", "ed"]);
   });
+
+  it("field -> bench is a SWAP: the tapped bench player takes the vacated position", () => {
+    // The bug this pins: moving a fielder to the bench removed the tapped
+    // bench player from the game entirely — filtered off the bench, never
+    // placed at the vacated slot — leaving the position empty. A coach tapping
+    // fielder-then-bench-kid means "trade places", exactly like the
+    // bench-then-fielder direction already did.
+    const a = { id: "a", name: "A", number: "1" };
+    const b = { id: "b", name: "B", number: "2" };
+    const lineup = [{ P: a, BENCH: [b] }] as any;
+    const next = applyLineupSwap(lineup, {
+      innIdx: 0,
+      sPos: "P",
+      sPlayer: a,
+      tPos: "BENCH",
+      tPlayer: b,
+      carryForward: false,
+    });
+    expect((next[0].P as any)?.id).toBe("b");
+    expect((next[0].BENCH as any[]).map((p) => p.id)).toEqual(["a"]);
+  });
+
 });
