@@ -141,5 +141,4 @@ describe("applyLineupSwap", () => {
     expect((next[0].P as any)?.id).toBe("b");
     expect((next[0].BENCH as any[]).map((p) => p.id)).toEqual(["a"]);
   });
-
 });
