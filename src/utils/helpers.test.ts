@@ -1335,19 +1335,35 @@ describe("recordPitchingOuting", () => {
     expect(p!.log[p!.log.length - 1].date).toBe(iso(5));
   });
 
-  it("keeps both dates when the same game finishes on a second date (suspended game)", () => {
-    // Suspended after 40 pitches, finished two days later: the re-import for
-    // the same gameId on the NEW date must ADD an entry, not replace the
-    // first date's pitches — rest math has to see both throwing days.
-    let p = recordPitchingOuting(null, "2026-05-01", 40, "g1");
-    p = recordPitchingOuting(p, "2026-05-03", 22, "g1");
-    expect(p!.log).toEqual([
-      { date: "2026-05-03", pitches: 22, gameId: "g1" },
-      { date: "2026-05-01", pitches: 40, gameId: "g1" },
-    ]);
-    // …while re-importing the same game+date still replaces (correction).
-    p = recordPitchingOuting(p, "2026-05-03", 25, "g1");
-    expect(p!.log).toEqual([
+  it("a lone gameId entry is corrected in place even when the date changed", () => {
+    // The duplicate bug this closes: coach edits the outing's date in Arm
+    // Care (or fixes the game's date), then re-imports the same game's CSV.
+    // The import must find the game's ONE entry by gameId alone and replace
+    // it — matching on (gameId, date) would add a second row for the same
+    // real outing and double-count rest math.
+    let p = recordPitchingOuting(null, "2026-05-01", 60, "g1");
+    p = updatePitchingOutingEntry(p, 0, { date: "2026-05-02" });
+    p = recordPitchingOuting(p, "2026-05-01", 60, "g1");
+    expect(p!.log).toEqual([{ date: "2026-05-01", pitches: 60, gameId: "g1" }]);
+    // Same rule from the other side: the game was rescheduled and re-imported
+    // under its corrected date.
+    p = recordPitchingOuting(p, "2026-05-08", 55, "g1");
+    expect(p!.log).toEqual([{ date: "2026-05-08", pitches: 55, gameId: "g1" }]);
+  });
+
+  it("an existing two-date split for one game keeps per-(gameId, date) matching", () => {
+    // A suspended game split across its two real dates (both entries carry
+    // the gameId — the shape older imports wrote). A re-import for one date
+    // must update only that date's entry; the other day's real pitches
+    // survive.
+    const split = {
+      log: [
+        { date: "2026-05-03", pitches: 22, gameId: "g1" },
+        { date: "2026-05-01", pitches: 40, gameId: "g1" },
+      ],
+    };
+    const p = recordPitchingOuting(split, "2026-05-03", 25, "g1");
+    expect(p.log).toEqual([
       { date: "2026-05-03", pitches: 25, gameId: "g1" },
       { date: "2026-05-01", pitches: 40, gameId: "g1" },
     ]);
@@ -1837,13 +1853,24 @@ describe("recordCatchingOuting + sameDayRoleSets", () => {
     expect(c.log).toHaveLength(2);
   });
 
-  it("keeps both dates when the same game finishes on a second date", () => {
-    // Same (gameId, date) dedupe as the pitching log: a suspended game's
-    // second date adds an entry instead of replacing the first day's innings.
+  it("corrects a lone gameId entry in place across a date change, like pitching", () => {
+    // Same heuristic as recordPitchingOuting: a game's single entry is found
+    // by gameId alone, so a re-import after a date fix updates instead of
+    // duplicating the day's innings…
     let c = recordCatchingOuting(null, "2026-05-10", 3, "g1");
     c = recordCatchingOuting(c, "2026-05-12", 2, "g1");
-    expect(c.log).toEqual([
-      { date: "2026-05-12", innings: 2, gameId: "g1" },
+    expect(c.log).toEqual([{ date: "2026-05-12", innings: 2, gameId: "g1" }]);
+    // …while an existing two-date split (both entries carrying the gameId)
+    // keeps per-(gameId, date) matching so the other day survives.
+    const split = {
+      log: [
+        { date: "2026-05-12", innings: 2, gameId: "g1" },
+        { date: "2026-05-10", innings: 3, gameId: "g1" },
+      ],
+    };
+    const out = recordCatchingOuting(split, "2026-05-12", 4, "g1");
+    expect(out.log).toEqual([
+      { date: "2026-05-12", innings: 4, gameId: "g1" },
       { date: "2026-05-10", innings: 3, gameId: "g1" },
     ]);
   });

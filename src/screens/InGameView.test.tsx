@@ -228,6 +228,33 @@ describe("InGameView", () => {
     expect(evan.title).toMatch(/planned to pitch vs Cubs/);
   });
 
+  it("flags an available pitcher who is planned for a later STANDALONE game", () => {
+    // Week-planner plans on standalone games live in game.pitchPlan — no
+    // stored tournament. The advisory must read them too (pre-fix it only
+    // looked at stored tournaments).
+    const game = makeGame({ date: "2026-07-01" });
+    renderInGame({
+      game,
+      team: {
+        teamAge: "10U",
+        pitchingFormat: "Kid Pitch",
+        games: [
+          game,
+          {
+            id: "g2",
+            date: "2026-07-02",
+            opponent: "Cubs",
+            pitchPlan: [{ playerId: "p5", role: "start", plannedPitches: 50 }],
+          },
+        ],
+        tournaments: [],
+      },
+    });
+    const evan = screen.getByRole("button", { name: /Evan.*planned/ });
+    expect(evan).toBeEnabled();
+    expect(evan.title).toMatch(/planned to pitch vs Cubs/);
+  });
+
   it("marks a relieved arm as done and never offers it for a one-tap re-pin", () => {
     // Alice pitched innings 1-2, Bob relieved her for inning 3 (Alice moved
     // to 1B). Viewing inning 3: Alice is a dead arm — her Used row says so

@@ -35,7 +35,7 @@ export const useLineupActions = ({
   previousLineupRef,
 }: UseLineupActionsArgs) => {
   // Restore the undo snapshot into the editor — the single reader behind the
-  // generate/re-roll toasts' "Undo" action and the context-level undoLineup.
+  // generate/re-roll toasts' "Undo" action.
   // The snapshot is GAME-scoped: it is stamped with the id of the game it was
   // captured from, and applying it while a DIFFERENT game is selected would
   // push game A's pre-roll lineup into game B's editor (the toast outlives a
@@ -53,11 +53,33 @@ export const useLineupActions = ({
     if (!snap) return;
     const currentGameId = uiBridge.current.getInputs?.()?.currentGame?.id;
     if (snap.gameId !== currentGameId) return;
+    // Roster guard: the snapshot may predate a player removal (the toast can
+    // outlive a roster edit), and restoring it would write the deleted player
+    // back into the editor — the next Save then persists them onto the game.
+    // Same silent no-op contract as the game/team mismatch guards above: if
+    // ANY snapshot player is gone from the current roster, refuse.
+    const rosterIds = new Set(
+      ((teamDataRef.current?.players as any[]) || []).map((p: any) => p?.id),
+    );
+    const snapshotIds: any[] = [];
+    for (const inning of Array.isArray(snap.lineup) ? snap.lineup : []) {
+      if (!inning || typeof inning !== "object") continue;
+      for (const pos of Object.keys(inning)) {
+        if (pos === "BENCH") {
+          for (const b of inning.BENCH || []) if (b?.id) snapshotIds.push(b.id);
+        } else if (inning[pos]?.id) {
+          snapshotIds.push(inning[pos].id);
+        }
+      }
+    }
+    for (const b of Array.isArray(snap.battingLineup) ? snap.battingLineup : [])
+      if (b?.id) snapshotIds.push(b.id);
+    if (snapshotIds.some((id) => !rosterIds.has(id))) return;
     uiBridge.current.applyResult({
       lineup: snap.lineup,
       battingLineup: snap.battingLineup,
     });
-  }, [uiBridge, previousLineupRef]);
+  }, [teamDataRef, uiBridge, previousLineupRef]);
 
   // ----- Lineup generation (uses the engine) -----
   // uiBridge / previousLineupRef are owned by TeamProvider and passed in; the
@@ -446,9 +468,6 @@ export const useLineupActions = ({
     });
   }, [teamDataRef, toast, uiBridge, previousLineupRef, applyUndoSnapshot]);
 
-  // Same game-identity check as the toast buttons — see applyUndoSnapshot.
-  const undoLineup = applyUndoSnapshot;
-
   const saveCurrentGame = useCallback(() => {
     const inputs = uiBridge.current.getInputs();
     if (!inputs?.currentGame) return;
@@ -749,12 +768,14 @@ export const useLineupActions = ({
     [teamDataRef, updateGame, toast, uiBridge],
   );
 
+  // Undo is deliberately NOT exported: the pre-roll snapshot is only ever
+  // restored through the generate/re-roll toasts' Undo action
+  // (applyUndoSnapshot above) — no other UI surface may reach it.
   return {
     generateLineup,
     regenerateLineup,
     regenerateDefense,
     regenerateBatting,
-    undoLineup,
     saveCurrentGame,
     saveAttendance,
     saveLineupTemplate,

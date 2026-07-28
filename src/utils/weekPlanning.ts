@@ -6,12 +6,18 @@
 // widened beyond Tournament.gameIds. Everything here is pure.
 
 import type { PitchRuleSet } from "../lineupEngine";
-import type { Game, PlannedOuting, Player, Tournament } from "../types";
+import type { Game, Player, Tournament } from "../types";
 import {
   assessGamesPlan,
   orderGamesChronologically,
+  planForGame,
   type GamePlanAssessment,
 } from "./tournamentPitching";
+
+// The plan resolver ("tournament pitchPlan wins, else game.pitchPlan") lives
+// in utils/tournamentPitching so the cross-game folds there can share it
+// without an import cycle; re-exported here for this module's callers.
+export { planForGame, tournamentForGame } from "./tournamentPitching";
 
 const DAY_MS = 86_400_000;
 
@@ -58,27 +64,6 @@ export const groupGamesByWeek = (
       weekEnd: addDaysIso(weekStart, 6),
       games: weekGames,
     }));
-};
-
-// The stored tournament (if any) that claims a game. A game belongs to at
-// most one tournament (TournamentDetailPage enforces it at link time).
-export const tournamentForGame = (
-  tournaments: Tournament[] | null | undefined,
-  gameId: string,
-): Tournament | undefined =>
-  (tournaments || []).find((t) => (t.gameIds || []).includes(gameId));
-
-// One resolver for "where does this game's plan live": a stored tournament's
-// pitchPlan wins for its games (the tournament panel writes there), and a
-// standalone game carries its own game.pitchPlan. Reading through this keeps
-// the week planner and the tournament panel looking at the same entries.
-export const planForGame = (
-  game: Game,
-  tournaments: Tournament[] | null | undefined,
-): PlannedOuting[] => {
-  const t = tournamentForGame(tournaments, game.id);
-  if (t) return t.pitchPlan?.[game.id] || [];
-  return Array.isArray(game.pitchPlan) ? game.pitchPlan : [];
 };
 
 interface AssessWeekArgs {

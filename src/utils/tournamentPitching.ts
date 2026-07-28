@@ -149,6 +149,30 @@ export const orderGamesChronologically = (
     .slice()
     .sort((a, b) => gameOrderKey(a).localeCompare(gameOrderKey(b)));
 
+// The stored tournament (if any) that claims a game. A game belongs to at
+// most one tournament (TournamentDetailPage enforces it at link time).
+export const tournamentForGame = (
+  tournaments: Tournament[] | null | undefined,
+  gameId: string,
+): Tournament | undefined =>
+  (tournaments || []).find((t) => (t.gameIds || []).includes(gameId));
+
+// One resolver for "where does this game's plan live": a stored tournament's
+// pitchPlan wins for its games (the tournament panel writes there), and a
+// standalone game carries its own game.pitchPlan (the week planner writes
+// there). EVERY surface that reads planned outings goes through this — the
+// week planner, the tournament panel, and the cross-game folds below — so no
+// reader can miss a standalone game's plan. (Re-exported by utils/weekPlanning
+// for its callers; defined here so this module can use it without a cycle.)
+export const planForGame = (
+  game: Game,
+  tournaments: Tournament[] | null | undefined,
+): PlannedOuting[] => {
+  const t = tournamentForGame(tournaments, game.id);
+  if (t) return t.pitchPlan?.[game.id] || [];
+  return Array.isArray(game.pitchPlan) ? game.pitchPlan : [];
+};
+
 // Resolve a tournament's gameIds against the schedule: dangling ids (deleted
 // games) and undated games drop out; the rest sort chronologically.
 export const orderedTournamentGames = (
@@ -194,8 +218,8 @@ interface AssessGamesArgs {
   // Chronologically ordered, dated games (orderGamesChronologically them).
   orderedGames: Game[];
   // Where each game's planned outings live — tournament.pitchPlan for a
-  // stored tournament, game.pitchPlan for standalone games (see
-  // utils/weekPlanning.planForGame).
+  // stored tournament, game.pitchPlan for standalone games (see planForGame
+  // above).
   planFor: (gameId: string) => PlannedOuting[];
   players: Player[] | null | undefined;
   teamAge: string;
@@ -315,9 +339,16 @@ export function assessTournamentPlan({
 }
 
 // The not-yet-consumed planned outings that land strictly BEFORE `gameId`
-// within its tournament, per player — ready to feed withPlannedOutings. This
-// is what lets surfaces OUTSIDE the tournament card (StartingPitcherPicker)
-// see the weekend plan. Empty map when the game isn't in any stored tournament.
+// anywhere on the schedule, per player — ready to feed withPlannedOutings.
+// This is what lets surfaces OUTSIDE the planning cards (StartingPitcherPicker)
+// see what's already penciled in. Plans resolve through planForGame, so
+// tournament-stored entries AND standalone game.pitchPlan entries (the week
+// planner's write target) both fold in — a Wednesday rec-game plan discounts
+// the same arm on Saturday whether or not either game sits in a stored
+// tournament. Old planned entries beyond the rest window are harmless: rest
+// math only reads the most recent throwing day, and consumed entries (game
+// finalized / outing imported) are skipped because the real log carries them.
+// Empty map when the game is unknown or undated (nothing to order against).
 export function priorPlannedOutingsForGame(
   tournaments: Tournament[] | null | undefined,
   games: Game[] | null | undefined,
@@ -327,14 +358,12 @@ export function priorPlannedOutingsForGame(
   ruleSet: PitchRuleSet,
 ): Map<PlayerId, HypotheticalOuting[]> {
   const acc = new Map<PlayerId, HypotheticalOuting[]>();
-  const tournament = (tournaments || []).find((t) =>
-    (t.gameIds || []).includes(gameId),
-  );
-  if (!tournament) return acc;
+  const ordered = orderGamesChronologically(games);
+  const idx = ordered.findIndex((g) => g.id === gameId);
+  if (idx < 0) return acc;
   const realById = new Map((players || []).map((p) => [p.id, p]));
-  for (const game of orderedTournamentGames(tournament, games)) {
-    if (game.id === gameId) break;
-    for (const entry of tournament.pitchPlan?.[game.id] || []) {
+  for (const game of ordered.slice(0, idx)) {
+    for (const entry of planForGame(game, tournaments)) {
       const real = realById.get(entry.playerId);
       if (!real) continue;
       if (planEntryStatus(entry, game, real) === "consumed") continue;
@@ -351,28 +380,26 @@ export function priorPlannedOutingsForGame(
   return acc;
 }
 
-// The games strictly AFTER `gameId` in its stored tournament where this
+// The games strictly AFTER `gameId` anywhere on the schedule where this
 // player carries a planned outing — the in-game "you planned this arm for
-// tomorrow" advisory. Later games can't have consumed entries while an
-// earlier one is still live, so no consumption filter is needed. Empty when
-// the game belongs to no stored tournament.
+// tomorrow" advisory. Plans resolve through planForGame, so a standalone
+// game's week-planner plan flags the arm just like a tournament plan does.
+// Later games are future-dated, so their entries are still live (a consumed
+// entry needs a finalized game or an imported outing); no consumption filter.
+// Empty when the game is unknown or undated.
 export function laterPlannedGamesForPlayer(
   tournaments: Tournament[] | null | undefined,
   games: Game[] | null | undefined,
   playerId: string,
   gameId: string,
 ): Game[] {
-  const tournament = (tournaments || []).find((t) =>
-    (t.gameIds || []).includes(gameId),
-  );
-  if (!tournament) return [];
-  const ordered = orderedTournamentGames(tournament, games);
+  const ordered = orderGamesChronologically(games);
   const idx = ordered.findIndex((g) => g.id === gameId);
   if (idx < 0) return [];
   return ordered
     .slice(idx + 1)
     .filter((g) =>
-      (tournament.pitchPlan?.[g.id] || []).some((e) => e.playerId === playerId),
+      planForGame(g, tournaments).some((e) => e.playerId === playerId),
     );
 }
 

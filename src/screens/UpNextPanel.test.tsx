@@ -165,6 +165,30 @@ describe("UpNextPanel", () => {
       expect(ui.setActiveTab).toHaveBeenCalledWith("schedule");
     });
 
+    it("still prompts when the only plan entries belong to deleted/unlinked games", () => {
+      // hasPlan resolves through planForGame over the tournament's REAL
+      // games — a pitchPlan key left behind for a game that no longer
+      // resolves must not read as "planned" and suppress the nudge.
+      renderPanel({
+        team: {
+          ...kidPitch,
+          tournaments: [
+            {
+              id: "t1",
+              name: "Bash",
+              gameIds: ["g1", "g2"],
+              pitchPlan: {
+                gone: [{ playerId: "k1", role: "start", plannedPitches: 40 }],
+              },
+            },
+          ],
+        },
+      });
+      expect(
+        screen.getByText(/set the pitch plan for bash/i),
+      ).toBeInTheDocument();
+    });
+
     it("surfaces rest conflicts in a set plan", () => {
       renderPanel({
         team: {

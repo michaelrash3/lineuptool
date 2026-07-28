@@ -123,7 +123,10 @@ Assistant coaches use `AssistantEvalTab.tsx` instead — same shape, but each as
 
 ```
 Home → Live Game card
-  └─ <InGameView open game={...}> renders as a full-bleed overlay (not a route).
+  └─ <InGameView> renders as a full-bleed overlay. It is routable — the
+     `/in-game/:gameId` route (App.tsx ~1135) exists so the URL survives a
+     reload/share, but the route element only hides the tab content; the
+     overlay itself mounts standalone above the tabs.
      ├─ Tap any defensive cell → swap player (yellow ring indicates pending swap target)
      ├─ Alert button: handle a mid-game injury, prorate fairness, mark player removed
      ├─ Undo: pre-swap snapshot, restorable for the duration of the inning
@@ -143,6 +146,6 @@ A coach belonging to multiple teams uses the team dropdown in `AppHeader`. `swit
 
 1. Updates `users/{uid}/settings/teams.activeTeamId`
 2. Triggers the active-team subscription to unsubscribe + re-subscribe on the new id
-3. CSS variables `--team-primary` / `--team-secondary` / `--team-tertiary` snap to the new team's stored colors via the effect at `App.tsx:~3327`
+3. CSS variables `--team-primary` / `--team-secondary` / `--team-tertiary` snap to the new team's stored colors via the effect at `App.tsx:~576`
 
 Every surface that consumes those variables (header accent strip, primary buttons, badges, modals, ChatBubbles) updates without rerender plumbing.

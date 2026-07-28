@@ -177,6 +177,25 @@ export const usePlayerCrud = ({
           const { [id]: _dropPc, ...rest } = g.pitchCounts;
           next.pitchCounts = rest;
         }
+        // Standalone week-planner plans live on the game itself
+        // (game.pitchPlan) — strip the removed player there too, mirroring the
+        // tournament pitchPlan strip below, or their plan entry lingers
+        // invisibly and keeps folding into cross-game rest math. null (not
+        // absent) is the "plan cleared" write shape. The wholesale prevGames
+        // snapshot above already carries the pre-strip plan, so Undo restores
+        // it with the rest of the game.
+        // Standalone week-planner plans live on the game itself
+        // (game.pitchPlan) — strip the removed player there too, mirroring the
+        // tournament pitchPlan strip below, or their plan entry lingers
+        // invisibly and keeps folding into cross-game rest math. null (not
+        // absent) is the "plan cleared" write shape. The wholesale prevGames
+        // snapshot above already carries the pre-strip plan, so Undo restores
+        // it with the rest of the game.
+        if (Array.isArray(g.pitchPlan)) {
+          const kept = g.pitchPlan.filter((e: any) => e?.playerId !== id);
+          if (kept.length !== g.pitchPlan.length)
+            next.pitchPlan = kept.length > 0 ? kept : null;
+        }
         return next;
       };
 

@@ -895,6 +895,95 @@ describe("financeIntegrity — orphaned references (reconcile nudge)", () => {
     expect(integ.orphanExpenseLinks).toBe(1); // exp2 → bGONE
   });
 
+  it("counts unpaid feeRelief payouts whose source fundraiser is missing, voided, or demoted", () => {
+    const finances: TeamFinances = {
+      incomes: [
+        // Live earmarked fundraiser — its payouts are fine.
+        {
+          id: "live",
+          date: "2026-03-01",
+          label: "Spirit night",
+          amount: 300,
+          earmark: "familyPayout",
+        },
+        // Voided fundraiser — unpaid payouts against it are orphans.
+        {
+          id: "voided",
+          date: "2026-03-02",
+          label: "Struck fundraiser",
+          amount: 200,
+          earmark: "familyPayout",
+          voidedAt: "2026-03-03T00:00:00.000Z",
+        },
+        // Demoted: the earmark was deliberately removed in the ledger editor.
+        {
+          id: "plain",
+          date: "2026-03-04",
+          label: "Now club money",
+          amount: 100,
+        },
+      ],
+      reimbursements: [
+        // Healthy link → not counted.
+        {
+          id: "ok",
+          to: "Ava",
+          amount: 50,
+          status: "unpaid",
+          kind: "feeRelief",
+          sourceIncomeId: "live",
+        },
+        // Unpaid rows against a voided / missing / demoted source → 3 orphans.
+        {
+          id: "o1",
+          to: "Ben",
+          amount: 40,
+          status: "unpaid",
+          kind: "feeRelief",
+          sourceIncomeId: "voided",
+        },
+        {
+          id: "o2",
+          to: "Cal",
+          amount: 40,
+          status: "unpaid",
+          kind: "feeRelief",
+          sourceIncomeId: "GONE",
+        },
+        {
+          id: "o3",
+          to: "Dee",
+          amount: 30,
+          status: "unpaid",
+          kind: "feeRelief",
+          sourceIncomeId: "plain",
+        },
+        // PAID against the voided source → history, never an orphan.
+        {
+          id: "paid",
+          to: "Eve",
+          amount: 60,
+          status: "paid",
+          kind: "feeRelief",
+          sourceIncomeId: "voided",
+        },
+        // A VOIDED payout row doesn't count either.
+        {
+          id: "voidedRow",
+          to: "Fay",
+          amount: 20,
+          status: "unpaid",
+          kind: "feeRelief",
+          sourceIncomeId: "GONE",
+          voidedAt: "2026-03-05T00:00:00.000Z",
+        },
+        // Volunteer reimbursements carry no source link — never counted.
+        { id: "vol", to: "Coach", amount: 25, status: "unpaid" },
+      ],
+    };
+    expect(financeIntegrity(finances, []).orphanFeeReliefLinks).toBe(3);
+  });
+
   it("is clean when every reference resolves", () => {
     const finances: TeamFinances = {
       budgetItems: [{ id: "b1", label: "Balls", amount: 100 }],
@@ -914,10 +1003,12 @@ describe("financeIntegrity — orphaned references (reconcile nudge)", () => {
     expect(financeIntegrity(finances, [{ id: "p1" }])).toEqual({
       orphanPlayerRefs: 0,
       orphanExpenseLinks: 0,
+      orphanFeeReliefLinks: 0,
     });
     expect(financeIntegrity(undefined, undefined)).toEqual({
       orphanPlayerRefs: 0,
       orphanExpenseLinks: 0,
+      orphanFeeReliefLinks: 0,
     });
   });
 });

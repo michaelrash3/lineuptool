@@ -10,7 +10,6 @@ import {
   categoryLabel,
   inferCategory,
   REVENUE_CATEGORIES,
-  revenueCategoryLabel,
   inferRevenueCategory,
 } from "./financeCategories";
 
@@ -121,7 +120,7 @@ describe("revenue categories", () => {
     const ids = REVENUE_CATEGORIES.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const c of REVENUE_CATEGORIES) {
-      expect(revenueCategoryLabel(c.id)).toBe(c.label);
+      expect(c.label.trim()).not.toBe("");
     }
     // No overlap with the spend-side ids — two lists, in vs out.
     const spendIds = new Set(FINANCE_CATEGORIES.map((c) => c.id as string));

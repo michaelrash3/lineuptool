@@ -110,6 +110,56 @@ describe("ArmCarePanel log editor", () => {
     ]);
   });
 
+  it("flags a date carrying BOTH a manual and a game entry as counted together", () => {
+    // A manual outing has no gameId, so the import's gameId dedupe can never
+    // match it — if the coach hand-entered the outing before the CSV landed,
+    // the day silently counts double in rest math. The editor must surface
+    // that; it never merges silently.
+    renderPanel({
+      players: [
+        {
+          ...ace(),
+          pitching: {
+            recentPitches: 80,
+            lastPitchDate: "2026-05-01",
+            log: [
+              { date: "2026-05-01", pitches: 60, gameId: "g1" },
+              { date: "2026-05-01", pitches: 20 }, // manual duplicate
+            ],
+          },
+        },
+      ],
+    });
+    fireEvent.click(screen.getByLabelText("Edit Ace's pitch log"));
+    expect(
+      screen.getByText(
+        /2026-05-01: manual \+ game entries counted together — 80 total on this date/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no counted-together chip when all of a date's entries are the same kind", () => {
+    // Two game entries on one date is a real doubleheader; two manual entries
+    // are a deliberate split — neither is the invisible manual+import overlap.
+    renderPanel({
+      players: [
+        {
+          ...ace(),
+          pitching: {
+            recentPitches: 55,
+            lastPitchDate: "2026-05-01",
+            log: [
+              { date: "2026-05-01", pitches: 30, gameId: "g1" },
+              { date: "2026-05-01", pitches: 25, gameId: "g2" },
+            ],
+          },
+        },
+      ],
+    });
+    fireEvent.click(screen.getByLabelText("Edit Ace's pitch log"));
+    expect(screen.queryByText(/counted together/)).not.toBeInTheDocument();
+  });
+
   it("hides entirely for assistants and non-kid-pitch formats", () => {
     const updatePlayer = jest.fn();
     const { container } = renderWithProviders(<ArmCarePanel />, {

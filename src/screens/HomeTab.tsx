@@ -21,6 +21,7 @@ import {
   assessTournamentPlan,
   orderedTournamentGames,
   pitchLimitsApply,
+  planForGame,
 } from "../utils/tournamentPitching";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { leagueRuleSetLabel } from "../constants/ui";
@@ -1621,8 +1622,11 @@ export const UpNextPanel = memo(
           if (upcomingTournament) {
             const { t, ordered } = upcomingTournament;
             const dd = daysUntil(ordered[0].date ?? null) ?? 99;
-            const hasPlan = Object.values(t.pitchPlan || {}).some(
-              (entries: any) => (entries || []).length > 0,
+            // Resolve through planForGame over the tournament's REAL games, so
+            // a pitchPlan entry left behind for a deleted/unlinked game can't
+            // count as "planned" and silently suppress the nudge.
+            const hasPlan = ordered.some(
+              (g: Game) => planForGame(g, team.tournaments || []).length > 0,
             );
             if (!hasPlan && dd <= 7) {
               out.push({

@@ -17,6 +17,38 @@ import {
   type PitchingOuting,
 } from "../utils/helpers";
 
+// Dates whose log carries BOTH a hand-entered outing (no gameId) and a
+// game-import outing (gameId). Rest math is deliberately conservative — it
+// SUMS the whole day — so such a pair may be the same real outing counted
+// twice (e.g. a manual entry added before the CSV landed, which the import's
+// gameId dedupe can never match). The log editor flags these dates so the
+// coach sees the double count and can delete/edit one side; nothing is ever
+// merged silently.
+export const doubleCountedDates = (
+  log: PitchingOuting[],
+): Array<{ date: string; total: number }> => {
+  const byDate = new Map<
+    string,
+    { manual: boolean; game: boolean; total: number }
+  >();
+  for (const o of log) {
+    if (!o?.date) continue;
+    const cur = byDate.get(o.date) || {
+      manual: false,
+      game: false,
+      total: 0,
+    };
+    if (o.gameId) cur.game = true;
+    else cur.manual = true;
+    cur.total += Number(o.pitches) || 0;
+    byDate.set(o.date, cur);
+  }
+  return [...byDate.entries()]
+    .filter(([, v]) => v.manual && v.game)
+    .map(([date, v]) => ({ date, total: v.total }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+};
+
 // Current rest standing for a pitcher, as a small color-coded chip.
 const availabilityChip = (avail: PitcherAvailability) => {
   if (avail.status === "ready") {
@@ -161,7 +193,7 @@ const OutingAddRow = ({
   );
 };
 
-// Roster-tab arm-care dashboard: season workload per pitcher + overuse flags
+// Stats-tab arm-care dashboard: season workload per pitcher + overuse flags
 // (pitched several days running, came back on short rest). Kid Pitch + head
 // coach only; hidden until at least one pitcher has logged an outing. The
 // numbers come straight from each player's pitching.log, rule-set aware.
@@ -302,6 +334,22 @@ export const ArmCarePanel = memo(() => {
                   Outing log — fix a count or move pitches to the day they were
                   thrown (e.g. split a suspended game across its two dates)
                 </div>
+                {/* Manual + game entries on one date read as one big day to
+                    the rest rules — flag it, never silently merge it. */}
+                {doubleCountedDates(
+                  Array.isArray(p.pitching?.log)
+                    ? (p.pitching.log as PitchingOuting[])
+                    : [],
+                ).map(({ date, total }) => (
+                  <div
+                    key={date}
+                    className="t-chip self-start px-2 py-0.5 rounded-md border bg-warn-bg border-line text-warnfg text-[10px] font-black"
+                    title="This date has both a hand-entered outing and a game import — if they're the same outing, delete or edit one; rest math sums the whole day."
+                  >
+                    {date}: manual + game entries counted together — {total}{" "}
+                    total on this date
+                  </div>
+                ))}
                 {(Array.isArray(p.pitching?.log)
                   ? (p.pitching.log as PitchingOuting[])
                   : []

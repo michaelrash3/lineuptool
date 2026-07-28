@@ -8,6 +8,7 @@ import {
   resolvePitchRuleSet,
 } from "../lineupEngine";
 import {
+  planForGame,
   priorPlannedOutingsForGame,
   withPlannedOutings,
 } from "../utils/tournamentPitching";
@@ -78,10 +79,13 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
     [isKidPitch, evaluationEvents, players, teamAge, team],
   );
 
-  // Tournament context: the stored tournament this game belongs to (if any),
-  // its planned starter for THIS game, and the planned outings from the
-  // tournament's earlier games — folded into eligibility below so a Saturday
-  // game 2 picker already discounts the arm penciled in for game 1.
+  // Plan context: this game's planned starter and the planned outings from
+  // EARLIER games — folded into eligibility below so a Saturday game 2 picker
+  // already discounts the arm penciled in for game 1. Both resolve through
+  // planForGame, so a standalone game's week-planner plan (game.pitchPlan)
+  // counts exactly like a stored tournament's plan. The tournaments module
+  // toggle only hides the stored-tournament layer; the week planner (and its
+  // standalone plans) is always available, so the fold always runs.
   const tournamentsEnabled = featureEnabled(team, "tournaments");
   const tournaments = useMemo(
     () => (tournamentsEnabled ? team.tournaments || [] : []),
@@ -91,11 +95,13 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
     ? tournaments.find((t: any) => (t.gameIds || []).includes(game.id))
     : null;
   const plannedStartId =
-    gameTournament?.pitchPlan?.[game?.id]?.find((e: any) => e.role === "start")
-      ?.playerId || null;
+    (game &&
+      planForGame(game, tournaments).find((e: any) => e.role === "start")
+        ?.playerId) ||
+    null;
   const priorPlanned = useMemo(
     () =>
-      game && gameTournament
+      game
         ? priorPlannedOutingsForGame(
             tournaments,
             team.games || [],
@@ -105,16 +111,7 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
             pitchRules,
           )
         : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      game,
-      gameTournament,
-      tournaments,
-      team.games,
-      players,
-      teamAge,
-      pitchRules,
-    ],
+    [game, tournaments, team.games, players, teamAge, pitchRules],
   );
 
   const ranked = useMemo(() => {
@@ -135,8 +132,9 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
           topMph: p.stats?.pTopMph ?? p.pitching?.topMph,
           teamAge,
         });
-        // Eligibility sees the tournament's earlier planned outings as if
-        // already thrown (hypothetical fold; nothing is persisted).
+        // Eligibility sees earlier games' planned outings — tournament or
+        // standalone — as if already thrown (hypothetical fold; nothing is
+        // persisted).
         const eligibilityPlayer = priorPlanned?.size
           ? withPlannedOutings(p, priorPlanned.get(p.id) || [])
           : p;
@@ -167,9 +165,10 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
   if (!isKidPitch || !game || ranked.length === 0) return null;
 
   const eligibleRanked = ranked.filter((r) => r.eligible);
-  // Recommended starter: the tournament plan's starter wins when he's still
-  // eligible; otherwise bracket → the top eligible arm; pool/league → the
-  // next arm down (rest the ace) when there's depth, else the top eligible.
+  // Recommended starter: the pitch plan's starter (tournament or week-planner)
+  // wins when he's still eligible; otherwise bracket → the top eligible arm;
+  // pool/league → the next arm down (rest the ace) when there's depth, else
+  // the top eligible.
   const plannedIsEligible =
     !!plannedStartId && eligibleRanked.some((r) => r.p.id === plannedStartId);
   const recommendedId = plannedIsEligible
@@ -221,11 +220,11 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
         {stakesTip}
       </p>
       {/* One-way flow: picking a different starter never rewrites the
-          tournament plan — it just flags the drift. */}
+          stored pitch plan — it just flags the drift. */}
       {plannedPlayer && selectedId && selectedId !== plannedStartId && (
         <p className="text-[11px] font-bold text-warnfg mt-1">
-          The tournament plan has {plannedPlayer.name} starting this game — your
-          pick here doesn't change that plan.
+          The pitch plan has {plannedPlayer.name} starting this game — your pick
+          here doesn't change that plan.
         </p>
       )}
 
@@ -278,7 +277,7 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
                       backgroundColor: "var(--team-primary-15)",
                       color: "var(--team-ink)",
                     }}
-                    title="The tournament plan has this arm starting this game."
+                    title="The pitch plan has this arm starting this game."
                   >
                     Planned
                   </span>

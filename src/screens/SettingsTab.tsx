@@ -8,6 +8,7 @@ import {
   buildScheduleIcs,
 } from "../utils/helpers";
 import { allowedPitchingFormats, leagueRuleSetLabel } from "../constants/ui";
+import { PITCH_RULE_SETS } from "../lineupEngine";
 import {
   TOGGLEABLE_FEATURES,
   featureEnabled,
@@ -971,9 +972,15 @@ export const SettingsTab = memo(() => {
                           }
                           className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
                         >
-                          <option value="littleLeague">
-                            Little League / Pitch Smart
-                          </option>
+                          {/* Presets come from the engine's catalog so a new
+                              rule set ships here without touching this tab;
+                              "custom" is the engine's escape hatch, not a
+                              preset (see resolvePitchRuleSet). */}
+                          {Object.values(PITCH_RULE_SETS).map((rs) => (
+                            <option key={rs.id} value={rs.id}>
+                              {rs.label}
+                            </option>
+                          ))}
                           <option value="custom">Custom</option>
                         </select>
                         <p className="text-[10px] text-ink-3 mt-2 font-bold leading-tight normal-case tracking-normal">

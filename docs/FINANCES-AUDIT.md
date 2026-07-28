@@ -29,13 +29,18 @@ Finances lives entirely client-side, like the rest of the app:
 
 **Core files**
 
-| File                                                             | Role                                           |
-| ---------------------------------------------------------------- | ---------------------------------------------- |
-| `src/screens/FinancesTab.tsx` (~2,470 lines)                     | Entire Finances UI                             |
-| `src/utils/finances.ts` (~810 lines)                             | Pure money math (unit-tested)                  |
-| `src/components/financeViz.tsx`                                  | Hero, cash-flow, donut, year-comparison charts |
-| `src/finances/feeSheetPdf.ts`                                    | Parent-facing fee-schedule PDF (lazy jspdf)    |
-| `src/utils/finances.test.ts`, `src/screens/FinancesTab.test.tsx` | ~44 UI cases + math suite                      |
+| File                                                             | Role                                                                   |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `src/screens/FinancesTab.tsx` (~1,678 lines)                     | Finances state + handlers; UI sections live in `src/screens/finances/` |
+| `src/utils/finances.ts` (~1,767 lines)                           | Pure money math (unit-tested)                                          |
+| `src/components/financeViz.tsx`                                  | Hero, cash-flow, donut, year-comparison charts                         |
+| `src/finances/feeSheetPdf.ts`                                    | Parent-facing fee-schedule PDF (lazy jspdf)                            |
+| `src/utils/finances.test.ts`, `src/screens/FinancesTab.test.tsx` | UI cases + math suite                                                  |
+
+_Line counts updated 2026-07-28: at audit time FinancesTab.tsx was ~2,470
+lines holding the entire UI and finances.ts ~810. The screen has since been
+split (presentational sections extracted to `src/screens/finances/`) and the
+math module has grown with the shipped roadmap work._
 
 ## 2. What Finances does today (current-state inventory)
 
@@ -228,20 +233,22 @@ Plus the two high-severity audit fixes, approved as follow-up work:
 ### Considered, not planned
 
 Reviewed with the coach and declined for now; recorded so future requests can
-reopen them with context.
+reopen them with context. Two rows have since been reopened and **shipped** —
+they are annotated in place (rather than deleted) so the 2026-07-03 decision
+record stays honest.
 
-| Feature                                                            | Benchmark norm                         | Why it would fit / notes                                                                                       |
-| ------------------------------------------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Payment method + notes on payments                                 | TeamSnap, Crossbar record method       | Trivial schema add (`method?`, `note?` on `PaymentEntry`)                                                      |
-| Per-player fee adjustments (sibling discount, partial scholarship) | Common in club invoicing               | Today only full waive via `feeExemptIds`; per-player override map would slot into `effectiveFeeByPlayer`       |
-| Installment plans / payment schedules                              | TeamSnap Invoicing, Snap! Spend        | Deposit + final due date exist; a schedule array would extend `teamFeesStatus` and HomeTab cards               |
-| Payment receipts (per-payment PDF)                                 | Processor-issued receipts elsewhere    | Same jspdf pattern as the approved treasurer report                                                            |
-| Reimbursements (out-of-pocket + owed-back status)                  | Common treasurer workflow              | New entry flag + settle action in the ledger                                                                   |
-| Fundraising goals / raise-or-pay                                   | Snap! Raise-style campaigns            | Per-player credit already exists; goals/meters are additive                                                    |
-| Parent balance portal ("what do I owe")                            | Table stakes in TeamSnap/Crossbar      | Would follow the anonymous-portal + `teamPublic` mirror pattern; declined — coach prefers direct communication |
-| Treasurer access (finance role for a member)                       | Club norm: a team parent handles money | Declined; finances stay head-only — which the approved rules guard then enforces for real                      |
-| Online payments (Stripe Payment Links + webhook)                   | The headline competitor feature        | Needs a Vercel function + Stripe account; declined — Venmo/cash workflow is sufficient at this scale           |
-| Automated email dues reminders                                     | TeamSnap auto-reminders                | Needs server email (Vercel fn + email API), reversing a deliberate product stance; declined                    |
+| Feature                                                            | Benchmark norm                         | Why it would fit / notes                                                                                                                                                      |
+| ------------------------------------------------------------------ | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payment method + notes on payments                                 | TeamSnap, Crossbar record method       | Trivial schema add (`method?`, `note?` on `PaymentEntry`)                                                                                                                     |
+| Per-player fee adjustments (sibling discount, partial scholarship) | Common in club invoicing               | **Since shipped** — `feeAdjustments` (scholarship / sibling / override, flat or %) stack into `effectiveFeeByPlayer` after the fundraising credit; UI in `FeeAdjustmentsCard` |
+| Installment plans / payment schedules                              | TeamSnap Invoicing, Snap! Spend        | Deposit + final due date exist; a schedule array would extend `teamFeesStatus` and HomeTab cards                                                                              |
+| Payment receipts (per-payment PDF)                                 | Processor-issued receipts elsewhere    | Same jspdf pattern as the approved treasurer report                                                                                                                           |
+| Reimbursements (out-of-pocket + owed-back status)                  | Common treasurer workflow              | **Since shipped** — `Reimbursement` rows (unpaid liability; mark-paid posts one expense) in `ReimbursementQueueSection`, later extended with fee-relief payouts to families   |
+| Fundraising goals / raise-or-pay                                   | Snap! Raise-style campaigns            | Per-player credit already exists; goals/meters are additive                                                                                                                   |
+| Parent balance portal ("what do I owe")                            | Table stakes in TeamSnap/Crossbar      | Would follow the anonymous-portal + `teamPublic` mirror pattern; declined — coach prefers direct communication                                                                |
+| Treasurer access (finance role for a member)                       | Club norm: a team parent handles money | Declined; finances stay head-only — which the approved rules guard then enforces for real                                                                                     |
+| Online payments (Stripe Payment Links + webhook)                   | The headline competitor feature        | Needs a Vercel function + Stripe account; declined — Venmo/cash workflow is sufficient at this scale                                                                          |
+| Automated email dues reminders                                     | TeamSnap auto-reminders                | Needs server email (Vercel fn + email API), reversing a deliberate product stance; declined                                                                                   |
 
 ### Not recommended (poor architectural fit)
 
@@ -280,4 +287,5 @@ shipped — `round2` at the summary/running-balance boundaries and
 3.8's mitigations landed too (`LEDGER_RENDER_CAP` + a Map-based name lookup).
 
 Everything in "Considered, not planned" stays out of scope until explicitly
-reopened.
+reopened. (Per-player fee adjustments and reimbursements HAVE since been
+reopened and shipped — see the annotated rows in §4.)

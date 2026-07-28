@@ -53,6 +53,7 @@ export {
 
 // --- Pitch-count rules & arm care ---
 export {
+  PITCH_RULE_SETS,
   resolvePitchRuleSet,
   maxPitchesForAge,
   mostRecentDayPitches,

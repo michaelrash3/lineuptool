@@ -29,7 +29,10 @@ vi.mock("../lineupEngine", () => ({
 
 // These cover the hook's wiring (uiBridge / updateGame / updateTeam) for the
 // non-engine paths. Full generation logic is covered by lineupEngine.test.js.
-const setup = (over: any = {}, inputs: any = null, prevSnap: any = null) => {
+// Undo is intentionally NOT part of the hook's return — the snapshot is only
+// reachable through the generate/re-roll toasts' Undo action, exercised in
+// the game-scoped describe below.
+const setup = (over: any = {}, inputs: any = null) => {
   const updateTeam = jest.fn();
   const updateGame = jest.fn();
   const persistTeam = jest.fn();
@@ -42,7 +45,7 @@ const setup = (over: any = {}, inputs: any = null, prevSnap: any = null) => {
       markSaved: jest.fn(),
     },
   };
-  const previousLineupRef = { current: prevSnap };
+  const previousLineupRef = { current: null };
   const teamData = { players: [], games: [], lineupTemplates: [], ...over };
   const { result } = renderHook(() =>
     useLineupActions({
@@ -59,19 +62,6 @@ const setup = (over: any = {}, inputs: any = null, prevSnap: any = null) => {
 };
 
 describe("useLineupActions wiring", () => {
-  it("undoLineup re-applies the previous snapshot via the uiBridge", () => {
-    const snap = {
-      lineup: [{ P: { id: "p1" } }],
-      battingLineup: [{ id: "p1" }],
-    };
-    const { result, uiBridge } = setup({}, null, snap);
-    act(() => result.current.undoLineup());
-    expect(uiBridge.current.applyResult).toHaveBeenCalledWith({
-      lineup: snap.lineup,
-      battingLineup: snap.battingLineup,
-    });
-  });
-
   it("saveCurrentGame writes the in-progress lineup to the game", () => {
     const inputs = {
       currentGame: { id: "g1" },
@@ -211,24 +201,31 @@ describe("useLineupActions one-game-balance toast", () => {
 });
 
 describe("useLineupActions game-scoped undo buffer", () => {
-  // The undo snapshot is stamped with the game it was captured from, and both
-  // readers — the toast's Undo action (which outlives a game switch: the
-  // ToastProvider stack is not remounted when selectedGameId changes) and the
-  // context-level undoLineup — must refuse once a DIFFERENT game is selected.
-  // Otherwise game 1's pre-roll lineup lands in game 2's editor and the next
-  // Save writes it onto game 2. Sibling of the team-switch clear covered by
+  // The undo snapshot is stamped with the game it was captured from, and its
+  // single reader — the toast's Undo action (which outlives a game switch:
+  // the ToastProvider stack is not remounted when selectedGameId changes) —
+  // must refuse once a DIFFERENT game is selected. Otherwise game 1's
+  // pre-roll lineup lands in game 2's editor and the next Save writes it onto
+  // game 2. Sibling of the team-switch clear covered by
   // TeamProvider.teamSwitch.test.tsx.
   const players = Array.from({ length: 9 }, (_, i) => ({
     id: `p${i}`,
     name: `P${i}`,
   }));
-  const g1Lineup = [{ P: { id: "p0" }, C: { id: "p1" } }];
-  const g1Batting = players.map((p) => ({ id: p.id, name: p.name }));
+  const g1Lineup = [
+    { P: { id: "p0" }, C: { id: "p1" }, BENCH: [{ id: "p2" }] },
+  ];
+  // Deliberately disjoint from the defense slots above (p3+), so each
+  // stale-roster case below exercises exactly one scan: position slot (p1),
+  // BENCH (p2), batting order (p8).
+  const g1Batting = players.slice(3).map((p) => ({ id: p.id, name: p.name }));
 
   // Inputs object is mutated in place to simulate UIProvider's game switch:
   // getInputs() closes over it, so readers see the NEW selection at click time
-  // exactly as the real bridge does.
+  // exactly as the real bridge does. The roster is a fresh copy per mount so
+  // the stale-roster tests can splice players out without leaking.
   const mount = () => {
+    const roster = players.map((p) => ({ ...p }));
     const inputs: any = {
       currentGame: { id: "g1" },
       currentGameAttendance: {},
@@ -238,7 +235,7 @@ describe("useLineupActions game-scoped undo buffer", () => {
       previousLineup: g1Lineup,
       previousBattingLineup: g1Batting,
     };
-    const mounted = setup({ players }, inputs);
+    const mounted = setup({ players: roster }, inputs);
     const switchToGame = (id: string) => {
       inputs.currentGame = { id };
       // The game-switch effect loads the new game's saved state into the
@@ -253,7 +250,19 @@ describe("useLineupActions game-scoped undo buffer", () => {
         .map((c) => c[0])
         .filter((t) => t.action)
         .pop()?.action;
-    return { ...mounted, inputs, switchToGame, lastUndoAction };
+    const dropFromRoster = (id: string) =>
+      roster.splice(
+        roster.findIndex((p) => p.id === id),
+        1,
+      );
+    return {
+      ...mounted,
+      inputs,
+      roster,
+      switchToGame,
+      lastUndoAction,
+      dropFromRoster,
+    };
   };
 
   beforeEach(() => {
@@ -286,9 +295,8 @@ describe("useLineupActions game-scoped undo buffer", () => {
       switchToGame("g2");
       (uiBridge.current.applyResult as jest.Mock).mockClear();
 
-      // Both readers: the still-live toast button and the context action.
+      // The still-live toast button is the snapshot's only reader.
       act(() => undoAction.onClick());
-      act(() => result.current.undoLineup());
       expect(uiBridge.current.applyResult).not.toHaveBeenCalled();
     },
   );
@@ -305,18 +313,11 @@ describe("useLineupActions game-scoped undo buffer", () => {
         lineup: g1Lineup,
         battingLineup: g1Batting,
       });
-
-      (uiBridge.current.applyResult as jest.Mock).mockClear();
-      act(() => result.current.undoLineup());
-      expect(uiBridge.current.applyResult).toHaveBeenCalledWith({
-        lineup: g1Lineup,
-        battingLineup: g1Batting,
-      });
     },
   );
 
   it("re-arms for the new game — the refusal doesn't disable undo permanently", () => {
-    const { result, uiBridge, inputs, switchToGame } = mount();
+    const { result, uiBridge, inputs, switchToGame, lastUndoAction } = mount();
     act(() => result.current.regenerateDefense());
 
     switchToGame("g2");
@@ -329,10 +330,46 @@ describe("useLineupActions game-scoped undo buffer", () => {
     act(() => result.current.regenerateDefense());
 
     (uiBridge.current.applyResult as jest.Mock).mockClear();
-    act(() => result.current.undoLineup());
+    act(() => lastUndoAction().onClick());
     expect(uiBridge.current.applyResult).toHaveBeenCalledWith({
       lineup: g2Lineup,
       battingLineup: g2Batting,
+    });
+  });
+
+  // Stale-roster guard: a re-roll toast can outlive a player removal, and
+  // restoring a snapshot that still contains the deleted kid would write them
+  // back into the editor (and, on Save, onto the game). Same silent no-op
+  // contract as the game/team mismatch refusals above.
+  it.each([
+    ["a defense slot", "p1"],
+    ["the bench", "p2"],
+    ["the batting order only", "p8"],
+  ])(
+    "undo refuses when the snapshot references a player removed from %s",
+    (_where, removedId) => {
+      const { result, uiBridge, lastUndoAction, dropFromRoster } = mount();
+      act(() => result.current.regenerateDefense());
+      dropFromRoster(removedId);
+      (uiBridge.current.applyResult as jest.Mock).mockClear();
+
+      act(() => lastUndoAction().onClick());
+      expect(uiBridge.current.applyResult).not.toHaveBeenCalled();
+    },
+  );
+
+  it("undo still restores after an unrelated roster change (only snapshot players matter)", () => {
+    const { result, uiBridge, roster, lastUndoAction } = mount();
+    act(() => result.current.regenerateDefense());
+    // A NEW player joining is not a stale snapshot — nothing in the snapshot
+    // is missing from the roster.
+    roster.push({ id: "p9", name: "P9" });
+    (uiBridge.current.applyResult as jest.Mock).mockClear();
+
+    act(() => lastUndoAction().onClick());
+    expect(uiBridge.current.applyResult).toHaveBeenCalledWith({
+      lineup: g1Lineup,
+      battingLineup: g1Batting,
     });
   });
 });

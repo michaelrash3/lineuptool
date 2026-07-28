@@ -301,17 +301,57 @@ describe("priorPlannedOutingsForGame", () => {
     ).toBe(0);
   });
 
-  it("returns an empty map for a game outside any tournament", () => {
+  it("folds earlier plans into a STANDALONE game — tournament-stored and game-stored alike", () => {
+    // The week planner writes standalone plans to game.pitchPlan; a game
+    // outside any tournament must still see every earlier plan, or the
+    // Starting Pitcher picker over-promises the arm (the pre-fix blind spot).
+    const t = tournament({
+      g1: [{ playerId: "p1", role: "start", plannedPitches: 40 }],
+    });
+    const solo = {
+      id: "solo",
+      date: "2026-06-08",
+      pitchPlan: [{ playerId: "p1", role: "relief", plannedPitches: 15 }],
+    } as Game;
+    const target = { id: "target", date: "2026-06-20" } as Game;
+    const acc = priorPlannedOutingsForGame(
+      [t],
+      [...GAMES, solo, target],
+      players,
+      "target",
+      AGE,
+      RULES,
+    );
+    expect(acc.get("p1")).toEqual([
+      { date: "2026-06-06", pitches: 40 },
+      { date: "2026-06-08", pitches: 15 },
+    ]);
+  });
+
+  it("folds an earlier standalone game's plan into a TOURNAMENT game", () => {
+    // Wednesday rec plan (game.pitchPlan) before the weekend: Saturday's
+    // tournament game must count it.
+    const wed = {
+      id: "wed",
+      date: "2026-06-03",
+      pitchPlan: [{ playerId: "p1", role: "start", plannedPitches: 55 }],
+    } as Game;
+    const t = tournament({});
+    const acc = priorPlannedOutingsForGame(
+      [t],
+      [...GAMES, wed],
+      players,
+      "g1",
+      AGE,
+      RULES,
+    );
+    expect(acc.get("p1")).toEqual([{ date: "2026-06-03", pitches: 55 }]);
+  });
+
+  it("returns an empty map for an unknown or undated game", () => {
     const t = tournament({ g1: [{ playerId: "p1", role: "start" }] });
     expect(
-      priorPlannedOutingsForGame(
-        [t],
-        [...GAMES, { id: "solo", date: "2026-06-20" } as Game],
-        players,
-        "solo",
-        AGE,
-        RULES,
-      ).size,
+      priorPlannedOutingsForGame([t], GAMES, players, "ghost", AGE, RULES).size,
     ).toBe(0);
   });
 
@@ -344,16 +384,27 @@ describe("laterPlannedGamesForPlayer", () => {
     expect(laterPlannedGamesForPlayer([t], GAMES, "p2", "g1")).toEqual([]);
   });
 
-  it("returns nothing for a game outside any tournament", () => {
+  it("sees later plans across tournament boundaries and standalone games", () => {
+    // From a standalone Wednesday game, both the weekend tournament plan and
+    // a later standalone game's own plan flag the arm.
+    const wed = { id: "wed", date: "2026-06-03" } as Game;
+    const solo = {
+      id: "solo",
+      date: "2026-06-10",
+      pitchPlan: [{ playerId: "p1", role: "start" }],
+    } as Game;
     const t = tournament({ g3: [{ playerId: "p1", role: "start" }] });
     expect(
-      laterPlannedGamesForPlayer(
-        [t],
-        [...GAMES, { id: "solo", date: "2026-06-20" } as Game],
-        "p1",
-        "solo",
+      laterPlannedGamesForPlayer([t], [...GAMES, wed, solo], "p1", "wed").map(
+        (g) => g.id,
       ),
+    ).toEqual(["g3", "solo"]);
+    // Nothing later carries the player → empty.
+    expect(
+      laterPlannedGamesForPlayer([t], [...GAMES, solo], "p1", "solo"),
     ).toEqual([]);
+    // Unknown game id → empty.
+    expect(laterPlannedGamesForPlayer([t], GAMES, "p1", "ghost")).toEqual([]);
   });
 });
 
