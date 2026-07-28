@@ -45,7 +45,11 @@ function applySwap(slot: Inning, swap: LineupSwap): void {
       (p): p is NonNullable<SlimPlayer> => p !== null && p.id !== b?.id,
     );
     slot.BENCH.push(a);
-    slot[sPos] = null;
+    // The tapped bench player takes the vacated slot — a true trade, mirroring
+    // the BENCH->field branch above. This used to write null, which removed
+    // the bench player from the game entirely (off the bench, placed nowhere)
+    // and left the position standing empty.
+    slot[sPos] = b || null;
   } else {
     slot[sPos] = b || null;
     slot[tPos] = a;
