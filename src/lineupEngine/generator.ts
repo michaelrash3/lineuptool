@@ -16,6 +16,7 @@ import { buildProfiledPlayers, resolveGameContext } from "./engineContext";
 import { calcPitcherScore, calcCatcherScore } from "./evaluation";
 import {
   isPositionBlocked,
+  isHardRestricted,
   isCatcherEligible,
   resolveCatcherPolicy,
   getPositionsForInning,
@@ -373,6 +374,148 @@ export function generateLineup(input: EngineInput): EngineResult {
     }
   }
 
+  // ---------- Kid-Pitch game-long pitcher pin ----------
+  // Kid Pitch reality: you can't change pitchers on a whim — the pitcher is in
+  // until he is done. So for Kid-Pitch games the Rec fairness engine pins ONE
+  // starting pitcher to P for every inning it generates (structurally the same
+  // as tournamentPlan's `fixedP`, but inside the fairness solver so everyone
+  // else still rotates fairly around him). Machine/coach pitch is untouched:
+  // `fixedPitcherId` stays null there and P rotates like any other slot.
+  //
+  // Resolution order:
+  //   1. The coach's explicit pick — firstInningOverridesById.P (the Starting
+  //      Pitcher picker pregame, or an in-game pitching change re-pin on a
+  //      mid-game rebuild). Authoritative: same isHardRestricted-only gate the
+  //      override seat in buildSlots applies.
+  //   2. Mid-game rebuild with no new pick: the incumbent (the arm on the
+  //      mound in the last already-played inning) stays in.
+  //   3. Otherwise the engine picks the best available starter from the same
+  //      ranking the per-inning pool logic used — pool arms first, freshest
+  //      arm (lowest recentPitches) before the stronger pitcher score —
+  //      falling back to every P-cleared kid when there is no pool (8U Kid
+  //      Pitch has none).
+  //
+  // Dead-arm rule: an arm that pitched replayed innings and was then relieved
+  // can never return — choices 2–3 exclude such arms, and the pin itself keeps
+  // every later inning on the pinned arm, so a relieved pitcher can't
+  // resurface mid-rebuild. If NO valid arm resolves (every candidate dead,
+  // blocked, or resting), the pin is skipped and the legacy per-inning
+  // rotation remains as a fallback rather than failing the build outright.
+  let fixedPitcherId: string | null = null;
+  if (isKidPitchFormat && positionsToFill.includes("P")) {
+    const profiledById = new Map(profiled.map((p) => [p.id, p]));
+    const mgFrom =
+      fromInning > 0 && Array.isArray(currentLineup) && currentLineup.length > 0
+        ? Math.min(fromInning, currentLineup.length, totalInnings)
+        : 0;
+    // Arms/gloves used in the replayed innings of a mid-game rebuild.
+    const replayedArms = new Set<string>();
+    const replayedCatchers = new Set<string>();
+    let incumbentId: string | null = null;
+    for (let i = 0; i < mgFrom; i++) {
+      const pid = (currentLineup![i]?.P as SlimPlayer | undefined)?.id;
+      if (pid) replayedArms.add(pid);
+      const cid = (currentLineup![i]?.C as SlimPlayer | undefined)?.id;
+      if (cid) replayedCatchers.add(cid);
+    }
+    if (mgFrom > 0) {
+      incumbentId =
+        (currentLineup![mgFrom - 1]?.P as SlimPlayer | undefined)?.id ?? null;
+    }
+    // Players the coach pinned to a NON-P spot this (re)build — e.g. the old
+    // pitcher moved to SS by an in-game swap. They can't also be the pitcher.
+    const pinnedElsewhere = new Set<string>();
+    for (const [pos, pid] of Object.entries(firstInningOverridesById)) {
+      if (pos !== "P" && pid) pinnedElsewhere.add(pid);
+    }
+
+    const overridePid = firstInningOverridesById["P"];
+    const overrideP = overridePid ? profiledById.get(overridePid) : undefined;
+    if (
+      overrideP &&
+      isStarter.has(overrideP.id) &&
+      !isHardRestricted(overrideP, "P") &&
+      !pinnedElsewhere.has(overrideP.id)
+    ) {
+      fixedPitcherId = overrideP.id;
+    } else if (
+      incumbentId &&
+      profiledById.has(incumbentId) &&
+      isStarter.has(incumbentId) &&
+      !pinnedElsewhere.has(incumbentId)
+    ) {
+      fixedPitcherId = incumbentId;
+    } else {
+      // A kid who is the SOLE cover for another position can't be parked on
+      // the mound all game — whatever inning needs them there would strand.
+      // (Mirrors the anchor logic in precomputeBenchSchedule.)
+      const soleCover = new Set<string>();
+      for (const pos of positionsToFill) {
+        if (pos === "P") continue;
+        let only: string | null = null;
+        let n = 0;
+        for (const p of profiled) {
+          const ok =
+            pos === "C" ? isCatcherEligible(p) : !isPositionBlocked(p, pos);
+          if (ok) {
+            n++;
+            only = p.id;
+            if (n > 1) break;
+          }
+        }
+        if (n === 1 && only) soleCover.add(only);
+      }
+      const candidates = profiled.filter(
+        (p) =>
+          isStarter.has(p.id) &&
+          !isPositionBlocked(p, "P") &&
+          // Dead arms never return.
+          !replayedArms.has(p.id) &&
+          // Kid-Pitch dual-role: a kid who caught earlier this game or
+          // earlier today can't take the mound.
+          !replayedCatchers.has(p.id) &&
+          !sameDay.caught?.has(p.id) &&
+          !pinnedElsewhere.has(p.id) &&
+          // Same pitch-count gate the per-inning generic picker applies.
+          !(
+            leagueRuleSet === "NKB" &&
+            !checkPitchEligibility(p, targetDateStr, teamAge, pitchRules)
+          ),
+      );
+      // The pool (9U+ Kid Pitch, already eligibility-filtered) owns P when it
+      // has an available arm; otherwise any cleared arm may start.
+      let armPool = candidates;
+      if (pitcherPoolIds.size > 0) {
+        const pooled = candidates.filter((p) => pitcherPoolIds.has(p.id));
+        if (pooled.length > 0) armPool = pooled;
+      }
+      const preferred = armPool.filter((p) => !soleCover.has(p.id));
+      const pickFrom = preferred.length > 0 ? preferred : armPool;
+      if (pickFrom.length > 0) {
+        const scoreOf = new Map(
+          pickFrom.map((p) => [
+            p.id,
+            calcPitcherScore(combinedGrades[p.id], p.stats, {
+              topMph: p.stats?.pTopMph ?? p.pitching?.topMph,
+              teamAge,
+            }),
+          ]),
+        );
+        const bestArm = [...pickFrom].sort((a, b) => {
+          // Freshest arm first — mirrors the per-inning pool preference.
+          const ra = a.pitching?.recentPitches || 0;
+          const rb = b.pitching?.recentPitches || 0;
+          if (ra !== rb) return ra - rb;
+          const sa = scoreOf.get(a.id) || 0;
+          const sb = scoreOf.get(b.id) || 0;
+          if (sa !== sb) return sb - sa;
+          return a.id < b.id ? -1 : 1;
+        })[0];
+        fixedPitcherId = bestArm.id;
+      }
+    }
+  }
+
   const baseSeed = (seed ?? Date.now()) >>> 0;
   const MAX_ATTEMPTS = 200;
 
@@ -415,6 +558,7 @@ export function generateLineup(input: EngineInput): EngineResult {
         pitchRules,
         sameDayRoles: sameDay,
         catcherPolicy,
+        fixedPitcherId,
         rand,
         fromInning,
         currentLineup,

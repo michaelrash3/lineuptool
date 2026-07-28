@@ -287,6 +287,7 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
     forcedBenchInning0,
     firstInningOverridesById,
     overrideInning = 0,
+    fixedPitcherId = null,
   } = opts;
 
   // Field-position "supply": how many present players are eligible for each
@@ -337,6 +338,17 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
       anchorIds.add(id);
       if (pos !== "C") anchorNonC.add(id);
     }
+  }
+  // KID-PITCH GAME-LONG PITCHER PIN: the pinned pitcher is on the mound every
+  // inning, so he behaves exactly like a sole-eligible anchor — he can never
+  // be benched, and never reserved at catcher (Kid Pitch also bans pitch+catch
+  // in one game). The ANCHOR GUARD below zeroes his sit target and
+  // redistributes it, so the fairness distribution is shared by the OTHER
+  // kids only. His innings aren't exempted from the season ledger — the
+  // emitted plan records him at P, so future games see him as over-played.
+  if (fixedPitcherId) {
+    anchorIds.add(fixedPitcherId);
+    anchorNonC.add(fixedPitcherId);
   }
 
   const N = profiled.length;
@@ -644,6 +656,10 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
     const eligiblePool = sortedForExtra
       // Only players cleared for catcher ("C" in comfortablePositions).
       .filter(({ p }) => isCatcherEligible(p))
+      // The game-long pinned pitcher can never catch — he's on the mound every
+      // inning. Hard-excluded even from the last-resort reuse tiers below
+      // (the anchorNonC `free()` gate alone would still allow those).
+      .filter(({ p }) => p.id !== fixedPitcherId)
       .sort((a, b) => {
         // Tier 1 wins over tier 2: kids whose primary position is catcher
         // are picked first.
@@ -774,20 +790,27 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
     benchedThisInn: Set<string>,
     inn: number,
   ): boolean => {
+    // A schedule that benches the game-long pinned pitcher can never complete
+    // — he must be on the mound this inning.
+    if (fixedPitcherId && benchedThisInn.has(fixedPitcherId)) return false;
     const catcherId = catcherByInning.get(inn);
     const pool: string[] = [];
     for (const p of profiled) {
       if (benchedThisInn.has(p.id)) continue;
       if (catcherId && p.id === catcherId) continue; // committed to C
+      if (fixedPitcherId && p.id === fixedPitcherId) continue; // committed to P
       pool.push(p.id);
     }
     // Only guard positions that ARE coverable by someone. A position with zero
     // eligible players is a genuine roster gap — let the fill loop surface its
     // specific "no eligible player for X" message rather than masking it as a
-    // generic bench-schedule failure here.
+    // generic bench-schedule failure here. P is dropped when a game-long
+    // pitcher is pinned (he covers it by construction, like the catcher's C).
     const positions = (positionsToFill || []).filter(
       (pos: string) =>
-        !(catcherId && pos === "C") && (posEligibleIds.get(pos)?.size || 0) > 0,
+        !(catcherId && pos === "C") &&
+        !(fixedPitcherId && pos === "P") &&
+        (posEligibleIds.get(pos)?.size || 0) > 0,
     );
     const matched = maxPositionMatching(
       positions,
@@ -804,12 +827,17 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
   const wouldStrand = (pid: string, inn: number): boolean => {
     const catcherId = catcherByInning.get(inn);
     for (const [pos, ids] of posEligibleIds) {
+      // With a game-long pitcher pinned, P is always covered by him (he never
+      // sits, never catches) — and, being committed to P, he can't be counted
+      // as cover for any OTHER position.
+      if (fixedPitcherId && pos === "P") continue;
       if (!ids.has(pid)) continue;
       let others = 0;
       for (const qid of ids) {
         if (qid === pid) continue;
         if (schedule.get(qid)?.has(inn)) continue;
         if (pos !== "C" && qid === catcherId) continue;
+        if (qid === fixedPitcherId) continue; // committed to P
         others++;
         break;
       }
@@ -889,6 +917,8 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
       const overflow = profiled.filter(
         (p: ProfiledPlayer) =>
           !alreadyBenched.has(p.id) &&
+          // The game-long pinned pitcher never absorbs an overflow sit.
+          p.id !== fixedPitcherId &&
           !offFieldByInning[inn].has(p.id) &&
           !(inn === overrideInning && firstInningMustPlay.has(p.id)) &&
           // No back to back: skip kids who sat the previous inning
@@ -1029,6 +1059,7 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
         for (const o of profiled) {
           if (benchedThisInn.has(o.id) || o.id === b) continue;
           if (o.id === catcherId) continue; // catcher must stay on
+          if (o.id === fixedPitcherId) continue; // pinned pitcher stays on
           if (offFieldByInning[inn].has(o.id)) continue;
           if (inn === overrideInning && firstInningMustPlay.has(o.id)) continue;
           if (inn > 0 && schedule.get(o.id).has(inn - 1)) continue; // no back-to-back
@@ -1099,6 +1130,7 @@ export function tryBuildLineup(ctx: TryBuildCtx):
     pitchRules = DEFAULT_PITCH_RULE_SET,
     sameDayRoles = { pitched: new Set(), caught: new Set() },
     catcherPolicy,
+    fixedPitcherId = null,
     rand,
     fromInning = 0,
     currentLineup = null,
@@ -1216,6 +1248,7 @@ export function tryBuildLineup(ctx: TryBuildCtx):
     forcedBenchInning0,
     firstInningOverridesById, // Safe-guards our overrides so we don't bench them
     overrideInning: mgFromInning, // ...at the inning the coach actually pinned
+    fixedPitcherId, // Kid-Pitch game-long pitcher: never benched, never at C
   });
   if (!sched)
     return { ok: false, failure: { type: "bench-schedule-impossible" } };
@@ -1323,6 +1356,31 @@ export function tryBuildLineup(ctx: TryBuildCtx):
         }
       }
 
+      // KID-PITCH GAME-LONG PITCHER PIN: seat the pinned starter at P before
+      // any other pass (sticky locks, the Big-Game pre-pin, lock carry-over,
+      // scarcity fill) can claim him for a different slot — the same "seat
+      // fixedP first" shape as tournamentPlan. The bench pre-schedule
+      // guarantees he is never benched, so this seat succeeds every generated
+      // inning and the per-inning P continuity gates below become trivially
+      // satisfied (one arm, wire to wire). On a mid-game rebuild this runs
+      // from mgFromInning on, seating the arm the rebuild resolved (override
+      // or incumbent) — a relieved arm is never resurrected because P is
+      // occupied by the pin in every remaining inning.
+      if (
+        fixedPitcherId &&
+        !inningSlots["P"] &&
+        positionsToFill.includes("P") &&
+        !benchedSet.has(fixedPitcherId)
+      ) {
+        const pinnedArm = profiled.find((p) => p.id === fixedPitcherId);
+        if (
+          pinnedArm &&
+          !Object.values(inningSlots).some((p: any) => p?.id === fixedPitcherId)
+        ) {
+          inningSlots["P"] = pinnedArm;
+        }
+      }
+
       // Sticky manual locks: the coach's durable in-game position picks, held
       // for the rest of the game (every inning from mgFromInning on). Best
       // effort — seat the player whenever they're on the field and not hard-
@@ -1427,6 +1485,11 @@ export function tryBuildLineup(ctx: TryBuildCtx):
             )
               continue;
           }
+          // Kid-Pitch game-long pin: P belongs to the pinned arm only. (He is
+          // already seated above, so P is normally out of remainingPositions —
+          // this is the explicit gate, not a hot path.)
+          if (pos === "P" && fixedPitcherId && p.id !== fixedPitcherId)
+            continue;
           if (pos === "P" && defenseSize === "9") {
             if (
               leagueRuleSet === "NKB" &&
@@ -1508,6 +1571,11 @@ export function tryBuildLineup(ctx: TryBuildCtx):
 
           if (isKidPitch && dualRoleBlocked(st, pos, p.id, sameDayRoles))
             continue;
+          // Kid-Pitch game-long pin: only the pinned arm counts as a P
+          // candidate (P is already seated when the pin is active, so this
+          // keeps the scarcity count honest rather than changing fill order).
+          if (pos === "P" && fixedPitcherId && p.id !== fixedPitcherId)
+            continue;
           if (pos === "P" && defenseSize === "9") {
             if (
               leagueRuleSet === "NKB" &&
@@ -1578,6 +1646,7 @@ export function tryBuildLineup(ctx: TryBuildCtx):
           pitchRules,
           sameDayRoles,
           catcherCap,
+          fixedPitcherId,
           rand,
           premiumPositions: PREMIUM_POSITIONS,
           positionFlexibility,
@@ -1686,21 +1755,36 @@ export function tryBuildLineup(ctx: TryBuildCtx):
   let maxBench = 0;
   let minBench = Infinity;
 
-  // Math floor for this game: with N players and S total bench slots, the
-  // minimum number of times any player must sit is floor(S / N).
+  // KID-PITCH PIN accounting (deliberate): the game-long pitcher is OUTSIDE
+  // the bench-fairness pool — he plays every inning on the mound by rule, so
+  // the bench math (floor, spread, extra-sit projection) is computed over the
+  // OTHER kids sharing the bench slots. Without this his bench=0 would read
+  // as a NEVER_SAT violation and stretch the spread on every attempt, skewing
+  // attempt ranking for a structural (not fairness) reason. His innings still
+  // land in the season ledger untouched — the emitted plan records him at P,
+  // so profile.ts counts them as ordinary defensive innings and future games
+  // see him as over-played (he pays the time back later).
+  const fairnessPool = fixedPitcherId
+    ? profiled.filter((p) => p.id !== fixedPitcherId)
+    : profiled;
+
+  // Math floor for this game: with N fairness-pool players and S total bench
+  // slots, the minimum number of times any of them must sit is floor(S / N).
   const totalBenchSlots = numToBench * totalInnings;
   const minBenchPerPlayer =
-    profiled.length > 0 ? Math.floor(totalBenchSlots / profiled.length) : 0;
+    fairnessPool.length > 0
+      ? Math.floor(totalBenchSlots / fairnessPool.length)
+      : 0;
   const everyoneShouldSit = minBenchPerPlayer >= 1;
   const exactDivision =
-    profiled.length > 0 && totalBenchSlots % profiled.length === 0;
+    fairnessPool.length > 0 && totalBenchSlots % fairnessPool.length === 0;
 
   // Per player extra sit penalty: if a player ends this game with more
   // "extra sits" total across the season than others, that's unfair.
   // We compute each player's projected season extra sits if THIS lineup
   // gets played, then penalize the spread.
   const projectedExtraSits = [];
-  for (const p of profiled) {
+  for (const p of fairnessPool) {
     const st = state.get(p.id)!;
     const priorExtra = benchHistory.get(p.id)?.extraSits || 0;
     const thisExtra = Math.max(0, st.bench - minBenchPerPlayer);
@@ -1710,7 +1794,7 @@ export function tryBuildLineup(ctx: TryBuildCtx):
   const maxExtra = Math.max(...projectedExtraSits);
   const extraSitSpread = maxExtra - minExtra;
 
-  for (const p of profiled) {
+  for (const p of fairnessPool) {
     const st = state.get(p.id)!;
     const b = st.bench;
     if (b > maxBench) maxBench = b;
@@ -1721,8 +1805,13 @@ export function tryBuildLineup(ctx: TryBuildCtx):
     // Hard fairness floor: if everyone should sit at least once, any player
     // who didn't is heavily penalized. This dominates other concerns.
     if (everyoneShouldSit && b === 0) penalty += PENALTY_WEIGHTS.NEVER_SAT;
+  }
 
-    // Diversity penalty: over concentration at single non C/non P position
+  // Diversity penalty: over-concentration at a single non-C/non-P position.
+  // Runs over the FULL roster — on a mid-game rebuild the pinned pitcher's
+  // replayed field innings still count toward variety like anyone else's.
+  for (const p of profiled) {
+    const st = state.get(p.id)!;
     for (const pos in st.positions) {
       if (pos === "C" || pos === "P") continue;
       const count = st.positions[pos];
@@ -1781,6 +1870,7 @@ export function pickBestForPosition(opts: PickBestOpts): ProfiledPlayer | null {
     pitchRules = DEFAULT_PITCH_RULE_SET,
     sameDayRoles = { pitched: new Set(), caught: new Set() },
     catcherCap,
+    fixedPitcherId = null,
     rand,
     premiumPositions,
     positionFlexibility,
@@ -1790,6 +1880,22 @@ export function pickBestForPosition(opts: PickBestOpts): ProfiledPlayer | null {
   // For Big Games, strong players are pulled toward these spots and weak
   // players are pushed to the OF.
   const isPremium = premiumPositions.has(pos);
+
+  // KID-PITCH GAME-LONG PITCHER PIN — when a game-long pitcher is pinned, P is
+  // not a rotating slot: only the pinned arm may take the mound. buildSlots
+  // seats him before the fill loop, so this path normally never runs; it
+  // exists so no code path that DOES reach the picker for P (and no future
+  // one) can quietly rotate another arm in. It deliberately supersedes the
+  // per-inning pool short-circuit and the "consecutive-only" continuity rule
+  // below — with one arm wire-to-wire both are trivially satisfied.
+  if (pos === "P" && fixedPitcherId) {
+    for (const p of profiled) {
+      if (p.id !== fixedPitcherId) continue;
+      if (used.has(p.id) || benchedSet.has(p.id)) return null;
+      return p;
+    }
+    return null;
+  }
 
   // D4 — P-slot short-circuit. When we have a pre-computed pitcher pool
   // (9U+ Kid Pitch, top N by gameType), pick exclusively from it. Prefer

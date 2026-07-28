@@ -233,8 +233,6 @@ export const ScheduleTab = memo(() => {
     swapSelection,
     gameSaved,
     handleCellClick,
-    addInning,
-    removeInning,
     moveBatter,
     setOpponentName,
     openPlayerProfile,
@@ -407,8 +405,14 @@ export const ScheduleTab = memo(() => {
     const presentPlayers = players.filter(
       (p: any) => currentGameAttendance[p.id] !== false,
     );
-    const editableLineup =
-      isTournamentGame && lineup?.length ? lineup.slice(0, 1) : lineup;
+    // Pregame shows the STARTING lineup only — for every game type. Under
+    // kid pitch the pitcher holds until relieved, so planning later innings
+    // pregame is fiction; the engine still emits the full-game rotation plan
+    // internally (season fairness and in-game inning navigation read it), but
+    // the innings materialize one at a time in the in-game view, where a
+    // pitching change re-flows the rest. Rec and tournament look identical
+    // here by design (the grid used to show rec every inning).
+    const editableLineup = lineup?.length ? lineup.slice(0, 1) : lineup;
     const presentCount = presentPlayers.length;
 
     return (
@@ -1302,33 +1306,9 @@ export const ScheduleTab = memo(() => {
                     style={{ color: primaryColor }}
                   />
                 </div>
-                <h2 className="t-h2">
-                  {isTournamentGame ? "Starting Lineup" : "Active Lineup Grid"}
-                </h2>
+                <h2 className="t-h2">Starting Lineup</h2>
               </div>
               <div className="flex flex-wrap justify-center gap-3 items-center w-full lg:w-auto">
-                {canEdit && !isTournamentGame && (
-                  <div className="cc-card flex items-center overflow-hidden">
-                    <button
-                      onClick={removeInning}
-                      disabled={lineup.length <= 1}
-                      aria-label="Remove inning"
-                      className="px-4 py-2.5 hover:bg-surface-2 disabled:opacity-50 transition-colors text-ink-2"
-                    >
-                      <Icons.Minus className="w-4 h-4" />
-                    </button>
-                    <span className="text-xs font-black px-4 text-ink tracking-widest border-x border-line bg-app/50 py-2.5">
-                      {lineup.length} INN
-                    </span>
-                    <button
-                      onClick={addInning}
-                      aria-label="Add inning"
-                      className="px-4 py-2.5 hover:bg-surface-2 transition-colors text-ink-2"
-                    >
-                      <Icons.Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
                 <button
                   onClick={() =>
                     downloadLineupPdf({

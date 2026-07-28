@@ -107,8 +107,6 @@ const renderGameEditor = (
         battingLineup: batting,
         swapSelection: null,
         handleCellClick,
-        addInning: jest.fn(),
-        removeInning: jest.fn(),
         moveBatter: jest.fn(),
       },
     },
@@ -291,10 +289,16 @@ describe("ScheduleTab", () => {
     );
   });
 
-  it("shows the Active Lineup Grid in non-tournament game edit view when a lineup exists", () => {
+  it("shows the Starting Lineup — not a per-inning grid — for REC games too", () => {
+    // Pregame planning is identical for rec and tournament: the starting nine
+    // only. The full-inning grid was a machine-pitch worldview; under kid
+    // pitch the later innings are provisional until the in-game view, where
+    // pitching changes re-flow them. The stored lineup keeps every inning —
+    // this pins the pregame DISPLAY contract.
     renderGameEditor("NKB");
 
-    expect(screen.getByText("Active Lineup Grid")).toBeInTheDocument();
+    expect(screen.getByText("Starting Lineup")).toBeInTheDocument();
+    expect(screen.queryByText("Active Lineup Grid")).not.toBeInTheDocument();
   });
 });
 
