@@ -66,6 +66,9 @@ export type PickBestOpts = {
   pitchRules?: PitchRuleSet;
   sameDayRoles?: { pitched?: Set<string>; caught?: Set<string> } | null;
   catcherCap?: number;
+  // Kid-Pitch game-long pitcher pin (see generator.ts): when set, P is not a
+  // rotating slot — only this player may take the mound.
+  fixedPitcherId?: string | null;
   rand: () => number;
   premiumPositions: Set<string>;
   positionFlexibility: Map<string, number>;
@@ -90,6 +93,10 @@ export type BenchScheduleOpts = {
   rand: () => number;
   forcedBenchInning0: Set<string> | null;
   firstInningOverridesById: Record<string, string>;
+  // Kid-Pitch game-long pitcher pin: this player is on the mound every inning,
+  // so the bench pre-schedule must never sit him (his sit share is
+  // redistributed to the rest of the roster) and never reserve him at catcher.
+  fixedPitcherId?: string | null;
   // The inning the position overrides apply to. 0 for a normal from-scratch
   // build; on a mid-game rebuild (fromInning > 0 + currentLineup) it's the
   // first RE-SOLVED inning, so a coach's in-game pin lands where they made it.
@@ -124,6 +131,9 @@ export type TryBuildCtx = {
   pitchRules?: PitchRuleSet;
   sameDayRoles?: { pitched?: Set<string>; caught?: Set<string> };
   catcherPolicy?: CatcherPolicy;
+  // Kid-Pitch game-long pitcher pin resolved by the generator (null for
+  // machine/coach pitch, or when no valid arm could be resolved).
+  fixedPitcherId?: string | null;
   rand: () => number;
   fromInning?: number;
   currentLineup?: Inning[] | null;

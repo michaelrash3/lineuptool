@@ -19,6 +19,10 @@ import {
   mostRecentDayPitches,
   analyzePitchingWorkload,
 } from "./lineupEngine";
+import {
+  buildPositionHistory,
+  buildExtraSitHistory,
+} from "./lineupEngine/profile";
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -3754,6 +3758,312 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
       ) as any;
       expect(res.error).toBeUndefined();
       expect(new Set(res.lineup.map((inn: any) => inn.C.id)).size).toBe(1);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Kid-Pitch game-long pitcher pin (Rec engine)
+// "You can't just change pitchers on a whim — the pitcher is in until he is
+// done." For Kid-Pitch games the Rec fairness engine pins ONE starting pitcher
+// to P for every generated inning (like tournamentPlan's fixedP, but inside
+// the fairness solver): the coach's picked starter (firstInningOverrides.P)
+// or the engine's best available arm. He is never benched; everyone else
+// keeps rotating fairly around him. Machine pitch is untouched.
+// ---------------------------------------------------------------------------
+describe("kid-pitch game-long pitcher pin (Rec engine)", () => {
+  const distinctPitchers = (lineup: any[]) =>
+    new Set(lineup.map((inn: any) => (inn.P as any)?.id).filter(Boolean));
+  const benchCount = (lineup: any[], id: string) =>
+    lineup.filter((inn: any) =>
+      (inn.BENCH || []).some((b: any) => b?.id === id),
+    ).length;
+
+  test("coach's picked starter (override P) holds the mound all game and never sits — 8U Kid Pitch, 10 fielders", () => {
+    for (const seed of [1, 5, 9]) {
+      const result = buildLineup({
+        players: makeRoster(11),
+        pitchingFormat: "Kid Pitch",
+        teamAge: "8U",
+        defenseSize: "10",
+        totalInnings: 6,
+        firstInningOverridesById: { P: "p7" },
+        seed,
+      });
+      expect(result.error).toBeUndefined();
+      for (const inn of result.lineup!) {
+        expect((inn.P as any)?.id).toBe("p7");
+      }
+      expect(benchCount(result.lineup!, "p7")).toBe(0);
+    }
+  });
+
+  test("no override: the engine's pool ranking picks the starter (freshest pool arm) and pins him", () => {
+    // 9U+ pool = kids with a real pitching stat line (p0/p1/p2). p1 is the
+    // freshest arm (0 recent pitches vs 30), so the pin resolution must pick
+    // p1 — the same arm the per-inning pool preference would have started.
+    const players = makeRoster(11, {
+      p0: {
+        stats: { pStrikePct: 0.65, pBf: 40 },
+        pitching: { recentPitches: 30, lastPitchDate: "2026-01-01" },
+      },
+      p1: { stats: { pStrikePct: 0.6, pBf: 40 } },
+      p2: {
+        stats: { pStrikePct: 0.55, pBf: 40 },
+        pitching: { recentPitches: 30, lastPitchDate: "2026-01-01" },
+      },
+    });
+    for (const seed of [1, 4, 8]) {
+      const result = buildLineup({
+        players,
+        pitchingFormat: "Kid Pitch",
+        teamAge: "9U",
+        defenseSize: "9",
+        totalInnings: 6,
+        seed,
+      });
+      expect(result.error).toBeUndefined();
+      expect([...distinctPitchers(result.lineup!)]).toEqual(["p1"]);
+      expect(benchCount(result.lineup!, "p1")).toBe(0);
+      // Dual-role safety holds around the pin: the game-long arm never catches.
+      for (const inn of result.lineup!) {
+        expect((inn.C as any)?.id).not.toBe("p1");
+      }
+    }
+  });
+
+  test("8U Kid Pitch (no pool) still pins one arm wire-to-wire — both defense sizes", () => {
+    // defenseSize 10 had NO pitcher-continuity rule at all before the pin;
+    // with it, 10-fielder kid pitch is now consistent with 9-fielder.
+    for (const defenseSize of ["10", "9"]) {
+      for (const seed of [2, 6, 11]) {
+        const result = buildLineup({
+          players: makeRoster(11),
+          pitchingFormat: "Kid Pitch",
+          teamAge: "8U",
+          defenseSize,
+          totalInnings: 6,
+          seed,
+        });
+        expect(result.error).toBeUndefined();
+        const arms = distinctPitchers(result.lineup!);
+        expect(arms.size).toBe(1);
+        expect(benchCount(result.lineup!, [...arms][0] as string)).toBe(0);
+      }
+    }
+  });
+
+  test("bench pre-schedule: the pinned pitcher never sits and the OTHER kids share the sits fairly", () => {
+    // 12 players, 10 fielders → 12 bench slots over 6 innings. Without the
+    // pin every kid would sit exactly once; with it the pitcher sits ZERO and
+    // the other 11 share the 12 slots (all sit at least once, one sits twice)
+    // — under full strict season fairness, not the relaxed fallback.
+    // The engine's deterministic pick is p0 (freshest/first by id); he is NOT
+    // catcher-cleared, so the bench pre-schedule can't dodge the exclusion by
+    // parking him in a catcher block — if it ever plans a sit for him, the
+    // build fails outright rather than quietly benching the pitcher.
+    const result = buildLineup({
+      players: makeRoster(12, {
+        p0: { comfortablePositions: ALL_POSITIONS.filter((p) => p !== "C") },
+      }),
+      pitchingFormat: "Kid Pitch",
+      teamAge: "8U",
+      defenseSize: "10",
+      totalInnings: 6,
+      seed: 3,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.fairnessRelaxed).toBeFalsy();
+    const pitcherId = (result.lineup![0].P as any).id;
+    expect(pitcherId).toBe("p0");
+    expect([...distinctPitchers(result.lineup!)]).toEqual([pitcherId]);
+    expect(benchCount(result.lineup!, pitcherId)).toBe(0);
+    let totalSits = 0;
+    for (let i = 0; i < 12; i++) {
+      const id = `p${i}`;
+      if (id === pitcherId) continue;
+      const sits = benchCount(result.lineup!, id);
+      expect(sits).toBeGreaterThanOrEqual(1);
+      expect(sits).toBeLessThanOrEqual(2);
+      totalSits += sits;
+    }
+    expect(totalSits).toBe(12);
+  });
+
+  test("season ledger (profile.ts) records the pinned game coherently: 6 innings AT P, zero bench, no extra-sit credit", () => {
+    // Deliberate accounting choice: the game-long pitcher's innings are
+    // recorded as ordinary defensive innings at P — NOT exempted. So the
+    // season ledger sees him as over-played (defInn 6 vs an 11-player fair
+    // share of 60/11) and future games pay the bench time back, and the
+    // position history carries P:6 so future rotation pressure pushes the
+    // mound to a different kid where P rotates (e.g. machine pitch).
+    const result = buildLineup({
+      players: makeRoster(11),
+      pitchingFormat: "Kid Pitch",
+      teamAge: "8U",
+      defenseSize: "10",
+      totalInnings: 6,
+      firstInningOverridesById: { P: "p4" },
+      seed: 7,
+    });
+    expect(result.error).toBeUndefined();
+    const played = {
+      id: "g_played",
+      date: "2026-05-01",
+      opponent: "X",
+      status: "final",
+      lineup: result.lineup,
+    } as any;
+    const posHx = buildPositionHistory([played]);
+    expect(posHx.get("p4")?.get("P")?.total).toBe(6);
+    expect([...(posHx.get("p4")?.keys() || [])]).toEqual(["P"]);
+    const sitHx = buildExtraSitHistory([played]);
+    const p4 = sitHx.get("p4")!;
+    expect(p4.defInn).toBe(6);
+    expect(p4.benchInn).toBe(0);
+    expect(p4.extraSits).toBe(0);
+    expect(p4.expectedDef).toBeCloseTo(60 / 11);
+    // A kid who sat still accrues bench innings — the ledger stays live for
+    // the rest of the roster.
+    const satSomeone = [...sitHx.values()].some((e) => e.benchInn > 0);
+    expect(satSomeone).toBe(true);
+  });
+
+  describe("mid-game rebuild (fromInning + currentLineup)", () => {
+    const players = makeRoster(11);
+    const slim = (id: string) => ({ id, name: `Player ${id}`, number: "" });
+    const POS10 = ["P", "C", "1B", "2B", "3B", "SS", "LF", "LCF", "RCF", "RF"];
+    // One played inning: explicit pitcher + catcher, one bench kid, everyone
+    // else fills the remaining spots in roster order.
+    const playedInning = (pitcherId: string, benchId: string) => {
+      const catcherId = "p2" === pitcherId || "p2" === benchId ? "p3" : "p2";
+      const rest = players
+        .map((p) => p.id)
+        .filter((id) => id !== pitcherId && id !== benchId && id !== catcherId);
+      const inn: Record<string, any> = {
+        P: slim(pitcherId),
+        C: slim(catcherId),
+      };
+      for (const pos of POS10) {
+        if (pos === "P" || pos === "C") continue;
+        inn[pos] = slim(rest.shift()!);
+      }
+      inn.BENCH = [slim(benchId)];
+      return inn;
+    };
+    const rebuild = (over: any = {}) =>
+      generateLineup({
+        activePlayers: players,
+        allPlayers: players,
+        games: [],
+        evaluationEvents: [],
+        currentGame: { id: "g_mid", date: "2026-05-01", opponent: "X" },
+        firstInningOverridesById: {},
+        totalInnings: 6,
+        leagueRuleSet: "USSSA",
+        teamAge: "8U",
+        defenseSize: "10",
+        positionLock: "0",
+        battingSize: "roster",
+        pitchingFormat: "Kid Pitch",
+        seed: 13,
+        ...over,
+      } as any);
+
+    test("a NEW pitcher pin from inning N keeps innings <N verbatim and pins the new arm the rest of the way", () => {
+      // p0 pitched innings 1-3; the coach hands the ball to p5 at inning 4.
+      const currentLineup = [
+        playedInning("p0", "p6"),
+        playedInning("p0", "p7"),
+        playedInning("p0", "p8"),
+      ];
+      const res = rebuild({
+        fromInning: 3,
+        currentLineup,
+        firstInningOverridesById: { P: "p5" },
+      });
+      expect(res.error).toBeUndefined();
+      // Played innings replay untouched — the original arm stays in history.
+      for (let i = 0; i < 3; i++) {
+        expect((res.lineup![i].P as any)?.id).toBe("p0");
+        expect((res.lineup![i].BENCH || [])[0]?.id).toBe(
+          (currentLineup[i].BENCH as any)[0].id,
+        );
+      }
+      // The new arm owns the mound from inning 4 on; the relieved arm (p0)
+      // is dead — it never resurfaces at P.
+      for (let i = 3; i < 6; i++) {
+        expect((res.lineup![i].P as any)?.id).toBe("p5");
+      }
+      expect(benchCount(res.lineup!.slice(3), "p5")).toBe(0);
+    });
+
+    test("no new pin: the incumbent stays in for the rest of the game", () => {
+      // p0 pitched 1-2, p1 relieved for 3-4. Rebuild from inning 5 with no
+      // override: the incumbent (p1) keeps the ball; p0 stays dead.
+      const currentLineup = [
+        playedInning("p0", "p6"),
+        playedInning("p0", "p7"),
+        playedInning("p1", "p8"),
+        playedInning("p1", "p9"),
+      ];
+      const res = rebuild({ fromInning: 4, currentLineup });
+      expect(res.error).toBeUndefined();
+      for (let i = 4; i < 6; i++) {
+        expect((res.lineup![i].P as any)?.id).toBe("p1");
+      }
+    });
+
+    test("dead-arm rule across the merged game: a relieved arm never returns, even when the incumbent is removed", () => {
+      // p0 pitched 1-2 (relieved), p1 pitched 3-4 and then leaves the game
+      // (mid-game removal path: not in activePlayers for the rebuild). The
+      // engine must hand innings 5-6 to a FRESH arm — never back to p0.
+      const currentLineup = [
+        playedInning("p0", "p6"),
+        playedInning("p0", "p7"),
+        playedInning("p1", "p8"),
+        playedInning("p1", "p9"),
+      ];
+      const active = players.filter((p) => p.id !== "p1");
+      const res = rebuild({
+        activePlayers: active,
+        fromInning: 4,
+        currentLineup,
+        relaxFairness: true, // mirrors the removal path
+      });
+      expect(res.error).toBeUndefined();
+      const lateArms = new Set(
+        res.lineup!.slice(4).map((inn: any) => (inn.P as any)?.id),
+      );
+      expect(lateArms.size).toBe(1);
+      expect(lateArms.has("p0")).toBe(false);
+      expect(lateArms.has("p1")).toBe(false);
+    });
+  });
+
+  test("machine pitch is untouched: P still rotates and the format flag is inert", () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const machine = buildLineup({
+        players: makeRoster(11),
+        pitchingFormat: "Machine Pitch",
+        teamAge: "8U",
+        defenseSize: "10",
+        totalInnings: 6,
+        seed,
+      });
+      expect(machine.error).toBeUndefined();
+      // Multiple arms across the game — the kid-pitch pin must not leak in.
+      expect(distinctPitchers(machine.lineup!).size).toBeGreaterThan(1);
+      // Byte-for-byte identical to no pitchingFormat at all (same seed).
+      const unset = buildLineup({
+        players: makeRoster(11),
+        teamAge: "8U",
+        defenseSize: "10",
+        totalInnings: 6,
+        seed,
+      });
+      expect(machine.lineup).toEqual(unset.lineup);
+      expect(machine.battingLineup).toEqual(unset.battingLineup);
     }
   });
 });
