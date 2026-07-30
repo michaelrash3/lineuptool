@@ -11,8 +11,12 @@ import { calculateTotalScore } from "../../lineupEngine";
 import { currentEvaluationScore100 } from "../../utils/evaluationScore";
 import { useTeam } from "../../contexts";
 import {
+  readEvalCategoryConfig,
+  scoredCustomCategories,
+} from "../../utils/evalCategories";
+import {
   asGradeMap,
-  DEFAULT_GRADES,
+  defaultGradesFor,
   pitcherPremium,
   type DecisionBucket,
   type DecisionRow,
@@ -49,6 +53,24 @@ export const RosterDecisionsPanel = memo(() => {
   const navigate = useNavigate();
   const { players, primaryColor, evaluationEvents, teamAge, currentSeason } =
     team;
+  // Per-team eval categories (src/utils/evalCategories.ts). undefined for an
+  // unconfigured team, which keeps every number below exactly as it was.
+  // Destructured so the memo's deps are the two stored fields, not the whole
+  // team object (which is a fresh identity on every Firestore snapshot).
+  const { evalCategoryOverrides, evalCustomCategories } = team || {};
+  const categoryConfig = useMemo(
+    () =>
+      readEvalCategoryConfig({ evalCategoryOverrides, evalCustomCategories }),
+    [evalCategoryOverrides, evalCustomCategories],
+  );
+  const seedGrades = useMemo(
+    () => defaultGradesFor(categoryConfig),
+    [categoryConfig],
+  );
+  const extraCategories = useMemo(
+    () => scoredCustomCategories(categoryConfig),
+    [categoryConfig],
+  );
 
   const decisions = useMemo(() => {
     if (!players || players.length === 0) return null;
@@ -106,15 +128,21 @@ export const RosterDecisionsPanel = memo(() => {
       const playerCats = getEvalCategoriesForPlayer(
         team?.pitchingFormat,
         player,
+        categoryConfig,
       );
       const evalsForPlayer = myEvals
         .map((ev: EvalRound) => {
           const g = ev.grades?.[player.id];
           if (!g) return null;
+          // Scored against the round's OWN contents: a team category the
+          // round never carried adds nothing to either side of the fraction,
+          // so historical rounds keep the exact score they always had.
           const score = currentEvaluationScore100(
             asGradeMap(g),
             player,
             team?.teamAge,
+            null,
+            extraCategories,
           );
           if (score == null) return null;
           return {
@@ -167,8 +195,9 @@ export const RosterDecisionsPanel = memo(() => {
       const totalScore = Math.min(
         100,
         calculateTotalScore(
-          asGradeMap({ ...DEFAULT_GRADES, ...savedGrades }),
+          asGradeMap({ ...seedGrades, ...savedGrades }),
           player.stats,
+          extraCategories,
         ) + pitcherPremium(savedGrades, player, teamAge),
       );
       // Hidden decision standing: left-handed pitcher scarcity matters for the
@@ -405,6 +434,9 @@ export const RosterDecisionsPanel = memo(() => {
     currentSeason,
     team?.pitchingFormat,
     team?.teamAge,
+    categoryConfig,
+    seedGrades,
+    extraCategories,
   ]);
 
   if (!decisions || decisions.length === 0) return null;

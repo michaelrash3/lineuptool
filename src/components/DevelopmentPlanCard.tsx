@@ -3,6 +3,10 @@ import { Icons } from "../icons";
 import { useTeam } from "../contexts";
 import { getCombinedGrades } from "../lineupEngine";
 import { getEvalCategoriesForPlayer } from "../constants/ui";
+import {
+  readEvalCategoryConfig,
+  scoredCustomCategories,
+} from "../utils/evalCategories";
 import { featureEnabled } from "../constants/features";
 import {
   FOCUS_AREAS_CAP,
@@ -66,9 +70,21 @@ export const DevelopmentPlanCard = memo(
     const [checkInText, setCheckInText] = useState("");
     const [showAllCheckIns, setShowAllCheckIns] = useState(false);
 
+    // Focus areas are picked from the team's OWN category list — including a
+    // category it added, excluding one it hid (a coach shouldn't be steered
+    // toward a skill they stopped grading).
+    // Destructured so the memo's deps are the two stored fields, not the whole
+    // team object (a fresh identity on every Firestore snapshot).
+    const { evalCategoryOverrides, evalCustomCategories } = team || {};
+    const categoryConfig = useMemo(
+      () =>
+        readEvalCategoryConfig({ evalCategoryOverrides, evalCustomCategories }),
+      [evalCategoryOverrides, evalCustomCategories],
+    );
     const categories = useMemo(
-      () => getEvalCategoriesForPlayer(team.pitchingFormat, player),
-      [team.pitchingFormat, player],
+      () =>
+        getEvalCategoriesForPlayer(team.pitchingFormat, player, categoryConfig),
+      [team.pitchingFormat, player, categoryConfig],
     );
     const labelOf = useMemo(
       () => new Map(categories.map((c) => [c.id, c.label])),
@@ -78,7 +94,11 @@ export const DevelopmentPlanCard = memo(
       const all = getCombinedGrades(
         team.evaluationEvents || [],
         team.players || [],
-        { teamAge: team.teamAge, games: team.games || [] },
+        {
+          teamAge: team.teamAge,
+          games: team.games || [],
+          extraCategories: scoredCustomCategories(categoryConfig),
+        },
       );
       return all?.[player.id] || null;
     }, [
@@ -87,6 +107,7 @@ export const DevelopmentPlanCard = memo(
       team.teamAge,
       team.games,
       player.id,
+      categoryConfig,
     ]);
     // First→last grade movement per focus area — the "is the focus working"
     // read-back, shown on the chips once two rounds have graded a category.

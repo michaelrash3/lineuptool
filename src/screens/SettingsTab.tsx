@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icons } from "../icons";
 import { QRCodeImg } from "../components/QRCodeImg";
@@ -7,7 +7,27 @@ import {
   suggestPlayerMatch,
   buildScheduleIcs,
 } from "../utils/helpers";
-import { allowedPitchingFormats, leagueRuleSetLabel } from "../constants/ui";
+import {
+  allowedPitchingFormats,
+  handGradedCategoriesForTeam,
+  isKidPitchFormat,
+  leagueRuleSetLabel,
+  type EvalCategory,
+} from "../constants/ui";
+import {
+  addCustomEvalCategory,
+  applyEvalCategoryPreset,
+  evalCategoryConfigPatch,
+  evalCategoryIdsInUse,
+  KID_PITCH_CATEGORY_PRESET,
+  MAX_CUSTOM_EVAL_CATEGORIES,
+  MAX_EVAL_CATEGORY_LABEL,
+  readEvalCategoryConfig,
+  removeCustomEvalCategory,
+  renameEvalCategory,
+  setEvalCategoryHidden,
+  CUSTOM_EVAL_CATEGORY_GROUPS,
+} from "../utils/evalCategories";
 import { PITCH_RULE_SETS } from "../lineupEngine";
 import {
   TOGGLEABLE_FEATURES,
@@ -125,6 +145,226 @@ const FeatureTogglesPanel = memo(({ team, updateTeam }: any) => (
     </div>
   </div>
 ));
+
+// ---- Evaluation categories (docs/EVALUATIONS-AUDIT.md §4) -------------------
+// Head-coach editing for the team's own eval category list: rename any
+// category, hide one this team doesn't grade, add one it does. The rules that
+// make this safe for years of already-saved rounds live with the resolver —
+// read the contract at the top of src/utils/evalCategories.ts before touching
+// this panel. In one line: ids never change, hiding is forward-only, and a
+// category is DELETABLE only while no round has ever graded it.
+
+// One category row: inline rename (commits on blur/Enter like TeamNameField —
+// each updateTeam is a Firestore write), then hide/show, then delete when the
+// category is this team's own AND carries no history.
+const EvalCategoryRow = memo(
+  ({ cat, hidden, deletable, onRename, onToggleHidden, onDelete }: any) => {
+    const [draft, setDraft] = useState(cat.label);
+    const [editing, setEditing] = useState(false);
+    useEffect(() => {
+      if (!editing) setDraft(cat.label);
+    }, [cat.label, editing]);
+    const commit = () => {
+      setEditing(false);
+      const next = draft.trim();
+      if (!next || next === cat.label) {
+        setDraft(cat.label);
+        return;
+      }
+      onRename(next);
+    };
+    return (
+      <div className="flex items-center gap-2 bg-surface p-2.5 border border-line rounded-xl shadow-sm">
+        <input
+          type="text"
+          value={draft}
+          maxLength={MAX_EVAL_CATEGORY_LABEL}
+          onFocus={() => setEditing(true)}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLElement).blur();
+            if (e.key === "Escape") {
+              setDraft(cat.label);
+              setEditing(false);
+            }
+          }}
+          aria-label={`${cat.label} category name`}
+          className={`flex-1 min-w-0 p-2 bg-surface border border-line text-xs font-bold text-ink outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-lg ${
+            hidden ? "line-through opacity-60" : ""
+          }`}
+        />
+        {cat.custom && (
+          <span className="t-eyebrow text-ink-3 shrink-0">Added</span>
+        )}
+        <button
+          type="button"
+          onClick={onToggleHidden}
+          aria-label={`${hidden ? "Show" : "Hide"} ${cat.label}`}
+          className="shrink-0 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2"
+        >
+          {hidden ? "Show" : "Hide"}
+        </button>
+        {deletable && (
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label={`Delete ${cat.label}`}
+            className="shrink-0 p-1.5 rounded-md border border-line bg-surface text-ink-3 hover:text-loss"
+          >
+            <Icons.Trash className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+    );
+  },
+);
+
+const EvalCategoriesPanel = memo(({ team, updateTeam }: any) => {
+  const [newLabel, setNewLabel] = useState("");
+  const [newGroup, setNewGroup] = useState("Intangibles");
+  const config = useMemo(() => readEvalCategoryConfig(team), [team]);
+  // Hidden categories stay listed — that's the only way back from a hide.
+  const categories = useMemo(
+    () =>
+      handGradedCategoriesForTeam(team?.pitchingFormat, config, {
+        includeHidden: true,
+      }),
+    [team?.pitchingFormat, config],
+  );
+  // Which ids any round has ever graded. A custom category with history can be
+  // hidden but never deleted, so no config edit can orphan a saved grade.
+  const idsInUse = useMemo(
+    () => evalCategoryIdsInUse(team?.evaluationEvents),
+    [team?.evaluationEvents],
+  );
+  const kidPitch = isKidPitchFormat(team?.pitchingFormat);
+  const groupOptions = CUSTOM_EVAL_CATEGORY_GROUPS.filter(
+    (g) => kidPitch || (g !== "Pitching" && g !== "Catching"),
+  );
+  const customCount = config?.custom?.length || 0;
+  const atCap = customCount >= MAX_CUSTOM_EVAL_CATEGORIES;
+  const write = (next: any) => updateTeam(evalCategoryConfigPatch(next));
+  const presetApplied = KID_PITCH_CATEGORY_PRESET.every((p) =>
+    (config?.custom || []).some(
+      (c: any) => c.label.toLowerCase() === p.label.toLowerCase(),
+    ),
+  );
+
+  const byGroup: Array<[string, EvalCategory[]]> = [];
+  for (const cat of categories) {
+    const bucket = byGroup.find(([g]) => g === cat.group);
+    if (bucket) bucket[1].push(cat);
+    else byGroup.push([cat.group, [cat]]);
+  }
+
+  return (
+    <div>
+      <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
+        <Icons.Clipboard className="w-4 h-4" /> Eval Categories
+      </h3>
+      <p className="text-[11px] text-ink-3 font-medium mb-4 leading-snug">
+        What your staff grades on. Rename anything to your own words, hide what
+        you don&apos;t grade, and add your own. Nothing you&apos;ve already
+        saved changes: renaming only changes the label, and hiding only affects{" "}
+        <strong className="text-ink-2">new</strong> rounds — past rounds keep
+        every grade in them.
+      </p>
+      <div className="space-y-4">
+        {byGroup.map(([group, cats]) => (
+          <div key={group}>
+            <div className="t-eyebrow text-ink-3 mb-1.5">{group}</div>
+            <div className="space-y-1.5">
+              {cats.map((cat) => {
+                const hidden =
+                  config?.overrides?.[cat.id]?.hidden === true || false;
+                return (
+                  <EvalCategoryRow
+                    key={cat.id}
+                    cat={cat}
+                    hidden={hidden}
+                    deletable={!!cat.custom && !idsInUse.has(cat.id)}
+                    onRename={(label: string) =>
+                      write(renameEvalCategory(config, cat.id, label))
+                    }
+                    onToggleHidden={() =>
+                      write(setEvalCategoryHidden(config, cat.id, !hidden))
+                    }
+                    onDelete={() =>
+                      write(removeCustomEvalCategory(config, cat.id))
+                    }
+                  />
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-5 pt-4 border-t border-line">
+        <div className="t-eyebrow text-ink-3 mb-2">Add A Category</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={newLabel}
+            maxLength={MAX_EVAL_CATEGORY_LABEL}
+            disabled={atCap}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder="e.g. Bunting"
+            aria-label="New category name"
+            className="flex-1 min-w-[140px] p-2.5 bg-surface border border-line text-xs font-bold text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-lg disabled:opacity-50"
+          />
+          <select
+            value={newGroup}
+            disabled={atCap}
+            onChange={(e) => setNewGroup(e.target.value)}
+            aria-label="New category group"
+            className="p-2.5 bg-surface border border-line text-xs font-bold text-ink rounded-lg outline-none disabled:opacity-50"
+          >
+            {groupOptions.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={atCap || !newLabel.trim()}
+            onClick={() => {
+              write(
+                addCustomEvalCategory(config, {
+                  label: newLabel,
+                  group: newGroup,
+                }),
+              );
+              setNewLabel("");
+            }}
+            className="px-3 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg border border-line bg-surface text-ink hover:bg-surface-2 disabled:opacity-40 flex items-center gap-1.5"
+          >
+            <Icons.Plus className="w-3.5 h-3.5" /> Add
+          </button>
+        </div>
+        <p className="text-[10px] text-ink-3 font-medium mt-2">
+          {atCap
+            ? `That's the limit of ${MAX_CUSTOM_EVAL_CATEGORIES} added categories.`
+            : `${customCount}/${MAX_CUSTOM_EVAL_CATEGORIES} added. Pitching and Catching categories only show for kids you've marked at those spots.`}
+        </p>
+        {kidPitch && !presetApplied && (
+          <button
+            type="button"
+            onClick={() =>
+              write(applyEvalCategoryPreset(config, KID_PITCH_CATEGORY_PRESET))
+            }
+            className="mt-3 w-full px-3 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg border-2 border-dashed border-line-strong bg-surface text-ink-2 hover:bg-surface-2"
+          >
+            + Add kid-pitch starter set (
+            {KID_PITCH_CATEGORY_PRESET.map((p) => p.label).join(", ")})
+          </button>
+        )}
+      </div>
+    </div>
+  );
+});
 
 // Editable team name. Commits on blur/Enter (never per keystroke — each
 // updateTeam is a Firestore write); a blank draft snaps back to the stored
@@ -604,6 +844,7 @@ export const SettingsTab = memo(() => {
   const settingsMenuItems = [
     { id: "team", label: "Team", icon: Icons.Settings },
     { id: "features", label: "Features", icon: Icons.Sparkles },
+    { id: "evaluations", label: "Evaluations", icon: Icons.Clipboard },
     { id: "tryouts", label: "Tryouts", icon: Icons.UserPlus },
     { id: "staff", label: "Staff", icon: Icons.Users },
     { id: "imports", label: "Imports", icon: Icons.FileText },
@@ -1137,6 +1378,10 @@ export const SettingsTab = memo(() => {
 
               {settingsMenu === "features" && (
                 <FeatureTogglesPanel team={team} updateTeam={updateTeam} />
+              )}
+
+              {settingsMenu === "evaluations" && (
+                <EvalCategoriesPanel team={team} updateTeam={updateTeam} />
               )}
 
               {settingsMenu === "tryouts" && (

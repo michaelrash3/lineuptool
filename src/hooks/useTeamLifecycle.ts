@@ -25,6 +25,10 @@ import { errMessage } from "../utils/diagnostics";
 import { downloadTeamBackup } from "../utils/teamBackup";
 import { downscaleImageToDataURL } from "../components/shared";
 import { buildPlayerSeasonSummaries } from "../utils/playerDevelopment";
+import {
+  readEvalCategoryConfig,
+  scoredCustomCategories,
+} from "../utils/evalCategories";
 import { rolloverDevPlan } from "../utils/developmentPlan";
 import {
   buildOpponentSeasonAggregates,
@@ -375,6 +379,11 @@ export const useTeamLifecycle = ({
         practices: teamData.practices || [],
         evaluationEvents: teamData.evaluationEvents || [],
         teamAge: teamData.teamAge,
+        // The team's own eval categories, so an archived summary scores the
+        // same way the live screens did (utils/evalCategories.ts).
+        extraCategories: scoredCustomCategories(
+          readEvalCategoryConfig(teamData),
+        ),
       });
 
       // Per-opponent W-L/runs aggregates from the closing season's games —

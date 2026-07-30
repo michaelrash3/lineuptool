@@ -660,6 +660,30 @@ export interface OpponentSeasonRecord {
   runsAgainst: number;
 }
 
+// ---- Per-team eval categories (docs/EVALUATIONS-AUDIT.md §4) ---------------
+// Display/visibility override for ONE eval category, keyed by its id — which
+// may be a built-in id or a custom one. A rename NEVER changes the id, so
+// every grade already stored under that id keeps resolving forever.
+export interface EvalCategoryOverride {
+  // Renamed display label. Absent = the category's own label.
+  label?: string;
+  // Hidden from NEW grading. Never deletes stored grades and never removes the
+  // category from scoring — see src/utils/evalCategories.ts.
+  hidden?: boolean;
+}
+
+// A category this team added on top of the default catalog. `id` is always
+// prefixed `custom_` (see CUSTOM_EVAL_CATEGORY_PREFIX) so it can never collide
+// with a built-in id — including built-ins that don't exist yet.
+export interface EvalCustomCategory {
+  id: string;
+  label: string;
+  // A grading-UI group name; validated against CUSTOM_EVAL_CATEGORY_GROUPS on
+  // read, so a bad value can never break the grading screen.
+  group: string;
+  description?: string;
+}
+
 export interface Team {
   name?: string;
   primaryColor?: string;
@@ -739,6 +763,11 @@ export interface Team {
   evalSchemaVersion?: number;
   lastEvalEmailedAt?: string;
   emailEvalRemindersDisabled?: boolean;
+  // Per-team eval category configuration (see src/utils/evalCategories.ts for
+  // the resolution rules and the back-compat contract). Both fields absent =
+  // the stock catalog, byte-for-byte.
+  evalCategoryOverrides?: Record<string, EvalCategoryOverride>;
+  evalCustomCategories?: EvalCustomCategory[];
 
   // Stat-surface density: "rich" (full charts/tiles/cards) or "stripped"
   // (compact, glanceable rows). One global toggle in Settings flips every

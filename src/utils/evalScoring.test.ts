@@ -13,6 +13,19 @@ import type { Player } from "../types";
 const universalIds = EVAL_CATEGORIES.filter((c) => !c.addOn).map((c) => c.id);
 
 describe("sanitizeGrades", () => {
+  it("never clamps an mph measurement into the 1-5 grade scale", () => {
+    // pitchVelo is a radar reading, not a 1-5 grade (inputKind: "mph"). The
+    // clamp treated it like every other catalog id, so Copy From Last Round
+    // silently rewrote a 44 mph fastball as 5 — destroying the measurement
+    // and, because velocity is scored against the age benchmark, quietly
+    // moving the kid's evaluation.
+    const out = sanitizeGrades({ pitchVelo: 44, power: 9, glove: 0 });
+    expect(out.pitchVelo).toBe(44);
+    // Ordinary 1-5 grades still clamp.
+    expect(out.power).toBe(5);
+    expect(out.glove).toBe(1);
+  });
+
   it("clamps grades into [1, EVAL_SCALE_MAX] and coerces numeric strings", () => {
     const out = sanitizeGrades({
       [universalIds[0]]: "4",

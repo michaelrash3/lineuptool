@@ -93,3 +93,34 @@ describe("AssistantEvalTab", () => {
     expect(screen.queryByText("2026-06-22")).not.toBeInTheDocument();
   });
 });
+
+// ---- Per-team eval categories (docs/EVALUATIONS-AUDIT.md §4) ---------------
+// Assistants grade the head coach's configured list, not the stock catalog.
+describe("AssistantEvalTab — per-team categories", () => {
+  it("grades a category the team added", () => {
+    setup({
+      evalCustomCategories: [
+        { id: "custom_bunting", label: "Bunting", group: "Hitting" },
+      ],
+    });
+    expect(screen.getAllByText("Bunting").length).toBeGreaterThan(0);
+  });
+
+  it("uses the team's rename and drops a hidden category", () => {
+    setup({
+      evalCategoryOverrides: {
+        approach: { label: "At Bats" },
+        speed: { hidden: true },
+        baserunning: { hidden: true },
+      },
+    });
+    expect(screen.getAllByText("At Bats").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Approach")).not.toBeInTheDocument();
+    // Baserunning is exactly two categories — hide both and the whole tab goes,
+    // rather than offering an empty one.
+    expect(
+      screen.queryByRole("button", { name: "Baserunning" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hitting" })).toBeInTheDocument();
+  });
+});

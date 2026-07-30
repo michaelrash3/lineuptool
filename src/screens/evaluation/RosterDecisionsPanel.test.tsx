@@ -249,4 +249,71 @@ describe("RosterDecisionsPanel", () => {
     expect(screen.getByText(/^Strong Fit \(1\)$/)).toBeInTheDocument();
     expect(screen.getByText(/Eval grades above average/)).toBeInTheDocument();
   });
+  // ---- Per-team eval categories (docs/EVALUATIONS-AUDIT.md §4) -------------
+  const renderWithConfig = (teamOver: Record<string, unknown>) =>
+    renderWithProviders(
+      <MemoryRouter>
+        <RosterDecisionsPanel />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            players: [{ id: "p1", name: "Star", stats: { ops: 0.9 } }],
+            primaryColor: "#1d4ed8",
+            currentSeason: "2026",
+            ...teamOver,
+          },
+          user: { uid: "u1" },
+        },
+        ui: { setEvalTrendPlayerId: jest.fn() },
+      },
+    );
+
+  it("counts a team's own category in the eval-vs-bar rationale", () => {
+    // These grades score 67/100 — just over the 66 "above the bar" line. A
+    // floor grade on the team's own category pulls it to 64, so the rationale
+    // must stop claiming the eval is above average. A panel that ignored team
+    // categories would still read 67 and keep the line.
+    const nearBar = { ...allGrades(4), coachability: 3 };
+    const { unmount } = renderWithConfig({
+      evaluationEvents: [headRound({ p1: nearBar })],
+    });
+    expect(screen.getByText(/Eval grades above average/)).toBeInTheDocument();
+    unmount();
+
+    renderWithConfig({
+      evalCustomCategories: [
+        { id: "custom_bunting", label: "Bunting", group: "Hitting" },
+      ],
+      evaluationEvents: [headRound({ p1: { ...nearBar, custom_bunting: 1 } })],
+    });
+    expect(
+      screen.queryByText(/Eval grades above average/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("counts a team's own category in the roster-decision score", () => {
+    // Baseline: all-5 built-ins, no team categories → a frozen 86.
+    const { unmount } = renderWithConfig({
+      evaluationEvents: [headRound({ p1: allGrades(5) })],
+    });
+    expect(screen.getAllByText("86").length).toBeGreaterThan(0);
+    unmount();
+
+    // Same round, but the team added a category and graded it at the FLOOR.
+    // The score must come down — if the panel ignored team categories it
+    // would still read 84.
+    renderWithConfig({
+      evalCustomCategories: [
+        { id: "custom_bunting", label: "Bunting", group: "Hitting" },
+      ],
+      evaluationEvents: [
+        headRound({ p1: { ...allGrades(5), custom_bunting: 1 } }),
+      ],
+    });
+    // 86 → 82: the floor grade on the team's own category pulls the score
+    // down. If the panel ignored team categories it would still read 86.
+    expect(screen.getAllByText("82").length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("86")).toHaveLength(0);
+  });
 });

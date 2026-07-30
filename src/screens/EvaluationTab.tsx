@@ -17,7 +17,6 @@ import {
   isDepartedPlayer,
 } from "../utils/helpers";
 import {
-  EVAL_CATEGORIES,
   EVAL_GROUPS_UNIVERSAL,
   EVAL_GROUPS_KID_PITCH_ADDONS,
   handGradedCategoriesForTeam,
@@ -69,10 +68,14 @@ import type {
 import type { EvalCategory, EvalGroup } from "../constants/ui";
 import type { PrimarySuggestion } from "../lineupEngine";
 import {
+  readEvalCategoryConfig,
+  scoredCustomCategories,
+} from "../utils/evalCategories";
+import {
   asGradeMap,
   avgUniversal,
   computeFlags,
-  DEFAULT_GRADES,
+  defaultGradesFor,
   fmtDelta,
   formatRoundName,
   pitcherPremium,
@@ -177,9 +180,40 @@ export const EvaluationTab = memo(() => {
   }, []);
   const lastSavedRef = useRef("");
 
+  // This team's category configuration (renames / hides / added categories).
+  // undefined for a team that never configured anything, which is what keeps
+  // every list and score below byte-identical to the stock behavior — see the
+  // contract at the top of src/utils/evalCategories.ts.
+  // Destructured so the memo's deps are the two stored fields, not the whole
+  // team object (which is a fresh identity on every Firestore snapshot).
+  const { evalCategoryOverrides, evalCustomCategories } = team || {};
+  const categoryConfig = useMemo(
+    () =>
+      readEvalCategoryConfig({ evalCategoryOverrides, evalCustomCategories }),
+    [evalCategoryOverrides, evalCustomCategories],
+  );
+  // The seed for a NEW grade record, and the ids the scorers add on top.
+  const seedGrades = useMemo(
+    () => defaultGradesFor(categoryConfig),
+    [categoryConfig],
+  );
+  const extraCategories = useMemo(
+    () => scoredCustomCategories(categoryConfig),
+    [categoryConfig],
+  );
+  // GRADING list — hidden categories are gone (hiding is forward-only).
   const activeCategories = useMemo(
-    () => handGradedCategoriesForTeam(pitchingFormat),
-    [pitchingFormat],
+    () => handGradedCategoriesForTeam(pitchingFormat, categoryConfig),
+    [pitchingFormat, categoryConfig],
+  );
+  // HISTORY list — hidden categories kept, because a round graded before the
+  // hide still holds real grades that must render and export.
+  const historyCategories = useMemo(
+    () =>
+      handGradedCategoriesForTeam(pitchingFormat, categoryConfig, {
+        includeHidden: true,
+      }),
+    [pitchingFormat, categoryConfig],
   );
   const includeKidPitchAddons = useMemo(
     () => isKidPitchFormat(pitchingFormat),
@@ -188,8 +222,11 @@ export const EvaluationTab = memo(() => {
   const visibleGroups = useMemo(() => {
     const base = [...EVAL_GROUPS_UNIVERSAL];
     if (includeKidPitchAddons) base.push(...EVAL_GROUPS_KID_PITCH_ADDONS);
-    return base;
-  }, [includeKidPitchAddons]);
+    // Drop a tab whose every category this team hid — an empty grading tab is
+    // worse than no tab. No-op for an unconfigured team: each stock group has
+    // at least one hand-graded category.
+    return base.filter((g) => activeCategories.some((c) => c.group === g));
+  }, [includeKidPitchAddons, activeCategories]);
   // If a group disappears (e.g. user changed pitchingFormat away from Kid Pitch
   // while viewing the Pitching tab), bounce back to Hitting.
   useEffect(() => {
@@ -251,7 +288,7 @@ export const EvaluationTab = memo(() => {
   // evalRoundCsv.
   const handleExportCsv = useCallback(() => {
     if (!activeRound) return;
-    const csv = evalRoundCsv(activeRound, players, activeCategories);
+    const csv = evalRoundCsv(activeRound, players, historyCategories);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -259,7 +296,7 @@ export const EvaluationTab = memo(() => {
     a.download = evalRoundCsvFilename(activeRound, team?.name);
     a.click();
     URL.revokeObjectURL(url);
-  }, [activeRound, players, activeCategories, team?.name]);
+  }, [activeRound, players, historyCategories, team?.name]);
 
   // Export the selected round as a formatted PDF grade grid (audit §4) — the
   // handout companion to the CSV. jspdf loads lazily inside downloadEvalRoundPdf
@@ -272,10 +309,10 @@ export const EvaluationTab = memo(() => {
       round: activeRound,
       roundName: activeRoundName,
       players,
-      categories: activeCategories,
+      categories: historyCategories,
       toast,
     });
-  }, [activeRound, activeRoundName, players, activeCategories, team, toast]);
+  }, [activeRound, activeRoundName, players, historyCategories, team, toast]);
 
   // The coach can explicitly start a new round at ANY time (the cadence prompt
   // is a nudge, never a gate). This flag records that explicit choice so the
@@ -379,13 +416,13 @@ export const EvaluationTab = memo(() => {
       setTeamEvalGrades({
         ...teamEvalGrades,
         [playerId]: {
-          ...DEFAULT_GRADES,
+          ...seedGrades,
           ...(teamEvalGrades[playerId] || {}),
           [categoryId]: value,
         },
       });
     },
-    [teamEvalGrades, setTeamEvalGrades],
+    [teamEvalGrades, setTeamEvalGrades, seedGrades],
   );
 
   const setNotes = useCallback(
@@ -393,13 +430,13 @@ export const EvaluationTab = memo(() => {
       setTeamEvalGrades({
         ...teamEvalGrades,
         [playerId]: {
-          ...DEFAULT_GRADES,
+          ...seedGrades,
           ...(teamEvalGrades[playerId] || {}),
           notes: notesValue,
         },
       });
     },
-    [teamEvalGrades, setTeamEvalGrades],
+    [teamEvalGrades, setTeamEvalGrades, seedGrades],
   );
 
   const toggleSuggestedPosition = useCallback(
@@ -414,39 +451,49 @@ export const EvaluationTab = memo(() => {
       setTeamEvalGrades({
         ...teamEvalGrades,
         [playerId]: {
-          ...DEFAULT_GRADES,
+          ...seedGrades,
           ...cur,
           suggestedPositions: next,
         },
       });
     },
-    [teamEvalGrades, setTeamEvalGrades],
+    [teamEvalGrades, setTeamEvalGrades, seedGrades],
   );
 
   const applyAllAverage = useCallback(() => {
     const next: Record<string, EvalGradeRecord> = {};
     players.forEach((p: Player) => {
       next[p.id] = {
-        ...DEFAULT_GRADES,
+        ...seedGrades,
         notes: teamEvalGrades[p.id]?.notes || "",
       };
     });
     setTeamEvalGrades(next);
-  }, [players, teamEvalGrades, setTeamEvalGrades]);
+  }, [players, teamEvalGrades, setTeamEvalGrades, seedGrades]);
 
   const copyFromLastRound = useCallback(() => {
     const last = myRounds[0];
     if (!last) return;
     const next: Record<string, EvalGradeRecord> = {};
     players.forEach((p: Player) => {
-      next[p.id] = sanitizeGrades({
-        ...DEFAULT_GRADES,
-        ...(last.grades?.[p.id] || {}),
-        notes: teamEvalGrades[p.id]?.notes || "",
-      });
+      next[p.id] = sanitizeGrades(
+        {
+          ...seedGrades,
+          ...(last.grades?.[p.id] || {}),
+          notes: teamEvalGrades[p.id]?.notes || "",
+        },
+        categoryConfig,
+      );
     });
     setTeamEvalGrades(next);
-  }, [myRounds, players, teamEvalGrades, setTeamEvalGrades]);
+  }, [
+    myRounds,
+    players,
+    teamEvalGrades,
+    setTeamEvalGrades,
+    categoryConfig,
+    seedGrades,
+  ]);
 
   const hasLastRound = myRounds.length > 0;
 
@@ -456,6 +503,7 @@ export const EvaluationTab = memo(() => {
       players || [],
       {
         teamAge,
+        extraCategories,
       },
     );
     return players
@@ -464,10 +512,16 @@ export const EvaluationTab = memo(() => {
           ...(combinedGrades[player.id] || {}),
           ...(teamEvalGrades[player.id] || {}),
         };
-        const grades: EvalGradeRecord = { ...DEFAULT_GRADES, ...savedGrades };
+        const grades: EvalGradeRecord = { ...seedGrades, ...savedGrades };
         const totalScore = Math.min(
           100,
-          currentEvaluationScore100(asGradeMap(grades), player, teamAge) ?? 0,
+          currentEvaluationScore100(
+            asGradeMap(grades),
+            player,
+            teamAge,
+            null,
+            extraCategories,
+          ) ?? 0,
         );
         const primarySuggestion = suggestPrimaryPosition(
           player,
@@ -487,7 +541,15 @@ export const EvaluationTab = memo(() => {
             ),
       )
       .map((row, idx: number) => ({ ...row, rank: idx + 1 }));
-  }, [evaluationEvents, players, pitchingFormat, teamAge, teamEvalGrades]);
+  }, [
+    evaluationEvents,
+    players,
+    pitchingFormat,
+    teamAge,
+    teamEvalGrades,
+    seedGrades,
+    extraCategories,
+  ]);
 
   type RankingRow = (typeof rankingRows)[number];
 
@@ -761,7 +823,8 @@ export const EvaluationTab = memo(() => {
             <InsightsPanel
               rounds={myRounds}
               players={players}
-              activeCategories={activeCategories}
+              activeCategories={historyCategories}
+              categoryConfig={categoryConfig}
               onPlayerClick={(id: string) =>
                 navigate(`/evaluation/trend/${id}`)
               }
@@ -854,7 +917,7 @@ export const EvaluationTab = memo(() => {
                       const savedGrades: EvalGradeRecord =
                         teamEvalGrades[player.id] || {};
                       const grades: EvalGradeRecord = {
-                        ...DEFAULT_GRADES,
+                        ...seedGrades,
                         ...savedGrades,
                       };
                       // Only the categories that apply to this kid (universal + their
@@ -863,6 +926,7 @@ export const EvaluationTab = memo(() => {
                       const playerCats = handGradedCategoriesForPlayer(
                         pitchingFormat,
                         player,
+                        categoryConfig,
                       );
                       // Eval value: percentage-normalized score across the universal
                       // bucket plus any applicable pitcher/catcher buckets.
@@ -872,6 +936,8 @@ export const EvaluationTab = memo(() => {
                           asGradeMap(grades),
                           player,
                           teamAge,
+                          null,
+                          extraCategories,
                         ) ?? 0,
                       );
                       const expanded = expandedPlayerIds.has(player.id);

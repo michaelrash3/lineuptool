@@ -6,6 +6,7 @@ import { useBackOrFallback } from "../../hooks/usePageNav";
 import { RoundComparisonView } from "./panels";
 import { headEvalRounds, isDepartedPlayer } from "../../utils/helpers";
 import { handGradedCategoriesForTeam } from "../../constants/ui";
+import { readEvalCategoryConfig } from "../../utils/evalCategories";
 import type { EvalRound } from "../../utils/evalScoring";
 import type { Player } from "../../types";
 
@@ -40,9 +41,22 @@ export const EvalComparePage = memo(() => {
         return (a.name || "").localeCompare(b.name || "");
       });
   }, [team.players]);
+  // Comparing two SAVED rounds is a history surface, so hidden categories
+  // stay in the grid — a round graded before the hide still has grades there.
+  // Destructured so the memo's deps are the two stored fields, not the whole
+  // team object (which is a fresh identity on every Firestore snapshot).
+  const { evalCategoryOverrides, evalCustomCategories } = team || {};
+  const categoryConfig = useMemo(
+    () =>
+      readEvalCategoryConfig({ evalCategoryOverrides, evalCustomCategories }),
+    [evalCategoryOverrides, evalCustomCategories],
+  );
   const activeCategories = useMemo(
-    () => handGradedCategoriesForTeam(team.pitchingFormat),
-    [team.pitchingFormat],
+    () =>
+      handGradedCategoriesForTeam(team.pitchingFormat, categoryConfig, {
+        includeHidden: true,
+      }),
+    [team.pitchingFormat, categoryConfig],
   );
 
   if (currentRole === "assistant" || rounds.length < 2) {
@@ -55,6 +69,7 @@ export const EvalComparePage = memo(() => {
         rounds={rounds}
         players={players}
         activeCategories={activeCategories}
+        categoryConfig={categoryConfig}
         onPlayerClick={(id: string) => navigate(`/evaluation/trend/${id}`)}
       />
     </PageShell>

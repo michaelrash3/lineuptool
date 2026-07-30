@@ -155,6 +155,10 @@ const evalScoresForPlayer = (
   evaluationEvents: EvaluationEvent[] | null | undefined,
   player: Player,
   teamAge?: string,
+  // The team's own eval categories (utils/evalCategories.ts). Each round is
+  // scored against ITS OWN contents, so a round saved before a category
+  // existed keeps the score it always had.
+  extraCategories?: ReadonlyArray<{ id: string; weight: number }>,
 ): number[] => {
   const rounds = (evaluationEvents || [])
     .filter((e) => !e?.tryoutSignupId && e?.grades?.[player.id])
@@ -170,6 +174,8 @@ const evalScoresForPlayer = (
       round.grades?.[player.id],
       player,
       teamAge,
+      null,
+      extraCategories,
     );
     if (score !== null) scores.push(score);
   }
@@ -272,14 +278,16 @@ export const computeDevelopmentTrends = (args: {
   // currentEvaluationScore100 sizes pitcher velocity against the age group;
   // optional so callers without the team doc handy still get scores.
   teamAge?: string;
+  // See evalScoresForPlayer — omitted ⇒ stock catalog, unchanged numbers.
+  extraCategories?: ReadonlyArray<{ id: string; weight: number }>;
 }): PlayerDevelopmentTrend[] => {
-  const { players, games, evaluationEvents, teamAge } = args;
+  const { players, games, evaluationEvents, teamAge, extraCategories } = args;
   return (players || [])
     .filter((p) => p && !isDepartedPlayer(p))
     .map((p): PlayerDevelopmentTrend => {
       const batting = battingTrend(games, p.id);
       const evals = evalTrend(
-        evalScoresForPlayer(evaluationEvents, p, teamAge),
+        evalScoresForPlayer(evaluationEvents, p, teamAge, extraCategories),
       );
       const positions = positionTrend(games, p.id);
       const { overall, signalCount } = overallOf([batting, evals, positions]);
@@ -314,8 +322,16 @@ export const buildPlayerSeasonSummaries = (args: {
   evaluationEvents: EvaluationEvent[];
   // Same optional pitcher-velocity context as computeDevelopmentTrends.
   teamAge?: string;
+  extraCategories?: ReadonlyArray<{ id: string; weight: number }>;
 }): Map<string, PlayerPastSeasonSummary> => {
-  const { players, games, practices, evaluationEvents, teamAge } = args;
+  const {
+    players,
+    games,
+    practices,
+    evaluationEvents,
+    teamAge,
+    extraCategories,
+  } = args;
   const out = new Map<string, PlayerPastSeasonSummary>();
   const variety = buildSeasonPositionVariety(games);
   // Every recorded attendance map — games AND practices, regardless of game
@@ -345,7 +361,12 @@ export const buildPlayerSeasonSummaries = (args: {
     }
     if (marked > 0) summary.attendanceRate = present / marked;
 
-    const scores = evalScoresForPlayer(evaluationEvents, player, teamAge);
+    const scores = evalScoresForPlayer(
+      evaluationEvents,
+      player,
+      teamAge,
+      extraCategories,
+    );
     if (scores.length > 0) {
       summary.evalRounds = scores.length;
       summary.evalFirst100 = scores[0];

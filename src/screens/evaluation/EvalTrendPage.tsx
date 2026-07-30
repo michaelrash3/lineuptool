@@ -13,7 +13,11 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { EVAL_CATEGORIES } from "../../constants/ui";
+import { EVAL_CATEGORIES, type EvalCategory } from "../../constants/ui";
+import {
+  readEvalCategoryConfig,
+  resolveEvalCategories,
+} from "../../utils/evalCategories";
 import { evalRoundRecency } from "../../utils/helpers";
 import type { EvalRound } from "../../utils/evalScoring";
 import type { Player } from "../../types";
@@ -28,11 +32,17 @@ export const EvalTrendView = memo(
     evaluationEvents,
     userUid,
     onBack,
+    // The team's resolved catalog. Defaults to the stock one so any caller
+    // that doesn't know about per-team categories plots exactly what it did
+    // before. HIDDEN categories belong in this list: the trend is pure
+    // history, and hiding never erases the rounds already graded.
+    categories = EVAL_CATEGORIES,
   }: {
     player?: Player;
     evaluationEvents?: EvalRound[];
     userUid?: string;
     onBack: () => void;
+    categories?: EvalCategory[];
   }) => {
     if (!player) return null;
 
@@ -46,7 +56,7 @@ export const EvalTrendView = memo(
 
     // Each category gets its own line. Build series of {label, date, value}
     // entries per category, only including evals where the player has a grade.
-    const categorySeries = EVAL_CATEGORIES.map((cat) => {
+    const categorySeries = categories.map((cat) => {
       const points: Array<{ label: string; date: string; value: number }> = [];
       for (const ev of myEvals) {
         const grade = ev.grades?.[player.id]?.[cat.id];
@@ -66,7 +76,7 @@ export const EvalTrendView = memo(
     const seenIds = new Set<string>();
     for (const ev of myEvals) {
       // Only include this eval if at least one category has a value
-      const hasAny = EVAL_CATEGORIES.some((cat) =>
+      const hasAny = categories.some((cat) =>
         Number.isFinite(ev.grades?.[player.id]?.[cat.id]),
       );
       if (hasAny && !seenIds.has(ev.id)) {
@@ -319,6 +329,11 @@ export const EvalTrendPage = memo(() => {
       evaluationEvents={team.evaluationEvents || []}
       userUid={user?.uid}
       onBack={back}
+      categories={resolveEvalCategories(
+        EVAL_CATEGORIES,
+        readEvalCategoryConfig(team),
+        { includeHidden: true },
+      )}
     />
   );
 });

@@ -9,6 +9,10 @@ import {
   type TrendClass,
 } from "../../utils/playerDevelopment";
 import { useTeam } from "../../contexts";
+import {
+  readEvalCategoryConfig,
+  scoredCustomCategories,
+} from "../../utils/evalCategories";
 import { Icons } from "../../icons";
 import { Chip, EmptyState } from "../shared";
 import { Sparkline } from "../charts/Sparkline";
@@ -67,10 +71,23 @@ export const DevelopmentTrendsPanel = ({
 }) => {
   const { team } = useTeam();
   const teamAge = (team as { teamAge?: string } | null)?.teamAge;
+  // The team's own eval categories, so this table's eval movement matches the
+  // Evaluations tab's scores (utils/evalCategories.ts). Empty for an
+  // unconfigured team — every number below is then exactly as before.
+  const extraCategories = useMemo(
+    () => scoredCustomCategories(readEvalCategoryConfig(team)),
+    [team],
+  );
   const rows = useMemo(
     () =>
-      computeDevelopmentTrends({ players, games, evaluationEvents, teamAge }),
-    [players, games, evaluationEvents, teamAge],
+      computeDevelopmentTrends({
+        players,
+        games,
+        evaluationEvents,
+        teamAge,
+        extraCategories,
+      }),
+    [players, games, evaluationEvents, teamAge, extraCategories],
   );
 
   if (rows.length === 0) {

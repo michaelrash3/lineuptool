@@ -4,7 +4,10 @@ import { useTeam, useToast } from "../../contexts";
 import { PageShell } from "../../components/PageShell";
 import { useBackOrFallback } from "../../hooks/usePageNav";
 import { buildSeasonSummary } from "../../utils/helpers";
-import { getEvalCategoriesForTeam } from "../../constants/ui";
+import {
+  readEvalCategoryConfig,
+  scoredCustomCategories,
+} from "../../utils/evalCategories";
 import { currentEvaluationScore100 } from "../../utils/evaluationScore";
 import { attIsPresent, attIsAbsent } from "../../utils/attendance";
 import {
@@ -151,10 +154,23 @@ export const SeasonReportPage = memo(() => {
     };
   }, [games, practices, players]);
 
+  // The team's own eval categories, so these deltas match the Evaluations tab
+  // (src/utils/evalCategories.ts). Empty for an unconfigured team, which keeps
+  // every number below exactly as it was. Destructured deps so the memo tracks
+  // the two stored fields, not the whole team object.
+  const { evalCategoryOverrides, evalCustomCategories } = team || {};
+  const extraCategories = useMemo(
+    () =>
+      scoredCustomCategories(
+        readEvalCategoryConfig({ evalCategoryOverrides, evalCustomCategories }),
+      ),
+    [evalCategoryOverrides, evalCustomCategories],
+  );
+
   const improvers = useMemo(() => {
-    const categories = getEvalCategoriesForTeam(team?.pitchingFormat);
     const overallOf = (g: any, p: any) =>
-      currentEvaluationScore100(g, p, team?.teamAge) ?? undefined;
+      currentEvaluationScore100(g, p, team?.teamAge, null, extraCategories) ??
+      undefined;
     const out: Array<{ player: any; delta: number }> = [];
     for (const p of players) {
       const rounds = evaluationEvents
@@ -173,7 +189,7 @@ export const SeasonReportPage = memo(() => {
       if (delta > 0) out.push({ player: p, delta });
     }
     return out.sort((a, b) => b.delta - a.delta).slice(0, 3);
-  }, [players, evaluationEvents, team?.pitchingFormat, team?.teamAge]);
+  }, [players, evaluationEvents, team?.teamAge, extraCategories]);
 
   const reportText = useMemo(() => {
     const lines = [
