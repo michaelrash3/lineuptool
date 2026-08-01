@@ -169,6 +169,25 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     lineup: Inning[] | null;
     battingLineup: SlimPlayer[] | null;
   } | null>(null);
+  // Id of the ONE live generate/re-roll Undo toast, owned beside
+  // previousLineupRef because the two go stale together: the toast's Undo
+  // button is the snapshot's only reader (ToastProvider sits ABOVE this
+  // provider, so its stack survives game and team switches). Whenever the
+  // snapshot is dropped — team-doc teardown below, or a game switch via
+  // dismissLineupUndoToast — the toast is dismissed too, instead of leaving a
+  // dead silent-no-op Undo button on screen. Written by useLineupActions.
+  const undoToastIdRef = useRef<number | null>(null);
+  // Game-switch seam: UIProvider calls this from its selectedGameId effect.
+  // The undo snapshot is GAME-scoped (applyUndoSnapshot refuses on a game
+  // mismatch), so once a different game is selected the still-visible toast's
+  // Undo button could only ever be a silent no-op — dismiss it instead. The
+  // team-switch sibling lives in the team-doc subscription's teardown below.
+  const dismissLineupUndoToast = useCallback(() => {
+    if (undoToastIdRef.current != null) {
+      toast.dismiss(undoToastIdRef.current);
+      undoToastIdRef.current = null;
+    }
+  }, [toast]);
   // Bridge to UIProvider: lineup/eval screens publish their in-progress inputs
   // and receive generated results through this ref. Owned here (TeamProvider)
   // and passed to the lineup/eval action hooks + exposed on the context value.
@@ -992,6 +1011,13 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // A's players into team B's editor, and the next Save writes them onto
       // team B's game. Dropping the snapshot here makes that tap a no-op.
       previousLineupRef.current = null;
+      // ...and dismiss the toast whose Undo button was that snapshot's only
+      // reader — otherwise the switch leaves a dead Undo button on screen
+      // (the no-op above is the safety net, not the UX).
+      if (undoToastIdRef.current != null) {
+        toast.dismiss(undoToastIdRef.current);
+        undoToastIdRef.current = null;
+      }
     };
   }, [activeTeamId, toast, assembledSignups]);
 
@@ -1743,6 +1769,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     toast,
     uiBridge,
     previousLineupRef,
+    undoToastIdRef,
   });
 
   // ----- Team management -----
@@ -2745,6 +2772,9 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       viewAsRole,
       setViewAsRole,
       uiBridge, // private — used by UIProvider
+      // private — UIProvider's selectedGameId effect dismisses the (now
+      // game-mismatched) lineup Undo toast through this.
+      dismissLineupUndoToast,
       // public mirror sync status + manual repair (Settings → Tryouts)
       mirrorStale,
       resyncPublicMirror,
@@ -2778,6 +2808,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       resyncPublicMirror,
       signupsReady,
       signupsDenied,
+      dismissLineupUndoToast,
     ],
   );
 

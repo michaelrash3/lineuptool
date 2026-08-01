@@ -23,6 +23,13 @@ interface UseLineupActionsArgs {
   toast: ToastContextValue;
   uiBridge: { current: any };
   previousLineupRef: { current: any };
+  // Id of the one live generate/re-roll Undo toast (null when none). Owned by
+  // TeamProvider beside previousLineupRef because the two go stale together:
+  // the toast's Undo button is the snapshot's only reader, so whoever drops
+  // the snapshot (team-switch teardown, the game-switch dismiss) must dismiss
+  // the toast too — a still-visible Undo over a cleared/mismatched snapshot is
+  // a silent no-op button.
+  undoToastIdRef: { current: number | null };
 }
 
 export const useLineupActions = ({
@@ -33,7 +40,19 @@ export const useLineupActions = ({
   toast,
   uiBridge,
   previousLineupRef,
+  undoToastIdRef,
 }: UseLineupActionsArgs) => {
+  // At most ONE Undo toast is ever live. Called right before each arm of the
+  // buffer overwrites previousLineupRef: an earlier toast's Undo no longer
+  // describes what tapping it would restore (it reads the shared ref at click
+  // time), so it is dismissed rather than left as a misleading/dead button.
+  // Dismissing an id that already timed out is a no-op in ToastProvider.
+  const dismissLiveUndoToast = useCallback(() => {
+    if (undoToastIdRef.current != null) {
+      toast.dismiss(undoToastIdRef.current);
+      undoToastIdRef.current = null;
+    }
+  }, [toast, undoToastIdRef]);
   // Restore the undo snapshot into the editor — the single reader behind the
   // generate/re-roll toasts' "Undo" action.
   // The snapshot is GAME-scoped: it is stamped with the id of the game it was
@@ -198,7 +217,9 @@ export const useLineupActions = ({
       }
 
       // Snapshot for undo, stamped with the game it belongs to so a later
-      // undo can refuse once a different game is selected.
+      // undo can refuse once a different game is selected. The buffer is being
+      // overwritten, so the previous Undo toast (if any) is dismissed first.
+      dismissLiveUndoToast();
       previousLineupRef.current = {
         gameId: currentGame.id,
         lineup: previousLineup,
@@ -250,7 +271,7 @@ export const useLineupActions = ({
         : internallyRelaxed
           ? `Strict fairness blocked — ${relaxedBlocker} Built one-game balanced instead; catch up over future games.`
           : "Built without considering past games. Some kids may bench more than others this season.";
-      toast.push({
+      const toastId = toast.push({
         kind: showAsRelaxed ? "warn" : "success",
         title: showAsRelaxed
           ? "Lineup built (one-game balance)"
@@ -264,8 +285,19 @@ export const useLineupActions = ({
             }
           : undefined,
       });
+      // Track only armed toasts — an Undo-less first build has no button for
+      // the game/team-switch seams to dismiss.
+      if (hasPrev) undoToastIdRef.current = toastId;
     },
-    [teamDataRef, toast, uiBridge, previousLineupRef, applyUndoSnapshot],
+    [
+      teamDataRef,
+      toast,
+      uiBridge,
+      previousLineupRef,
+      undoToastIdRef,
+      applyUndoSnapshot,
+      dismissLiveUndoToast,
+    ],
   );
 
   const generateLineup = useCallback(
@@ -368,6 +400,7 @@ export const useLineupActions = ({
       return;
     }
 
+    dismissLiveUndoToast();
     previousLineupRef.current = {
       gameId: currentGame.id,
       lineup,
@@ -378,7 +411,7 @@ export const useLineupActions = ({
       // Preserve the existing batting order — re-roll only touched defense.
       battingLineup,
     });
-    toast.push({
+    const toastId = toast.push({
       kind: "success",
       title: "Defense re-rolled",
       message: lineup ? "Tap Undo to restore the previous defense." : "",
@@ -390,7 +423,16 @@ export const useLineupActions = ({
           }
         : undefined,
     });
-  }, [teamDataRef, toast, uiBridge, previousLineupRef, applyUndoSnapshot]);
+    if (lineup) undoToastIdRef.current = toastId;
+  }, [
+    teamDataRef,
+    toast,
+    uiBridge,
+    previousLineupRef,
+    undoToastIdRef,
+    applyUndoSnapshot,
+    dismissLiveUndoToast,
+  ]);
 
   // Re-roll JUST the batting order. Defensive lineup, attendance, and
   // first-inning overrides are all left alone. Useful when the defense
@@ -445,6 +487,7 @@ export const useLineupActions = ({
     }
 
     // Snapshot for undo (preserve current defensive lineup, swap batting).
+    dismissLiveUndoToast();
     previousLineupRef.current = {
       gameId: currentGame.id,
       lineup,
@@ -454,7 +497,7 @@ export const useLineupActions = ({
       lineup,
       battingLineup: result.battingLineup,
     });
-    toast.push({
+    const toastId = toast.push({
       kind: "success",
       title: "Batting order re-rolled",
       message: battingLineup ? "Tap Undo to restore the previous order." : "",
@@ -466,7 +509,16 @@ export const useLineupActions = ({
           }
         : undefined,
     });
-  }, [teamDataRef, toast, uiBridge, previousLineupRef, applyUndoSnapshot]);
+    if (battingLineup) undoToastIdRef.current = toastId;
+  }, [
+    teamDataRef,
+    toast,
+    uiBridge,
+    previousLineupRef,
+    undoToastIdRef,
+    applyUndoSnapshot,
+    dismissLiveUndoToast,
+  ]);
 
   const saveCurrentGame = useCallback(() => {
     const inputs = uiBridge.current.getInputs();

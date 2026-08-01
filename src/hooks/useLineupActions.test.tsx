@@ -37,6 +37,10 @@ const setup = (over: any = {}, inputs: any = null) => {
   const updateGame = jest.fn();
   const persistTeam = jest.fn();
   const toast = makeToast();
+  // Real ToastProvider.push returns a monotonically increasing id — the hook
+  // records it for armed (Undo-carrying) toasts so the seams can dismiss.
+  let nextToastId = 0;
+  (toast.push as jest.Mock).mockImplementation(() => ++nextToastId);
   const uiBridge = {
     current: {
       getInputs: () => inputs,
@@ -46,6 +50,7 @@ const setup = (over: any = {}, inputs: any = null) => {
     },
   };
   const previousLineupRef = { current: null };
+  const undoToastIdRef = { current: null as number | null };
   const teamData = { players: [], games: [], lineupTemplates: [], ...over };
   const { result } = renderHook(() =>
     useLineupActions({
@@ -56,9 +61,10 @@ const setup = (over: any = {}, inputs: any = null) => {
       toast,
       uiBridge,
       previousLineupRef,
+      undoToastIdRef,
     }),
   );
-  return { result, updateTeam, updateGame, toast, uiBridge };
+  return { result, updateTeam, updateGame, toast, uiBridge, undoToastIdRef };
 };
 
 describe("useLineupActions wiring", () => {
@@ -371,6 +377,80 @@ describe("useLineupActions game-scoped undo buffer", () => {
       lineup: g1Lineup,
       battingLineup: g1Batting,
     });
+  });
+});
+
+describe("useLineupActions undo-toast id tracking", () => {
+  // The hook's half of the stale-toast fix: record the id of every ARMED
+  // (Undo-carrying) toast in the shared undoToastIdRef so the seams — game
+  // switch (UIProvider → TeamProvider.dismissLineupUndoToast) and team switch
+  // (TeamProvider's team-doc teardown) — can dismiss the live toast. And keep
+  // at most ONE alive: a re-roll overwrites the snapshot, so the previous
+  // toast's Undo button no longer describes what tapping it would restore.
+  const players = Array.from({ length: 9 }, (_, i) => ({
+    id: `p${i}`,
+    name: `P${i}`,
+  }));
+  const lineup = [{ P: { id: "p0" } }];
+  const batting = [{ id: "p0", name: "P0" }];
+  const armedInputs = () => ({
+    currentGame: { id: "g1" },
+    currentGameAttendance: {},
+    firstInningLineup: {},
+    lineup,
+    battingLineup: batting,
+    previousLineup: lineup,
+    previousBattingLineup: batting,
+  });
+
+  beforeEach(() => {
+    generateLineupMock.mockReset();
+    generateLineupMock.mockReturnValue({ lineup, battingLineup: batting });
+    generateBattingOnlyMock.mockReset();
+    generateBattingOnlyMock.mockReturnValue({
+      battingLineup: [...batting].reverse(),
+    });
+  });
+
+  it("records the armed toast's id so the seams can dismiss it", () => {
+    const { result, toast, undoToastIdRef } = setup({ players }, armedInputs());
+    act(() => result.current.generateLineup());
+    const results = (toast.push as jest.Mock).mock.results;
+    const armedId = results[results.length - 1].value;
+    expect(undoToastIdRef.current).toBe(armedId);
+    expect(toast.dismiss).not.toHaveBeenCalled();
+  });
+
+  it("does NOT track an Undo-less first build (nothing for the seams to dismiss)", () => {
+    const { result, undoToastIdRef } = setup(
+      { players },
+      { ...armedInputs(), previousLineup: null, previousBattingLineup: null },
+    );
+    act(() => result.current.generateLineup());
+    expect(undoToastIdRef.current).toBeNull();
+  });
+
+  it("a new roll dismisses ONLY the previous undo toast and re-arms with the new id", () => {
+    const { result, toast, undoToastIdRef } = setup({ players }, armedInputs());
+    act(() => result.current.regenerateDefense());
+    const firstId = undoToastIdRef.current;
+    act(() => result.current.regenerateBatting());
+    const secondId = undoToastIdRef.current;
+    expect(secondId).not.toBe(firstId);
+    // Exactly the stale toast was dismissed — no unrelated ids.
+    expect((toast.dismiss as jest.Mock).mock.calls).toEqual([[firstId]]);
+  });
+
+  it("a failed roll leaves the live toast (its snapshot is still valid)", () => {
+    const { result, toast, undoToastIdRef } = setup({ players }, armedInputs());
+    act(() => result.current.regenerateDefense());
+    const armedId = undoToastIdRef.current;
+    generateLineupMock.mockReturnValue({ error: "unsatisfiable" });
+    act(() => result.current.regenerateDefense());
+    // The error path never reached the snapshot overwrite — the armed toast's
+    // Undo still restores exactly what it says.
+    expect(toast.dismiss).not.toHaveBeenCalled();
+    expect(undoToastIdRef.current).toBe(armedId);
   });
 });
 

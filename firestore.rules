@@ -237,16 +237,13 @@ service cloud.firestore {
                     && request.auth.uid in nextMembers()
                     && coachRolesSelfJoinValid();
 
-      // Public tryouts write path (anonymous auth included):
-      // - append to tryoutSignups only while tryouts are open.
-      // - append to interestSignups any time (interest is collected
-      //   year-round; there's no "interest-open" flag).
+      // Public portal write paths (anonymous auth included).
       // NOTE: there is deliberately NO public *read* of the full team doc.
       // The Tryouts Portal reads branding + tryout config from the sanitized
       // teamPublic mirror (below) instead, so anonymous parents never see
       // evaluations, other families' signups, member UIDs, or the join code.
       // These writes don't require read access — rules evaluate resource.data
-      // server-side — so signups continue to work.
+      // server-side — so submissions continue to work.
       //
       // Growth + integrity caps: a `hasOnly()` + size bound alone would still
       // let an anonymous caller REPLACE the array with a same-or-smaller payload
@@ -257,38 +254,21 @@ service cloud.firestore {
       // prev set (first-ever signup) trivially satisfies hasAll, so the first
       // append is allowed.
       //
-      // DEPRECATED (Phase 1, docs/firestore-data-migration.md): new portal
-      // clients write per-entry docs to the tryoutSignups / interestSignups
-      // SUBCOLLECTIONS below instead of growing these arrays. The two array
-      // lanes stay ONE release for cached portal clients still running the
-      // arrayUnion code — stragglers are harmless because the coach client's
-      // union read + lazy backfill absorbs late array entries into the
-      // subcollection. The arrays are now RATCHETED like evaluationEvents
-      // (see the base update rule): each lane additionally requires the
-      // array to still EXIST on the doc, because allow rules OR together —
-      // without that clause an append could sneak a dropped field back onto
-      // the doc through this lane, since appendsExactlyOne treats a missing
-      // key as an empty array. While a team's array survives, cached-client
-      // appends work exactly as before; after that team's drop, the append
-      // fails loudly and the parent retries on the subcollection path.
-      // Next release: remove both lanes entirely. (The
-      // playerInfoSubmissions / availability lanes below are NOT deprecated
-      // yet — they migrate in a later phase.)
-      allow update: if isSignedIn()
-                    && resource.data.tryoutsOpen == true
-                    && ('tryoutSignups' in resource.data)
-                    && request.resource.data.diff(resource.data)
-                         .affectedKeys()
-                         .hasOnly(['tryoutSignups'])
-                    && appendsExactlyOne('tryoutSignups');
-
-      allow update: if isSignedIn()
-                    && resource.data.tryoutShareId != null
-                    && ('interestSignups' in resource.data)
-                    && request.resource.data.diff(resource.data)
-                         .affectedKeys()
-                         .hasOnly(['interestSignups'])
-                    && appendsExactlyOne('interestSignups');
+      // REMOVED (Phase 1 exit, docs/firestore-data-migration.md): the two
+      // deprecated tryoutSignups / interestSignups array-append lanes are
+      // gone. Portal clients have written per-entry docs to the
+      // tryoutSignups / interestSignups SUBCOLLECTIONS below since #582; the
+      // lanes were kept exactly one release for cached portal clients, and
+      // the network-first service worker shipped in the same release, so no
+      // supported client appends to the arrays anymore. A straggler's
+      // arrayUnion now fails LOUDLY with permission-denied (the portal's
+      // submit catch shows its retry-or-contact-the-coach error instead of
+      // silently succeeding into a doomed array). The ratchet in the base
+      // update rule stays: a team doc that still carries an array may
+      // rewrite/clean/drop it (coach-side shapes), but once dropped nothing
+      // recreates it. (The playerInfoSubmissions / availabilitySubmissions
+      // lanes below are NOT deprecated yet — they migrate in a later phase
+      // and still use appendsExactlyOne above.)
 
       // Public player-info write path (anonymous auth included): a parent
       // submits uniform/equipment sizing + logistics for a rostered kid via
@@ -446,9 +426,10 @@ service cloud.firestore {
       // entries and lazily backfills stragglers (src/utils/tryoutSignupDocs.ts).
       // READ is member-only — a signup is a family's PII, never public.
       // CREATE stays open to any signed-in caller (anonymous portal auth
-      // counts) under the same team-state gates as the deprecated array lanes
-      // above, plus a payload allowlist + size caps the array diff could
-      // never express. UPDATE/DELETE are member-only: a visitor can add their
+      // counts) under the same team-state gates the removed array lanes used
+      // (tryoutsOpen / tryoutShareId), plus a payload allowlist + size caps
+      // the array diff could never express. UPDATE/DELETE are member-only: a
+      // visitor can add their
       // own signup but never touch anyone else's (or revise their own —
       // coaches curate; a family resubmits instead).
       match /tryoutSignups/{signupId} {
@@ -493,7 +474,7 @@ service cloud.firestore {
         }
         allow read: if isTeamMember();
         // Interest is collected year-round — gated on the standing share
-        // link existing, matching the deprecated array lane.
+        // link existing (the gate the removed array lane used).
         allow create: if isTeamMember()
                       || (isSignedIn()
                           && teamDoc().tryoutShareId != null

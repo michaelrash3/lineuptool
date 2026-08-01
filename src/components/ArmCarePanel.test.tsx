@@ -47,6 +47,11 @@ describe("ArmCarePanel log editor", () => {
     expect(screen.getByLabelText("Pitches thrown")).toHaveValue(60);
     // Imported entries are labeled so the coach knows a re-import updates them.
     expect(screen.getByText("Game")).toBeInTheDocument();
+    // The manual-add hint: bullpen workload is invisible to the rest rules
+    // until it's logged, so the editor says where it goes.
+    expect(
+      screen.getByText("Bullpens count — log them here too."),
+    ).toBeInTheDocument();
   });
 
   it("saves an edited amount + date through the helper (gameId preserved)", () => {

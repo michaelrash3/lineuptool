@@ -87,7 +87,10 @@ const setup = () => {
   const updateGame = jest.fn();
   const persistTeam = jest.fn();
   const toast = makeToast();
+  let nextToastId = 0;
+  (toast.push as jest.Mock).mockImplementation(() => ++nextToastId);
   const previousLineupRef = { current: null };
+  const undoToastIdRef = { current: null as number | null };
   const { result } = renderHook(() =>
     useLineupActions({
       teamDataRef: { current: teamData },
@@ -97,6 +100,7 @@ const setup = () => {
       toast,
       uiBridge,
       previousLineupRef,
+      undoToastIdRef,
     }),
   );
   return { result, ui, updateGame, toast };
