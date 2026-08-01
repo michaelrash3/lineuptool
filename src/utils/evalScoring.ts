@@ -11,6 +11,10 @@ import {
   type EvalCategory,
 } from "../constants/ui";
 import { calcPitcherScore, PITCHER_SCORE_WEIGHTS } from "../lineupEngine";
+import {
+  isEmptyEvalCategoryConfig,
+  type EvalCategoryConfig,
+} from "./evalCategories";
 import { playerTopMph } from "./evaluationScore";
 import type { EvaluationEvent, GradeMap, Player } from "../types";
 
@@ -123,6 +127,31 @@ export const DEFAULT_GRADES = EVAL_CATEGORIES.reduce<EvalGradeRecord>(
   {},
 );
 
+// DEFAULT_GRADES for a team that configured its categories: the stock seed
+// minus anything hidden, plus this team's own categories at the neutral grade.
+// An unconfigured team gets DEFAULT_GRADES ITSELF back (same reference) — new
+// rounds are seeded byte-identically to before per-team categories existed.
+//
+// A hidden category is left OUT of the seed rather than seeded at neutral, so
+// new rounds genuinely stop carrying it. That is score-safe: every scorer
+// already reads a missing category as the neutral 3, which is exactly what the
+// seed would have written.
+export const defaultGradesFor = (
+  config?: EvalCategoryConfig | null,
+): EvalGradeRecord => {
+  if (isEmptyEvalCategoryConfig(config)) return DEFAULT_GRADES;
+  const out: EvalGradeRecord = {};
+  for (const [id, value] of Object.entries(DEFAULT_GRADES)) {
+    if (config?.overrides?.[id]?.hidden) continue;
+    out[id] = value;
+  }
+  for (const c of config?.custom || []) {
+    if (config?.overrides?.[c.id]?.hidden) continue;
+    out[c.id] = EVAL_SCALE_DEFAULT;
+  }
+  return out;
+};
+
 // Display name for a round: prefer the coach's denormalized last name
 // (written at save time so reads work without an extra auth roundtrip);
 // fall back to the legacy free-text label, then to a date-only label
@@ -136,25 +165,55 @@ export const formatRoundName = (round: EvalRound | null | undefined) => {
   return `Eval (${round.date})`;
 };
 
-export const sanitizeGrades = (g: EvalGradeRecord | null | undefined) => {
-  const out: EvalGradeRecord = { ...DEFAULT_GRADES };
-  EVAL_CATEGORIES.forEach((c) => {
+// Clamp a grade record onto the catalog. Carries the team's own categories
+// through as well (`config`) — without that, "Copy From Last Round" would
+// quietly drop every custom grade the coach had entered.
+export const sanitizeGrades = (
+  g: EvalGradeRecord | null | undefined,
+  config?: EvalCategoryConfig | null,
+) => {
+  const out: EvalGradeRecord = { ...defaultGradesFor(config) };
+  // Categories that hold a MEASUREMENT rather than a 1-5 grade (today: the
+  // pitchVelo radar reading, inputKind "mph"). Clamping those to the grade
+  // scale silently rewrote a 44 mph fastball as 5 on Copy From Last Round —
+  // destroying the reading and, since velocity scores against the age
+  // benchmark, quietly moving the kid's evaluation with it.
+  const measurementIds = new Set(
+    EVAL_CATEGORIES.filter((c) => c.inputKind).map((c) => c.id),
+  );
+  const read = (id: string) => {
     // Persisted grades may arrive as number or numeric string; parseInt
     // tolerates both, so read the raw value loosely before coercing.
-    const v = parseInt(String(g?.[c.id] ?? ""), 10);
-    if (Number.isFinite(v))
-      out[c.id] = Math.max(1, Math.min(EVAL_SCALE_MAX, v));
-  });
+    const v = parseInt(String(g?.[id] ?? ""), 10);
+    if (!Number.isFinite(v)) return;
+    out[id] = measurementIds.has(id)
+      ? Math.max(0, v)
+      : Math.max(1, Math.min(EVAL_SCALE_MAX, v));
+  };
+  EVAL_CATEGORIES.forEach((c) => read(c.id));
+  (config?.custom || []).forEach((c) => read(c.id));
   if (typeof g?.notes === "string" && g.notes.trim()) out.notes = g.notes;
   return out;
 };
 
 // Mean of the universal (non-add-on) category grades, ignoring blanks and
 // out-of-range values. Returns null when nothing gradeable is present.
-export const avgUniversal = (gradeRecord: GradeMap | null | undefined) => {
+// `config` folds the team's own universal categories into the same mean; a
+// hidden one still counts when the round carries a value for it, so a
+// round-over-round comparison spanning a hide stays apples-to-apples.
+export const avgUniversal = (
+  gradeRecord: GradeMap | null | undefined,
+  config?: EvalCategoryConfig | null,
+) => {
   if (!gradeRecord) return null;
-  const vals = EVAL_CATEGORIES.filter((c) => !c.addOn)
-    .map((c) => Number(gradeRecord[c.id]))
+  const ids = [
+    ...EVAL_CATEGORIES.filter((c) => !c.addOn).map((c) => c.id),
+    ...(config?.custom || [])
+      .filter((c) => c.group !== "Pitching" && c.group !== "Catching")
+      .map((c) => c.id),
+  ];
+  const vals = ids
+    .map((id) => Number(gradeRecord[id]))
     .filter((v) => Number.isFinite(v) && v >= 1 && v <= EVAL_SCALE_MAX);
   if (vals.length === 0) return null;
   return vals.reduce((a, b) => a + b, 0) / vals.length;
@@ -168,6 +227,7 @@ export const computeFlags = (
   rounds: EvalRound[],
   players: Player[],
   activeCategories: EvalCategory[],
+  config?: EvalCategoryConfig | null,
 ) => {
   if (!rounds || rounds.length < 2) {
     return { standouts: [], regressions: [], categoryDrops: [] };
@@ -185,8 +245,8 @@ export const computeFlags = (
     const latestG = latest.grades?.[p.id];
     const prevG = previous.grades?.[p.id];
     if (!latestG || !prevG) return;
-    const a = avgUniversal(latestG);
-    const b = avgUniversal(prevG);
+    const a = avgUniversal(latestG, config);
+    const b = avgUniversal(prevG, config);
     if (a == null || b == null) return;
     const delta = a - b;
     if (delta >= 0.75) standouts.push({ player: p, delta });

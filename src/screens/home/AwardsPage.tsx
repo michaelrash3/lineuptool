@@ -3,7 +3,10 @@ import { Icons } from "../../icons";
 import { useTeam } from "../../contexts";
 import { PageShell } from "../../components/PageShell";
 import { useBackOrFallback } from "../../hooks/usePageNav";
-import { getEvalCategoriesForTeam } from "../../constants/ui";
+import {
+  readEvalCategoryConfig,
+  scoredCustomCategories,
+} from "../../utils/evalCategories";
 import { currentEvaluationScore100 } from "../../utils/evaluationScore";
 import { attIsPresent, attIsAbsent } from "../../utils/attendance";
 import {
@@ -51,10 +54,23 @@ export const AwardsPage = memo(() => {
   }, [players]);
 
   // Pre-compute the two non-stat awards (eval growth + attendance).
+  // The team's own eval categories, so these deltas match the Evaluations tab
+  // (src/utils/evalCategories.ts). Empty for an unconfigured team, which keeps
+  // every number below exactly as it was. Destructured deps so the memo tracks
+  // the two stored fields, not the whole team object.
+  const { evalCategoryOverrides, evalCustomCategories } = team || {};
+  const extraCategories = useMemo(
+    () =>
+      scoredCustomCategories(
+        readEvalCategoryConfig({ evalCategoryOverrides, evalCustomCategories }),
+      ),
+    [evalCategoryOverrides, evalCustomCategories],
+  );
+
   const improver = useMemo(() => {
-    const categories = getEvalCategoriesForTeam(team?.pitchingFormat);
     const overallOf = (g: any, p: any) =>
-      currentEvaluationScore100(g, p, team?.teamAge) ?? undefined;
+      currentEvaluationScore100(g, p, team?.teamAge, null, extraCategories) ??
+      undefined;
     let best: any = null;
     let bestDelta = 0;
     for (const p of players) {
@@ -79,7 +95,7 @@ export const AwardsPage = memo(() => {
     return best
       ? { playerId: best.id, value: `+${bestDelta.toFixed(1)}` }
       : null;
-  }, [players, evaluationEvents, team?.pitchingFormat, team?.teamAge]);
+  }, [players, evaluationEvents, team?.teamAge, extraCategories]);
 
   const ironman = useMemo(() => {
     const maps = [

@@ -12,6 +12,7 @@ import {
   getLocalDateString,
   EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
+import { readEvalCategoryConfig } from "../utils/evalCategories";
 import { EvalGradeCard } from "../components/EvalGradeCard";
 import { getActivePositionList } from "../lineupEngine";
 
@@ -41,9 +42,28 @@ export const AssistantEvalTab = memo(() => {
     [defenseSize],
   );
 
+  // The head coach's per-team category configuration — assistants grade the
+  // same list the head does (renames, hides and added categories included).
+  // Destructured so the memo's deps are the two stored fields, not the whole
+  // team object (which is a fresh identity on every Firestore snapshot).
+  const { evalCategoryOverrides, evalCustomCategories } = team || {};
+  const categoryConfig = useMemo(
+    () =>
+      readEvalCategoryConfig({ evalCategoryOverrides, evalCustomCategories }),
+    [evalCategoryOverrides, evalCustomCategories],
+  );
   const activeCategories = useMemo(
-    () => handGradedCategoriesForTeam(pitchingFormat),
-    [pitchingFormat],
+    () => handGradedCategoriesForTeam(pitchingFormat, categoryConfig),
+    [pitchingFormat, categoryConfig],
+  );
+  // Read-only views of a PAST round keep hidden categories: the round may
+  // carry grades for one, and hiding is forward-only.
+  const historyCategories = useMemo(
+    () =>
+      handGradedCategoriesForTeam(pitchingFormat, categoryConfig, {
+        includeHidden: true,
+      }),
+    [pitchingFormat, categoryConfig],
   );
   const includeKidPitchAddons = useMemo(
     () => isKidPitchFormat(pitchingFormat),
@@ -52,8 +72,11 @@ export const AssistantEvalTab = memo(() => {
   const visibleGroups = useMemo(() => {
     const base = [...EVAL_GROUPS_UNIVERSAL];
     if (includeKidPitchAddons) base.push(...EVAL_GROUPS_KID_PITCH_ADDONS);
-    return base;
-  }, [includeKidPitchAddons]);
+    // Drop a tab whose every category this team hid — an empty grading tab is
+    // worse than no tab. No-op for an unconfigured team: each stock group has
+    // at least one hand-graded category.
+    return base.filter((g) => activeCategories.some((c) => c.group === g));
+  }, [includeKidPitchAddons, activeCategories]);
   const [grades, setGrades] = useState<Record<string, any>>({});
   const [activeGroup, setActiveGroup] = useState("Hitting");
   // Read-only view of a past round, URL-backed at /evaluation/round/:id so the
@@ -221,7 +244,7 @@ export const AssistantEvalTab = memo(() => {
               key={`past-${p.id}`}
               player={p}
               grades={viewingPastRound.grades?.[p.id]}
-              activeCategories={activeCategories}
+              activeCategories={historyCategories}
               positions={activePositions}
               readOnly
             />

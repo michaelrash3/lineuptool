@@ -77,9 +77,15 @@ Substantially complete for a multi-coach, cadence-driven eval workflow:
   `buildPreseasonSeedRound` seeds the new season from returning players' latest
   grades + promoted tryouts' blended tryout grade.
 
+- **Per-team categories** — the default catalog is a starting point, not a
+  cage: the head coach renames any category, hides one this team doesn't grade,
+  and adds its own from Settings → Evaluations. Resolution + the back-compat
+  contract live in `src/utils/evalCategories.ts`; the team doc carries
+  `evalCategoryOverrides` + `evalCustomCategories` (absent = the stock catalog,
+  byte-for-byte).
+
 What it deliberately does **not** do: no video/photo attachments, no
-parent/player-facing eval view, no external scout sharing, no per-team custom
-category sets (categories are fixed by pitching format).
+parent/player-facing eval view, no external scout sharing.
 
 ## 3. Audit findings
 
@@ -228,10 +234,79 @@ staff/board handout (lazy `jspdf`, mirroring `feeSheetPdf`).
 
 ### Recommend approving
 
-| Feature                        | Why coaches want it                                                                   | Feasibility                                                                                                                                           |
-| ------------------------------ | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Eval export (PDF/CSV)**      | Share roster decisions with a coaching staff / club board at season's end.            | Good fit. Reuse the lazy-jspdf pattern (`src/finances/feeSheetPdf.ts`) over `RosterDecisionsPanel` output + a round's grade grid. Pure client change. |
-| **Per-team custom categories** | Different orgs weight different tools; today categories are fixed by pitching format. | Medium. A `evalCategoryOverrides` map on the team doc feeding `getEvalCategoriesForTeam`; touches grade seeding + migration.                          |
+| Feature                        | Why coaches want it                                                              | Feasibility                                                                                                                                     |
+| ------------------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Eval export (PDF/CSV)**      | Share roster decisions with a coaching staff / club board at season's end.       | **Shipped** (#514). Lazy-jspdf pattern (`src/finances/feeSheetPdf.ts`) over a round's grade grid, plus a CSV. Pure client change.               |
+| **Per-team custom categories** | Different orgs weight different tools; categories were fixed by pitching format. | **Shipped** — see §4.1. `evalCategoryOverrides` + `evalCustomCategories` on the team doc feed every category selector; no migration was needed. |
+
+### 4.1 Per-team categories — what shipped, and what was cut
+
+**Shipped.** The head coach edits the team's grading list in Settings →
+Evaluations: rename any category into the staff's own words, hide one this team
+doesn't grade, add its own (capped at 8), and delete an added one that no round
+has graded yet. Stored as two optional team-doc fields —
+`evalCategoryOverrides` (`{ [id]: { label?, hidden? } }`) and
+`evalCustomCategories` (`[{ id, label, group, description? }]`). It flows
+through the head + assistant grading UIs, the per-round and combined scoring
+(`totalScoreParts` / `currentEvaluationScore100` / `getCombinedGrades`),
+round-over-round insights, comparison and trend views, the development plan and
+report, the season report / awards deltas, and both exports (CSV + PDF).
+
+**The back-compat contract** is written out at the top of
+`src/utils/evalCategories.ts` and pinned by
+`src/utils/evalCategories.backcompat.test.ts` against a rich legacy fixture
+(schema-v7 grade keys, head + two assistants, a seeded Preseason round, a
+tryout round, pitcher / catcher / dual-role / never-graded kids) with FROZEN
+expected numbers. In short:
+
+1. **An unconfigured team is byte-identical.** With no config, every resolver
+   returns the same array reference it was handed and every scorer gets an
+   empty extras list. `resolveEvalCategories(base) === base` is the contract,
+   not an optimization.
+2. **Ids are forever; renames are display-only.** A rename writes a label
+   override and never touches the id, so no migration exists or is needed.
+3. **Hiding is forward-only.** A hidden category leaves the grading UI and the
+   new-round seed; it stays in scoring, stays on every history surface
+   (which resolve with `includeHidden`), and no stored grade is ever deleted.
+   Because every scorer already reads a missing category as the neutral 3,
+   hiding is score-neutral by construction.
+4. **Custom categories score per-round, never retroactively.** A category
+   counts only for rounds that actually carry a grade for it, entering the
+   numerator and the denominator together — so a round saved before the
+   category existed keeps its score forever. A custom category with graded
+   history cannot be deleted at all; the Settings panel only offers Hide.
+
+**Opt-in preset, not a default change.** The stock catalog is unchanged for
+every team. Kid-pitch teams are offered a one-click starter set of the two
+pitching intangibles a box score can't see — Mechanics and Fields the Position
+(`KID_PITCH_CATEGORY_PRESET`) — added as ordinary custom categories the coach
+can then rename or hide. Velocity/Strikes/Off-Speed are already stats-graded
+and Composure is already universal, so the preset deliberately adds only what
+is genuinely missing.
+
+**Cut, honestly:**
+
+- **Per-category weights are not editable.** Every added category scores at a
+  fixed `CUSTOM_EVAL_CATEGORY_WEIGHT` (1.5, between Speed and Approach), and
+  the built-in weights stay where they are. Editable weights are a real
+  feature — they need a UI, a sane normalization story, and their own
+  back-compat argument about restating history — and belong in their own PR.
+- **The tryout card is untouched.** `TRYOUT_GRADE_CATEGORIES` is a separate,
+  deliberately tiny list (see §2); custom categories are roster-eval only, so
+  tryout scoring is unchanged.
+- **The Stats tab's Total Score column is unchanged.** That number is the
+  engine's fixed cross-team scale, not the eval composite; it keeps the stock
+  catalog on purpose.
+- **Custom categories are always a 1–5 grade.** No custom measurement fields
+  (the `mph` input kind stays exclusive to Pitch Velocity).
+- **New categories never appear on the mph/data-driven paths.** A custom
+  category is never `dataDriven`, so nothing tries to derive it from stats.
+
+**Observed while wiring this (pre-existing, not fixed here):**
+`sanitizeGrades` clamps EVERY catalog id into 1–5, including the `mph`
+measurement `pitchVelo` — so "Copy From Last Round" turns a 44 mph reading into
+`5`. It predates this work and is out of scope for a categories PR, but it is a
+real data-loss bug on a real field and wants its own small fix.
 
 ### Considered, recommend not planning
 
@@ -244,7 +319,7 @@ staff/board handout (lazy `jspdf`, mirroring `feeSheetPdf`).
 
 ## 5. Roadmap
 
-Recommended order (each an independent PR); all four have since shipped:
+Recommended order (each an independent PR); all five have since shipped:
 
 1. **Test the eval sub-components** — cover `RosterDecisionsPanel` scoring,
    `RoundComparisonView`, `EvalTrendPage`, plus `AvailabilityTab` and
@@ -265,7 +340,13 @@ Recommended order (each an independent PR); all four have since shipped:
    move off `evaluationEvents`. **Done** — the v11 `migrateLegacyTryoutGrades`
    step (see 3.2's resolved note).
 
+5. **Per-team eval categories** (§4, approved but long unshipped) — rename /
+   hide / add categories from Settings, with a written back-compat contract so
+   years of saved rounds keep their exact numbers. **Done** — see §4.1 for what
+   shipped and what was deliberately cut.
+
 Opportunistic (bundle when touching the code): single-pass tryout blend (3.3) —
-**done**, rounds once at the final blend.
+**done**, rounds once at the final blend. Still open: the `sanitizeGrades`
+mph-clamp bug noted at the end of §4.1, and editable per-category weights.
 
 Everything in "not planning" stays out of scope until a coach reopens it.

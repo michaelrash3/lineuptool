@@ -48,7 +48,9 @@ export {
 // --- Total score ---
 export {
   calculateTotalScore,
+  totalScoreMaxFor,
   TOTAL_SCORE_MAX,
+  type ExtraScoredCategory,
 } from "./lineupEngine/totalScore";
 
 // --- Pitch-count rules & arm care ---

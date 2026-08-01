@@ -1,6 +1,12 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, act, fireEvent, screen } from "@testing-library/react";
+import {
+  render,
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 // Team-scoped state that must not outlive a team switch — the bug class #583
@@ -101,7 +107,7 @@ import * as firestore from "firebase/firestore";
 import { ToastProvider } from "./ToastProvider";
 import { TeamProvider } from "./TeamProvider";
 import { ConfirmProvider } from "../components/ConfirmDialog";
-import { useTeam } from "../contexts";
+import { useTeam, useToast } from "../contexts";
 
 const listeners = (
   firestore as unknown as {
@@ -165,9 +171,11 @@ const teamDoc = (id: string, over: Record<string, unknown> = {}) => ({
 });
 
 let teamApi: any = null;
+let toastApi: any = null;
 
 const Probe = () => {
   teamApi = useTeam();
+  toastApi = useToast();
   return null;
 };
 
@@ -265,15 +273,23 @@ const clickUndo = () => {
   fireEvent.click(buttons[buttons.length - 1]);
 };
 
+// Dismissed toasts exit through an AnimatePresence animation, so "the toast
+// is gone" is an eventually-true assertion, not an instant one.
+const expectNoUndoButton = () =>
+  waitFor(() =>
+    expect(screen.queryAllByRole("button", { name: "Undo" })).toHaveLength(0),
+  );
+
 beforeEach(() => {
   listeners.length = 0;
   applied.length = 0;
   teamApi = null;
+  toastApi = null;
   vi.clearAllMocks();
 });
 
 describe("TeamProvider — the lineup undo buffer is team-scoped", () => {
-  it("drops the undo snapshot on team switch so undo can't write team A's lineup onto team B", async () => {
+  it("dismisses the Undo toast on team switch — no dead button, unrelated toasts untouched", async () => {
     await mountProvider();
     await emitDoc(teamPath("ta"), teamDoc("ta"));
 
@@ -285,7 +301,7 @@ describe("TeamProvider — the lineup undo buffer is team-scoped", () => {
     });
 
     // The buffer really is armed: undo on team A restores team A's players.
-    // Without this the "nothing restored" assertion below would pass against a
+    // Without this the "nothing restorable" state below would pass against a
     // buffer that was never populated in the first place. (Clicking consumes
     // the toast, so re-roll again to leave a live Undo for the switch below.)
     applied.length = 0;
@@ -295,10 +311,19 @@ describe("TeamProvider — the lineup undo buffer is team-scoped", () => {
     await act(async () => {
       teamApi.regenerateBatting();
     });
+    expect(
+      screen.getAllByRole("button", { name: "Undo" }).length,
+    ).toBeGreaterThan(0);
 
-    // Switch to team B and let its doc land. The coach is now editing a
-    // different team with the re-roll toast — and its live Undo button — still
-    // on screen.
+    // An unrelated sticky toast that must SURVIVE the switch — only the undo
+    // toast is scoped to the team.
+    act(() => {
+      toastApi.push({ title: "Unrelated toast", duration: 0 });
+    });
+
+    // Switch to team B and let its doc land. The teardown drops the snapshot
+    // AND dismisses the toast whose Undo button was its only reader — the
+    // coach is never left with a live-looking button that silently no-ops.
     await act(async () => {
       await teamApi.switchTeam("tb");
     });
@@ -306,16 +331,14 @@ describe("TeamProvider — the lineup undo buffer is team-scoped", () => {
 
     wireBridge("tb");
     applied.length = 0;
-    clickUndo();
-
-    // Nothing restored: the snapshot belonged to a team the coach left. The
-    // PII assertion goes first so a failure names the actual harm — team A's
-    // kids in team B's editor — rather than just "a call happened".
+    await expectNoUndoButton();
+    expect(screen.getByText("Unrelated toast")).toBeInTheDocument();
+    // And nothing was ever pushed into team B's editor.
     expect(foreignIds("ta")).toEqual([]);
     expect(applied).toHaveLength(0);
   });
 
-  it("clears the buffer even when the next team's doc never loads", async () => {
+  it("clears the buffer and toast even when the next team's doc never loads", async () => {
     await mountProvider();
     await emitDoc(teamPath("ta"), teamDoc("ta"));
     wireBridge("ta");
@@ -332,7 +355,7 @@ describe("TeamProvider — the lineup undo buffer is team-scoped", () => {
     await emitDoc(teamPath("tb"), null);
 
     applied.length = 0;
-    clickUndo();
+    await expectNoUndoButton();
     expect(applied).toHaveLength(0);
   });
 
@@ -348,11 +371,15 @@ describe("TeamProvider — the lineup undo buffer is team-scoped", () => {
       await teamApi.switchTeam("tb");
     });
     await emitDoc(teamPath("tb"), teamDoc("tb"));
+    // Team A's toast is gone before team B arms its own.
+    await expectNoUndoButton();
 
     wireBridge("tb");
     await act(async () => {
       teamApi.regenerateBatting();
     });
+    // Exactly ONE live Undo — the fresh team B toast.
+    expect(screen.getAllByRole("button", { name: "Undo" })).toHaveLength(1);
     applied.length = 0;
     clickUndo();
     expect(applied).toHaveLength(1);

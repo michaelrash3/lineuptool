@@ -17,6 +17,7 @@ import type {
 } from "../types";
 import { PositionVarietyPanel } from "../components/PositionVarietyPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
+import { PlayingTimePanel } from "../components/PlayingTimePanel";
 import { ImportCsvButton } from "../components/ImportCsvButton";
 import { SeasonTrendsPanel } from "../components/analytics/SeasonTrendsPanel";
 import { DevelopmentTrendsPanel } from "../components/analytics/DevelopmentTrendsPanel";
@@ -847,6 +848,11 @@ export const StatsTab = memo(() => {
             {/* end right col */}
           </div>
           {/* end desktop grid */}
+
+          {/* Playing-time receipts (head coach only, self-gating like
+          ArmCarePanel). Full width rather than in the right rail because each
+          row carries a full sentence a coach reads aloud to a parent. */}
+          <PlayingTimePanel />
 
           {/* Per-player stats table with category toggle — full width so the wide
           batting/pitching columns have room to breathe. */}

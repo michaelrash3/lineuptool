@@ -15,6 +15,22 @@ vi.mock("../evaluation/evalRoundPdf", () => ({
   downloadEvalRoundPdf: downloadEvalRoundPdfMock,
 }));
 
+// The CSV export writes through a detached anchor that setupTests neuters, so
+// there is no downloaded file to inspect. Spy on the (real) builder instead so
+// a test can assert WHICH category list the screen hands it — the wiring is
+// the part that belongs to this screen; the CSV shape is evalExport's own test.
+const { evalRoundCsvSpy } = vi.hoisted(() => ({ evalRoundCsvSpy: vi.fn() }));
+vi.mock("../utils/evalExport", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils/evalExport")>();
+  return {
+    ...actual,
+    evalRoundCsv: (...args: Parameters<typeof actual.evalRoundCsv>) => {
+      evalRoundCsvSpy(...args);
+      return actual.evalRoundCsv(...args);
+    },
+  };
+});
+
 describe("EvaluationTab", () => {
   it("renders the head-coach evaluation dashboard for an empty team", () => {
     renderWithProviders(
@@ -338,5 +354,123 @@ describe("EvaluationTab", () => {
       screen.getByRole("button", { name: /Start New Round/ }),
     ).toBeInTheDocument();
     expect(screen.getByText(/\+ Start a new Eval/)).toBeInTheDocument();
+  });
+  // ---- Per-team eval categories (docs/EVALUATIONS-AUDIT.md §4) -------------
+  // The grading grid must follow the team's own category list. Back-compat
+  // rules live in src/utils/evalCategories.ts; these pin the SCREEN behavior.
+  const renderGrid = (teamOverrides: Record<string, unknown>) =>
+    renderWithProviders(
+      <MemoryRouter>
+        <EvaluationTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            players: [{ id: "p1", name: "Sammy", number: "5" }],
+            primaryColor: "#1d4ed8",
+            pitchingFormat: "Coach Pitch",
+            evaluationEvents: [],
+            ...teamOverrides,
+          },
+          user: { uid: "head1" },
+          currentRole: "head",
+          saveTeamEvaluation: jest.fn(),
+          deleteEvaluation: jest.fn(),
+        },
+        ui: {
+          teamEvalGrades: {},
+          setTeamEvalGrades: jest.fn(),
+          selectedRoundId: null,
+          setSelectedRoundId: jest.fn(),
+          evalTrendPlayerId: null,
+          setEvalTrendPlayerId: jest.fn(),
+        },
+      },
+    );
+
+  it("grades the stock categories when the team configured nothing", () => {
+    renderGrid({});
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.getByText("Approach")).toBeInTheDocument();
+    expect(screen.queryByText("Bunting")).not.toBeInTheDocument();
+  });
+
+  it("grades a category the team added", () => {
+    renderGrid({
+      evalCustomCategories: [
+        { id: "custom_bunting", label: "Bunting", group: "Hitting" },
+      ],
+    });
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.getByText("Bunting")).toBeInTheDocument();
+    // …and it is gradeable, not just a label.
+    expect(
+      screen.getByRole("radiogroup", { name: /Sammy Bunting/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a renamed category under the coach's own words", () => {
+    renderGrid({ evalCategoryOverrides: { approach: { label: "At Bats" } } });
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.getByText("At Bats")).toBeInTheDocument();
+    expect(screen.queryByText("Approach")).not.toBeInTheDocument();
+  });
+
+  it("exports a saved round WITH the categories the team has since hidden", () => {
+    // Hiding is forward-only: the round still holds those grades, so the
+    // handout must still have their columns.
+    renderWithProviders(
+      <MemoryRouter>
+        <EvaluationTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            players: [{ id: "p1", name: "Sammy", number: "5" }],
+            primaryColor: "#1d4ed8",
+            pitchingFormat: "Coach Pitch",
+            evalCategoryOverrides: { coachability: { hidden: true } },
+            evaluationEvents: [
+              {
+                id: "r1",
+                date: "2026-02-01",
+                coachRole: "Head",
+                evaluatorId: "head1",
+                evaluatorName: "Coach",
+                grades: { p1: { approach: 4, coachability: 5 } },
+              },
+            ],
+          },
+          user: { uid: "head1" },
+          currentRole: "head",
+          saveTeamEvaluation: jest.fn(),
+          deleteEvaluation: jest.fn(),
+        },
+        ui: {
+          teamEvalGrades: {},
+          setTeamEvalGrades: jest.fn(),
+          selectedRoundId: "r1",
+          setSelectedRoundId: jest.fn(),
+          evalTrendPlayerId: null,
+          setEvalTrendPlayerId: jest.fn(),
+        },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Export PDF/ }));
+    const pdfCalls = downloadEvalRoundPdfMock.mock.calls;
+    const cats = pdfCalls[pdfCalls.length - 1][0].categories;
+    expect(cats.map((c: { id: string }) => c.id)).toContain("coachability");
+    // Same rule for the CSV.
+    fireEvent.click(screen.getByRole("button", { name: /Export CSV/ }));
+    const csvCalls = evalRoundCsvSpy.mock.calls;
+    const csvCats = csvCalls[csvCalls.length - 1][2] as Array<{ id: string }>;
+    expect(csvCats.map((c) => c.id)).toContain("coachability");
+  });
+
+  it("stops offering a hidden category on new rounds", () => {
+    renderGrid({ evalCategoryOverrides: { coachability: { hidden: true } } });
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.queryByText("Coachability")).not.toBeInTheDocument();
+    expect(screen.getByText("Approach")).toBeInTheDocument();
   });
 });

@@ -1,5 +1,10 @@
 // UI-only constants extracted from App.jsx Section 4.
 import type { DrillDefinition } from "../types";
+import {
+  resolveEvalCategories,
+  type EvalCategoryConfig,
+  type ResolveEvalCategoriesOptions,
+} from "../utils/evalCategories";
 
 // Product brand name shown in the UI (browser title, login, cold-start
 // loading screen, onboarding, the .ics calendar PRODID). The repository and
@@ -47,6 +52,9 @@ export interface EvalCategory {
   // every grading UI must filter these out — a coach's manual rating list
   // must not grow when a measurable gets a data source.
   dataDriven?: boolean;
+  // Added by THIS team on top of the stock catalog (see
+  // src/utils/evalCategories.ts). Never set on a built-in.
+  custom?: boolean;
 }
 
 export const EVAL_CATEGORIES: EvalCategory[] = [
@@ -260,11 +268,23 @@ export const allowedPitchingFormats = (
   return ["Kid Pitch", "Coach Pitch", "Machine Pitch"];
 };
 
+// Every selector below takes an OPTIONAL per-team category config (see
+// src/utils/evalCategories.ts). Omit it — as every pre-existing caller does —
+// and the stock catalog comes back untouched, same array reference included.
+// Pass it to apply the team's renames, hides and added categories. `opts`
+// forwards to resolveEvalCategories: history surfaces pass
+// { includeHidden: true } so a round graded before a hide still renders.
 export const getEvalCategoriesForTeam = (
   pitchingFormat?: string,
+  config?: EvalCategoryConfig | null,
+  opts?: ResolveEvalCategoriesOptions,
 ): EvalCategory[] => {
   const includeAddOns = isKidPitchFormat(pitchingFormat);
-  return EVAL_CATEGORIES.filter((c) => !c.addOn || includeAddOns);
+  return resolveEvalCategories(
+    EVAL_CATEGORIES.filter((c) => !c.addOn || includeAddOns),
+    config,
+    opts,
+  );
 };
 
 // The categories a coach actually HAND-GRADES — the full catalog minus the
@@ -273,8 +293,12 @@ export const getEvalCategoriesForTeam = (
 // values still count.
 export const handGradedCategoriesForTeam = (
   pitchingFormat?: string,
+  config?: EvalCategoryConfig | null,
+  opts?: ResolveEvalCategoriesOptions,
 ): EvalCategory[] =>
-  getEvalCategoriesForTeam(pitchingFormat).filter((c) => !c.dataDriven);
+  getEvalCategoriesForTeam(pitchingFormat, config, opts).filter(
+    (c) => !c.dataDriven,
+  );
 
 // Position membership for eval gating. Catcher is opt-in ("C" in the list);
 // pitcher is "P" in the list — same positive position model the Roster uses.
@@ -297,23 +321,31 @@ export const playerIsCatcher = (player?: {
 export const getEvalCategoriesForPlayer = (
   pitchingFormat: string | undefined,
   player: { comfortablePositions?: string[] } | undefined,
+  config?: EvalCategoryConfig | null,
+  opts?: ResolveEvalCategoriesOptions,
 ): EvalCategory[] => {
   const kidPitch = isKidPitchFormat(pitchingFormat);
-  return EVAL_CATEGORIES.filter((c) => {
-    if (!c.addOn) return true;
-    if (!kidPitch) return false;
-    if (c.group === "Pitching") return playerIsPitcher(player);
-    if (c.group === "Catching") return playerIsCatcher(player);
-    return true;
-  });
+  return resolveEvalCategories(
+    EVAL_CATEGORIES.filter((c) => {
+      if (!c.addOn) return true;
+      if (!kidPitch) return false;
+      if (c.group === "Pitching") return playerIsPitcher(player);
+      if (c.group === "Catching") return playerIsCatcher(player);
+      return true;
+    }),
+    config,
+    opts,
+  );
 };
 
 // Per-player HAND-GRADED categories (see handGradedCategoriesForTeam).
 export const handGradedCategoriesForPlayer = (
   pitchingFormat: string | undefined,
   player: { comfortablePositions?: string[] } | undefined,
+  config?: EvalCategoryConfig | null,
+  opts?: ResolveEvalCategoriesOptions,
 ): EvalCategory[] =>
-  getEvalCategoriesForPlayer(pitchingFormat, player).filter(
+  getEvalCategoriesForPlayer(pitchingFormat, player, config, opts).filter(
     (c) => !c.dataDriven,
   );
 

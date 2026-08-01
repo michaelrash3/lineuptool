@@ -35,9 +35,10 @@ Two sanitized sibling docs already exist and are **not** affected by this plan:
   `firestore.rules` requires each anonymous write to grow the array by exactly
   one entry **and** preserve every prior entry (`toSet().hasAll(prev)`), so a
   public user can no longer remove, replace, or multi-add signups. Validated by
-  the emulator tests in `firestore-tests/rules.test.ts`. _(These array lanes
-  are now DEPRECATED — new portal clients write per-entry subcollection docs;
-  see Phase 1 below.)_
+  the emulator tests in `firestore-tests/rules.test.ts`. _(The signup array
+  lanes have since been REMOVED — portal clients write per-entry subcollection
+  docs; see Phase 1 below. `appendsExactlyOne` still guards the
+  `playerInfoSubmissions` / `availabilitySubmissions` lanes.)_
 - **Join-code privacy.** Join resolution goes through the sanitized
   `teamInvites` doc; the full-team join-code read rule was removed.
 - **Atomic membership writes.** The join flow (`useInviteFlows.joinTeamByCode`)
@@ -119,26 +120,30 @@ helpers in `src/utils/tryoutSignupDocs.ts`:
   the client's assembled list, which reads empty when the subscription hasn't
   landed) and both are issued AFTER the season patch, so a rejected team-doc
   write doesn't find the signups already destroyed.
-- **Legacy public lanes retained one release:** the array-append rules stay
-  (marked DEPRECATED in `firestore.rules`) for cached portal clients still
-  running the `arrayUnion` code; stragglers are harmless because union +
-  backfill absorbs late array entries. **Rules ratchet (IN — the Phase 1
-  exit condition):** `tryoutSignups` / `interestSignups` are ratcheted like
-  `evaluationEvents` — a team-doc write may carry either key only while the
-  doc still has it (`!(k in request.resource.data) || (k in resource.data)`
-  on the base update rule), team CREATE may never seed them, and each
-  deprecated public append lane additionally requires the array to still
-  exist (allow rules OR, so the lane needs its own clause — otherwise a
-  cached portal append could recreate a dropped field, since
-  `appendsExactlyOne` treats a missing key as an empty array). The per-team
-  `deleteField` drop is therefore genuinely irreversible: a stale pre-drop
-  client's `[]` overwrite or `arrayUnion` append is DENIED after that
-  team's drop and fails loudly, while every write shape keeps working on
-  teams whose arrays haven't been dropped yet. Emulator-tested in
-  `firestore-tests/rules.test.ts` ("signup-array legacy-field ratchet").
-  **Explicit follow-up (next release):** remove the two array lanes
-  entirely; migrate `playerInfoSubmissions` / `availabilitySubmissions` the
-  same way (their array lanes are not deprecated yet).
+- **Legacy public lanes REMOVED (the follow-up landed):** the two deprecated
+  array-append rules were retained exactly one release for cached portal
+  clients still running the `arrayUnion` code, and have now been deleted
+  from `firestore.rules`. The portal has written subcollections-only since
+  #582 (which also shipped the network-first service worker, so portal
+  bundles no longer go stale). A straggler client's array append now fails
+  LOUDLY with `permission-denied`; its submit catch shows the inline
+  "Submission failed — please retry, or contact the team's head coach
+  directly." error rather than silently landing data in a doomed array.
+  Emulator-tested in `firestore-tests/rules.test.ts` ("public signup append
+  constraints" — the former allow expectations are flipped to DENIED
+  probes). **Rules ratchet (IN):** `tryoutSignups` / `interestSignups` stay
+  ratcheted like `evaluationEvents` — a team-doc write may carry either key
+  only while the doc still has it (`!(k in request.resource.data) || (k in
+resource.data)` on the base update rule) and team CREATE may never seed
+  them, so the per-team `deleteField` drop remains genuinely irreversible
+  while member cleanup shapes keep working on teams whose arrays haven't
+  been dropped yet ("signup-array legacy-field ratchet" tests).
+  **Phase 1 exit status: COMPLETE on the rules side.** The coach client's
+  union read + lazy backfill (`assembleSignups` / `backfillSignupDocs`)
+  deliberately stays until every team's per-team array drop has drained —
+  removing that client code is the last, separate step. Remaining
+  follow-up: migrate `playerInfoSubmissions` / `availabilitySubmissions`
+  the same way (their array lanes are still active, not deprecated).
 
 ### Phase 2 — evaluations → subcollection (SHIPPED)
 

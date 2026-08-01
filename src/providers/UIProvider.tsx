@@ -148,7 +148,18 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     battingJson: string;
   } | null>(null);
 
+  // The generate/re-roll Undo toast is GAME-scoped: its snapshot refuses to
+  // apply once a different game is selected (useLineupActions), which would
+  // leave the still-visible button a silent no-op. TeamProvider owns the
+  // toast id (beside the snapshot ref); this provider owns selectedGameId —
+  // so the game-switch effect below reports the change through this callback
+  // and the toast is dismissed at the seam. Stable (useCallback on toast).
+  const dismissLineupUndoToast = team.dismissLineupUndoToast;
   useEffect(() => {
+    // Any selection change — another game, or no game at all (deselect /
+    // deleted game) — invalidates the toast. On first mount / first selection
+    // there is no live undo toast and this is a no-op.
+    dismissLineupUndoToast?.();
     if (!selectedGameId) {
       loadedGameRef.current = null;
       return;
@@ -169,7 +180,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     setTournamentPlan(game.tournamentPlan || null);
     setCurrentGameAttendance(game.attendance || {});
     setGameSaved(false);
-  }, [selectedGameId]);
+  }, [selectedGameId, dismissLineupUndoToast]);
 
   // Detect when a remote Firestore snapshot updates the game we're editing.
   // If the user has no unsaved local changes, silently re-sync. If they do,

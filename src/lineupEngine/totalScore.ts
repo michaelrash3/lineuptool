@@ -28,9 +28,59 @@ const TOTAL_SCORE_CATEGORY_WEIGHTS =
 // Max possible raw total = 5 × sum(category weights) + 10 (max offensive) × 2.
 export const TOTAL_SCORE_MAX = 5 * TOTAL_SCORE_CATEGORY_WEIGHTS + 10 * 2.0; // = 105
 
+// A team's own eval categories (src/utils/evalCategories.ts) reach the engine
+// as plain id+weight pairs — the engine keeps no label vocabulary.
+export interface ExtraScoredCategory {
+  id: string;
+  weight: number;
+}
+
+// Max grade on the 1–5 eval scale. The engine's labelless mirror of
+// EVAL_SCALE_MAX in constants/ui.ts.
+const EXTRA_CATEGORY_GRADE_MAX = 5;
+
+// How much of `extra` this grade map actually earns, and how much it could.
+//
+// The load-bearing rule (see the back-compat contract in
+// src/utils/evalCategories.ts): a category counts ONLY when the round carries a
+// finite grade for it, and when it counts it lands in the numerator AND the
+// denominator together. So a round saved before the category existed has
+// nothing added on either side and scores exactly what it always did — adding
+// a category never restates history.
+function extraParts(
+  grades: GradeMap,
+  extra: ReadonlyArray<ExtraScoredCategory> | null | undefined,
+): { earned: number; possible: number } {
+  let earned = 0;
+  let possible = 0;
+  for (const cat of extra || []) {
+    const w = Number(cat?.weight);
+    if (!Number.isFinite(w) || w <= 0) continue;
+    const v = numOrNull(grades[cat.id]);
+    if (v == null) continue;
+    earned += v * w;
+    possible += EXTRA_CATEGORY_GRADE_MAX * w;
+  }
+  return { earned, possible };
+}
+
+// The denominator calculateTotalScore normalized against, exposed so callers
+// that re-expand the score (currentEvaluationScore100) rescale by the same
+// number. Equals TOTAL_SCORE_MAX exactly when `extra` contributes nothing.
+export function totalScoreMaxFor(
+  grades: GradeMap | null | undefined,
+  extra?: ReadonlyArray<ExtraScoredCategory> | null,
+): number {
+  if (!grades) return TOTAL_SCORE_MAX;
+  return TOTAL_SCORE_MAX + extraParts(grades, extra).possible;
+}
+
 export function calculateTotalScore(
   grades: GradeMap | null | undefined,
   stats?: PlayerStats | null,
+  // The team's added categories. Omitted / empty ⇒ every number below is
+  // bit-for-bit what it was before per-team categories existed.
+  extra?: ReadonlyArray<ExtraScoredCategory> | null,
 ): number {
   if (!grades) return 0;
   const off = getOffensiveScore(stats);
@@ -65,6 +115,15 @@ export function calculateTotalScore(
     approachOf(grades) * 1.0 +
     approachOf(grades) * 1.5 +
     off * 2.0;
+  const bonus = extraParts(g, extra);
   // Normalize to 0–100 so the surfaced Total Score is intuitive.
-  return Math.min(100, Math.max(0, Math.round((raw / TOTAL_SCORE_MAX) * 100)));
+  return Math.min(
+    100,
+    Math.max(
+      0,
+      Math.round(
+        ((raw + bonus.earned) / (TOTAL_SCORE_MAX + bonus.possible)) * 100,
+      ),
+    ),
+  );
 }

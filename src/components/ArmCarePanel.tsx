@@ -375,6 +375,11 @@ export const ArmCarePanel = memo(() => {
                     }
                   />
                 ))}
+                {/* Rest math only sees this log — a bullpen thrown off the
+                    game record is invisible workload until it's entered. */}
+                <div className="text-[10px] font-semibold text-ink-3">
+                  Bullpens count — log them here too.
+                </div>
                 <OutingAddRow
                   onAdd={(date, pitches) =>
                     updatePlayer(p.id, {

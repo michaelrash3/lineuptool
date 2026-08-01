@@ -93,10 +93,13 @@ denials, owner delete, legacy sole-member auto-claim, sanitized invite read +
 self-join (only the joining user, only `assistant`, only themselves into
 `members`), the finances head-gate (owner/co-head allowed incl. dotted-path
 appends; assistant denied incl. bundled writes), coachRoles escalation denials,
-public append-exactly-one vs remove/replace/multi-add/closed denials,
-public mirror read/write access, and the Phase 1 signup subcollections
-(member-only read/list/update/delete; public create gated on the parent
-team's tryout state with a payload allowlist + size caps).
+the REMOVED signup array lanes (a cached portal client's `arrayUnion` append
+is denied even while tryouts are open / a share link stands), the still-active
+`playerInfoSubmissions` / `availabilitySubmissions` append-exactly-one lanes
+vs remove/replace/multi-add/no-share-link denials, public mirror read/write
+access, and the Phase 1 signup subcollections (member-only
+read/list/update/delete; public create gated on the parent team's tryout
+state with a payload allowlist + size caps).
 
 ## Local emulator test loop
 
@@ -143,16 +146,18 @@ full team doc just because a code exists (that rule was removed).
 
 ### 4) Public Tryouts Portal
 
-Expected: anonymous/signed-in parent can read the sanitized `teamPublic` mirror and submit `tryoutSignups` only while tryouts are open — but can NOT read the full team doc. (The array-append lane exercised here is DEPRECATED — new portal clients write per-entry subcollection docs instead; see Section 9.)
+Expected: anonymous/signed-in parent can read the sanitized `teamPublic` mirror and submit a tryout signup only while tryouts are open — but can NOT read the full team doc. Portal submissions land as per-entry subcollection docs (Section 9); the legacy `tryoutSignups` / `interestSignups` array-append lanes are REMOVED, so ANY public write to the team doc's signup arrays is denied.
 
 - Open `/tryouts-portal/:slug`.
 - Confirm the page loads branding (name/colors/logo) from the `teamPublic` mirror.
-- Submit valid signup.
-- Confirm `tryoutSignups` append to the real team doc succeeds.
+- Submit valid signup — confirm a new `tryoutSignups/{signupId}` subcollection doc is created (no team-doc array growth).
 - Confirm the per-date link pins the signup to ITS slug's date (not the first
   configured date) via the `tryoutDateBySlug` map in the mirror.
-- Confirm a public write that removes, replaces, or multi-adds signups is
-  DENIED — only an append-exactly-one (`arrayUnion`) is allowed.
+- Confirm a public team-doc write touching `tryoutSignups` or
+  `interestSignups` is DENIED in every shape — including a perfectly-formed
+  single `arrayUnion` append (the removed lane). A stale cached portal client
+  hits this and shows its inline "Submission failed — please retry, or
+  contact the team's head coach directly." error.
 - As an anonymous user, attempt a direct read of `artifacts/{appId}/public/data/teams/{teamId}` — confirm it is DENIED (no more full-doc leak of evals/PII/joinCode).
 - Confirm unrelated field edits are denied.
 
@@ -213,12 +218,13 @@ set `assistant`.
 
 ### 9) Signup subcollections (Phase 1 of docs/firestore-data-migration.md)
 
-Expected: new portal submissions land as per-entry docs under
+Expected: portal submissions land as per-entry docs under
 `teams/{teamId}/tryoutSignups` and `teams/{teamId}/interestSignups`. Reads
-are member-only (signups are family PII). The legacy array-append lanes in
-Section 4 still work but are DEPRECATED — retained one release for cached
-portal clients; late array entries surface via the coach client's union read
-and are backfilled into the subcollections.
+are member-only (signups are family PII). The legacy array-append lanes have
+been REMOVED (they were retained exactly one release for cached portal
+clients — Phase 1 exit). The coach client's union read + lazy backfill stays
+until every team's per-team array drop has drained; it absorbs any array
+entries that landed before the lanes closed.
 
 - As an anonymous portal user, submit a tryout signup while tryouts are open —
   confirm a new `tryoutSignups/{signupId}` doc is created.
@@ -237,9 +243,10 @@ and are backfilled into the subcollections.
   confirm success. A member create is NOT payload-constrained (the lazy
   backfill copies legacy array entries verbatim) — confirm an off-allowlist
   member write succeeds.
-- Confirm the deprecated array-append lane (Section 4) still accepts an
-  `arrayUnion` append, and that the appended entry appears in the coach UI via
-  the union read and is subsequently backfilled into the subcollection.
+- Confirm the removed array-append lane rejects an `arrayUnion` append
+  (Section 4) — and that legacy array entries appended BEFORE the removal
+  still appear in the coach UI via the union read and are backfilled into the
+  subcollection.
 - As an anonymous user, attempt a create at a short legacy-style id
   (`ts-abc123`) — confirm denial. Public creates are pinned to Firestore
   auto-id length (20) so a portal writer can never plant a doc that shadows a
@@ -251,7 +258,7 @@ and are backfilled into the subcollections.
 
 **Accepted residuals (Phase 1).**
 
-- **No collection-size ceiling.** The deprecated array lanes capped growth at
+- **No collection-size ceiling.** The removed array lanes capped growth at
   `MAX_SIGNUPS()` = 2000 because the whole array was in `request.resource`;
   rules cannot cheaply count a collection, so the subcollection create lanes
   have no equivalent. The bound is now per-document (the payload allowlist +
@@ -259,12 +266,12 @@ and are backfilled into the subcollections.
   positions so its elements can't smuggle bulk). The interest gate is
   effectively always open, so a determined anonymous writer can create many
   small docs; App Check is the real answer if that ever becomes a problem.
-- **The deprecated array lanes make the new allowlist advisory for one
-  release.** While Section 4's lanes exist, an anonymous caller can still
-  append an array entry of arbitrary shape, which the backfill then copies
-  verbatim into a subcollection doc (member creates are unconstrained by
-  design). Removing those lanes — plus a ratchet so the arrays can never be
-  recreated, mirroring `evaluationEvents` — is the tracked follow-up.
+- **(Resolved) the array lanes no longer bypass the allowlist.** For the one
+  compatibility release, an anonymous caller could still append an array
+  entry of arbitrary shape through the deprecated lanes, which the backfill
+  copies verbatim into a subcollection doc. Those lanes are now removed and
+  the arrays are ratcheted (never recreatable after a team's drop), so the
+  subcollection allowlist + caps are the only public write surface.
 
 ## Sequencing the tryout-portal privacy fix
 

@@ -246,3 +246,161 @@ describe("SettingsTab — 9U+ pitching format is fixed to Kid Pitch", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+// ---- Eval categories panel (docs/EVALUATIONS-AUDIT.md §4) -------------------
+// The head-coach editor for the team's own category list. The semantics it
+// enforces (ids never change, hiding is forward-only, a category with history
+// can't be deleted) are proven in src/utils/evalCategories*.test.ts; these
+// pin the WIRING — that each control writes the right patch through updateTeam.
+describe("SettingsTab — eval categories", () => {
+  const renderPanel = async (over: Record<string, unknown> = {}) => {
+    const rendered = renderWithProviders(
+      <MemoryRouter>
+        <SettingsTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: { ...teamData, ...over },
+          currentRole: "head",
+          realRole: "head",
+          updateTeam: jest.fn(),
+        },
+        ui: {
+          isAddingCoach: false,
+          setIsAddingCoach: jest.fn(),
+          newCoachForm: {},
+          setNewCoachForm: jest.fn(),
+        },
+      },
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Evaluations/ }));
+    return rendered;
+  };
+
+  it("lists the stock hand-graded categories for an unconfigured team", async () => {
+    await renderPanel();
+    expect(screen.getByText("Eval Categories")).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Approach category name" }),
+    ).toHaveValue("Approach");
+    // Data-driven tangibles are never hand-graded, so they're not listed.
+    expect(
+      screen.queryByRole("textbox", { name: "Arm Strength category name" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("adds a category, writing both config fields", async () => {
+    const { teamValue } = await renderPanel();
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "New category name" }),
+      "Bunting",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^Add$/ }));
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({
+      evalCategoryOverrides: {},
+      evalCustomCategories: [
+        { id: "custom_bunting", label: "Bunting", group: "Intangibles" },
+      ],
+    });
+  });
+
+  it("renames a category as a display override, never touching its id", async () => {
+    const { teamValue } = await renderPanel();
+    const field = screen.getByRole("textbox", {
+      name: "Coachability category name",
+    });
+    await userEvent.clear(field);
+    await userEvent.type(field, "Buy-In");
+    fireEvent.blur(field);
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({
+      evalCategoryOverrides: { coachability: { label: "Buy-In" } },
+      evalCustomCategories: [],
+    });
+  });
+
+  it("hides a category", async () => {
+    const { teamValue } = await renderPanel();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Hide Coachability" }),
+    );
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({
+      evalCategoryOverrides: { coachability: { hidden: true } },
+      evalCustomCategories: [],
+    });
+  });
+
+  it("keeps a hidden category listed so the hide is reversible", async () => {
+    const { teamValue } = await renderPanel({
+      evalCategoryOverrides: { coachability: { hidden: true } },
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show Coachability" }),
+    );
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({
+      evalCategoryOverrides: {},
+      evalCustomCategories: [],
+    });
+  });
+
+  const CUSTOM = [{ id: "custom_bunting", label: "Bunting", group: "Hitting" }];
+
+  it("deletes an added category that no round has graded", async () => {
+    const { teamValue } = await renderPanel({ evalCustomCategories: CUSTOM });
+    // Built-ins are never deletable.
+    expect(
+      screen.queryByRole("button", { name: "Delete Approach" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Delete Bunting" }),
+    );
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({
+      evalCategoryOverrides: {},
+      evalCustomCategories: [],
+    });
+  });
+
+  it("refuses to delete a category with graded history — Hide is the exit", async () => {
+    await renderPanel({
+      evalCustomCategories: CUSTOM,
+      evaluationEvents: [
+        {
+          id: "r1",
+          date: "2026-03-01",
+          coachRole: "Head",
+          evaluatorId: "u1",
+          grades: { p1: { custom_bunting: 4 } },
+        },
+      ],
+    });
+    expect(
+      screen.queryByRole("button", { name: "Delete Bunting" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Hide Bunting" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers the kid-pitch starter set as an opt-in preset", async () => {
+    const { teamValue } = await renderPanel();
+    await userEvent.click(
+      screen.getByRole("button", { name: /kid-pitch starter set/ }),
+    );
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({
+      evalCategoryOverrides: {},
+      evalCustomCategories: [
+        expect.objectContaining({ label: "Mechanics", group: "Pitching" }),
+        expect.objectContaining({
+          label: "Fields the Position",
+          group: "Pitching",
+        }),
+      ],
+    });
+  });
+
+  it("hides the kid-pitch preset on a team that doesn't play kid pitch", async () => {
+    await renderPanel({ pitchingFormat: "Coach Pitch", teamAge: "8U" });
+    expect(
+      screen.queryByRole("button", { name: /kid-pitch starter set/ }),
+    ).not.toBeInTheDocument();
+  });
+});

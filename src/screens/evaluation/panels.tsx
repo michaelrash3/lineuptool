@@ -15,12 +15,16 @@ import {
   type EvalGradeRecord,
   type EvalRound,
 } from "../../utils/evalScoring";
+import type { EvalCategoryConfig } from "../../utils/evalCategories";
 import type { Player } from "../../types";
 
 interface InsightsPanelProps {
   rounds: EvalRound[];
   players: Player[];
   activeCategories: EvalCategory[];
+  // The team's category configuration, so the per-player averages below count
+  // this team's own categories. Omitted ⇒ stock behavior, unchanged.
+  categoryConfig?: EvalCategoryConfig | null;
   onPlayerClick: (playerId: string) => void;
 }
 
@@ -29,11 +33,12 @@ export const InsightsPanel = memo(
     rounds,
     players,
     activeCategories,
+    categoryConfig,
     onPlayerClick,
   }: InsightsPanelProps) => {
     const flags = useMemo(
-      () => computeFlags(rounds, players, activeCategories),
-      [rounds, players, activeCategories],
+      () => computeFlags(rounds, players, activeCategories, categoryConfig),
+      [rounds, players, activeCategories, categoryConfig],
     );
     if (rounds.length < 2) return null;
     const hasAny =
@@ -149,6 +154,7 @@ interface RoundComparisonViewProps {
   rounds: EvalRound[];
   players: Player[];
   activeCategories: EvalCategory[];
+  categoryConfig?: EvalCategoryConfig | null;
   onPlayerClick: (playerId: string) => void;
 }
 
@@ -157,6 +163,7 @@ export const RoundComparisonView = memo(
     rounds,
     players,
     activeCategories,
+    categoryConfig,
     onPlayerClick,
   }: RoundComparisonViewProps) => {
     const [leftId, setLeftId] = useState(rounds[1]?.id || "");
@@ -216,8 +223,8 @@ export const RoundComparisonView = memo(
               {players.map((p: Player) => {
                 const lg = left?.grades?.[p.id];
                 const rg = right?.grades?.[p.id];
-                const la = avgUniversal(lg);
-                const ra = avgUniversal(rg);
+                const la = avgUniversal(lg, categoryConfig);
+                const ra = avgUniversal(rg, categoryConfig);
                 const avgDelta = la != null && ra != null ? ra - la : null;
                 return (
                   <tr key={p.id} className="hover:bg-surface-2">

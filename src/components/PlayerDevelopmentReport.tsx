@@ -5,6 +5,11 @@ import { PageShell } from "./PageShell";
 import { useBackOrFallback } from "../hooks/usePageNav";
 import { useTeam, useToast } from "../contexts";
 import { EVAL_CATEGORIES, getEvalCategoriesForTeam } from "../constants/ui";
+import {
+  evalCategoryLabel,
+  readEvalCategoryConfig,
+  scoredCustomCategories,
+} from "../utils/evalCategories";
 import { featureEnabled } from "../constants/features";
 import { focusAreaDeltas } from "../utils/developmentPlan";
 import { currentEvaluationScore100 } from "../utils/evaluationScore";
@@ -135,6 +140,7 @@ const useEvalTrend = (
   playerId: string,
   categories: any[],
   teamAge?: string,
+  extraCategories?: ReadonlyArray<{ id: string; weight: number }>,
 ) =>
   useMemo(() => {
     const rounds = (evaluationEvents || [])
@@ -147,7 +153,12 @@ const useEvalTrend = (
       );
     if (rounds.length === 0) return null;
     const overallOf = (g: any) => {
-      return currentEvaluationScore100(g, player, teamAge) ?? undefined;
+      // Per-ROUND scoring: a team category the round never carried adds
+      // nothing, so old rounds keep their original numbers forever.
+      return (
+        currentEvaluationScore100(g, player, teamAge, null, extraCategories) ??
+        undefined
+      );
     };
     const first = overallOf(rounds[0].grades[playerId]);
     const last = overallOf(rounds[rounds.length - 1].grades[playerId]);
@@ -180,7 +191,14 @@ const useEvalTrend = (
       latestByCat,
       series,
     };
-  }, [evaluationEvents, player, playerId, categories, teamAge]);
+  }, [
+    evaluationEvents,
+    player,
+    playerId,
+    categories,
+    teamAge,
+    extraCategories,
+  ]);
 
 export const PlayerDevelopmentReport = memo(
   ({
@@ -192,9 +210,26 @@ export const PlayerDevelopmentReport = memo(
     practices = [],
   }: any) => {
     const toast = useToast();
+    // A player's report is a HISTORY surface: hidden categories stay in the
+    // list so a grade recorded before the hide still shows up.
+    // Destructured so the memo's deps are the two stored fields, not the whole
+    // team object (a fresh identity on every Firestore snapshot).
+    const { evalCategoryOverrides, evalCustomCategories } = team || {};
+    const categoryConfig = useMemo(
+      () =>
+        readEvalCategoryConfig({ evalCategoryOverrides, evalCustomCategories }),
+      [evalCategoryOverrides, evalCustomCategories],
+    );
     const categories = useMemo(
-      () => getEvalCategoriesForTeam(team?.pitchingFormat),
-      [team?.pitchingFormat],
+      () =>
+        getEvalCategoriesForTeam(team?.pitchingFormat, categoryConfig, {
+          includeHidden: true,
+        }),
+      [team?.pitchingFormat, categoryConfig],
+    );
+    const extraCategories = useMemo(
+      () => scoredCustomCategories(categoryConfig),
+      [categoryConfig],
     );
     const evalTrend = useEvalTrend(
       evaluationEvents,
@@ -202,6 +237,7 @@ export const PlayerDevelopmentReport = memo(
       player?.id,
       categories,
       team?.teamAge,
+      extraCategories,
     );
 
     const pitched = (read(player?.stats, "ip", "pIp") || 0) > 0;
@@ -671,9 +707,11 @@ export const PlayerDevelopmentReport = memo(
                         );
                         return (player.devPlan.focusAreas as string[])
                           .map((id) => {
-                            const label =
-                              EVAL_CATEGORIES.find((c) => c.id === id)?.label ||
-                              id;
+                            const label = evalCategoryLabel(
+                              id,
+                              EVAL_CATEGORIES,
+                              categoryConfig,
+                            );
                             const d = deltas[id as keyof typeof deltas];
                             return d && d.first !== d.last
                               ? `${label} (${d.first}→${d.last})`

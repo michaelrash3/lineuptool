@@ -96,8 +96,19 @@ export function getCombinedGrades(
     teamAge?: string;
     // Per-game import lines; enables the catcher Blocking overlay (PB/game).
     games?: Array<{ playerStats?: Record<string, any> }>;
+    // The team's OWN eval categories (src/utils/evalCategories.ts). This list
+    // is the only reason a custom category survives the merge: the ids below
+    // are a fixed allow-list, so anything absent from it is silently dropped
+    // off every grade map. Hidden categories belong here too — hiding is
+    // forward-only and their historical values must still merge through.
+    // Omitted ⇒ the merge is byte-identical to the pre-config behavior.
+    extraCategories?: ReadonlyArray<{ id: string; weight: number }>;
   },
 ): Record<string, GradeMap> {
+  const mergeCategories =
+    opts?.extraCategories && opts.extraCategories.length > 0
+      ? [...EVAL_CATEGORIES, ...opts.extraCategories]
+      : EVAL_CATEGORIES;
   let latestHead = null;
   for (const e of evaluationEvents) {
     if (e.tryoutSignupId || e.tryoutSessionId || e.coachRole !== "Head")
@@ -142,12 +153,12 @@ export function getCombinedGrades(
     let combinedFromAssistants = false;
     if (astCount > 0) {
       const astSum: Record<string, number> = {};
-      for (const cat of EVAL_CATEGORIES) astSum[cat.id] = 0;
+      for (const cat of mergeCategories) astSum[cat.id] = 0;
       let participating = 0;
       for (const ev of assistantEvals) {
         const g = ev.grades?.[p.id];
         if (!g) continue;
-        for (const cat of EVAL_CATEGORIES)
+        for (const cat of mergeCategories)
           astSum[cat.id] += readCat(g, cat.id) ?? 3;
         participating++;
       }
@@ -155,7 +166,7 @@ export function getCombinedGrades(
         // 50/50 weighting: head's grade counts equally with the average
         // of every assistant who graded this player. If one side hasn't
         // graded (just head or just assistants), that side is 100%.
-        for (const cat of EVAL_CATEGORIES) {
+        for (const cat of mergeCategories) {
           const astAvg = astSum[cat.id] / participating;
           const headVal = readCat(headG, cat.id);
           if (headVal != null)
@@ -167,7 +178,7 @@ export function getCombinedGrades(
     }
 
     if (!combinedFromAssistants && headG) {
-      for (const cat of EVAL_CATEGORIES) {
+      for (const cat of mergeCategories) {
         const v = readCat(headG, cat.id);
         if (v != null) grades[cat.id] = v;
       }

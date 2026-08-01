@@ -419,9 +419,10 @@ describe("team-array granular writes (updateTeamArrays shapes)", () => {
     );
   });
 
-  // Tryout-season arrays: the anonymous portal lanes stay append-only (see
-  // "public signup append constraints"), while members get the full granular
-  // shapes — append, exact-entry arrayRemove, and whole-array rewrite.
+  // Tryout-season arrays: the anonymous portal append lanes are REMOVED (see
+  // "public signup append constraints"), while members keep the full granular
+  // shapes — append, exact-entry arrayRemove, and whole-array rewrite —
+  // until each team's array is dropped.
   it("lets a member use the granular shapes on tryoutSignups", async () => {
     await assertSucceeds(
       updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
@@ -450,8 +451,8 @@ describe("team-array granular writes (updateTeamArrays shapes)", () => {
   });
 
   it("denies a non-member the coach-side tryout shapes (arrayRemove)", async () => {
-    // A single arrayUnion append can legitimately ride the public lane while
-    // tryouts are open — removal/rewrite must not.
+    // With the public array lanes removed, NO non-member array shape gets
+    // through — this pins the removal/rewrite case specifically.
     await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         tryoutSignups: arrayRemove({ id: "s1", firstName: "Existing" }),
@@ -548,13 +549,13 @@ describe("evaluationEvents legacy-field ratchet (finding 3.1 close-out)", () => 
 
 // Phase 1 close-out (docs/firestore-data-migration.md): the legacy
 // `tryoutSignups` / `interestSignups` arrays get the same ratchet as
-// evaluationEvents. While a team doc still carries an array, every existing
-// write keeps working — the deprecated public append lane, coach-side
-// arrayRemove cleanup, a stale pre-#587 client's `tryoutSignups: []` season
-// overwrite, and the deleteField drop itself. Once a team's array is dropped
+// evaluationEvents. While a team doc still carries an array, every MEMBER
+// write keeps working — coach-side arrayRemove cleanup, a stale pre-#587
+// client's `tryoutSignups: []` season overwrite, and the deleteField drop
+// itself. (The deprecated PUBLIC append lanes are now REMOVED outright —
+// see "public signup append constraints".) Once a team's array is dropped
 // (the irreversible migration step), NO write may recreate the key: not the
-// base member rule, not the public append lane (allow rules OR together, so
-// the lane carries its own existence clause), not team creation.
+// base member rule, not team creation.
 describe("signup-array legacy-field ratchet (Phase 1 drop irreversibility)", () => {
   it("a member may still overwrite / clean the arrays while the doc carries them", async () => {
     // The stale pre-#587 advanceSeason shape: a merge patch carrying
@@ -598,9 +599,8 @@ describe("signup-array legacy-field ratchet (Phase 1 drop irreversibility)", () 
         interestSignups: [],
       }),
     );
-    // A member arrayUnion append can't recreate it either. tryoutsOpen is
-    // still true here, so without the lane's own existence clause this write
-    // would sail through the deprecated PUBLIC lane (allow rules OR).
+    // A member arrayUnion append can't recreate it either (the base-rule
+    // ratchet).
     await assertFails(
       updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
         tryoutSignups: arrayUnion({ id: "ts-sneak", firstName: "Nope" }),
@@ -611,7 +611,7 @@ describe("signup-array legacy-field ratchet (Phase 1 drop irreversibility)", () 
         interestSignups: arrayUnion({ id: "il-sneak", firstName: "Nope" }),
       }),
     );
-    // Nor can a cached anonymous portal client (the deprecated array lane).
+    // Nor can a cached anonymous portal client (whose lane no longer exists).
     await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         tryoutSignups: arrayUnion({ id: "s2", firstName: "New" }),
@@ -624,21 +624,27 @@ describe("signup-array legacy-field ratchet (Phase 1 drop irreversibility)", () 
     );
   });
 
-  it("the single-key season-advance drop works and leaves the interest lane alone", async () => {
+  it("the single-key season-advance drop works and leaves the interest ARRAY alone", async () => {
     // dropLegacySignupArray("tryoutSignups") — season advance clears the
-    // tryout lane only; standing interest leads survive the rollover.
+    // tryout array only; standing interest leads survive the rollover.
     await assertSucceeds(
       updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
         tryoutSignups: deleteField(),
       }),
     );
-    // Interest array still exists → the public append lane still works.
+    // Interest array still exists → MEMBER cleanup shapes still work on it.
     await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        interestSignups: arrayRemove({ id: "i1", firstName: "Lead" }),
+      }),
+    );
+    // But the public append lane is REMOVED — denied whether the array
+    // survives (interest) or was dropped (tryout, even while tryoutsOpen).
+    await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         interestSignups: arrayUnion({ id: "i2", firstName: "New" }),
       }),
     );
-    // The dropped tryout lane is closed, even while tryoutsOpen is true.
     await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         tryoutSignups: arrayUnion({ id: "s2", firstName: "New" }),
@@ -877,9 +883,10 @@ describe("evalRounds subcollection scoping (audit finding 3.1 — Option A)", ()
 // 1 MiB team doc into per-entry subcollection docs, mirroring the evalRounds
 // shape above (get()-based membership). READ/UPDATE/DELETE are member-only;
 // CREATE stays open to any signed-in caller (anonymous portal auth) under the
-// same team-state gates as the array lanes, plus a payload allowlist + size
-// caps. The deprecated array-append lanes stay one release for cached portal
-// clients — their tests above are untouched.
+// same team-state gates the removed array lanes used, plus a payload
+// allowlist + size caps. These subcollections are now the ONLY public write
+// path — the deprecated array-append lanes were removed after their one
+// compatibility release (see "public signup append constraints").
 const signupsCol = (
   uid: string | undefined,
   key: "tryoutSignups" | "interestSignups",
@@ -1278,17 +1285,25 @@ describe("sanitized invite lookup + self-join", () => {
   });
 });
 
+// The deprecated tryoutSignups / interestSignups array-append lanes are
+// REMOVED (Phase 1 exit): a cached pre-#582 portal client's arrayUnion is
+// now DENIED even in the friendliest possible state — tryouts open / share
+// link standing, array still on the doc, perfectly-shaped single append.
+// The playerInfoSubmissions / availabilitySubmissions lanes below are NOT
+// deprecated and still accept append-exactly-one.
 describe("public signup append constraints", () => {
-  it("allows appending exactly one tryout signup while open", async () => {
-    await assertSucceeds(
+  it("DENIES the removed tryout array lane — a well-formed single append while tryouts are open", async () => {
+    // Exactly the write the old lane allowed; the flip of the former
+    // "allows appending exactly one tryout signup while open" expectation.
+    await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         tryoutSignups: arrayUnion({ id: "s2", firstName: "New" }),
       }),
     );
   });
 
-  it("allows appending exactly one interest lead", async () => {
-    await assertSucceeds(
+  it("DENIES the removed interest array lane — a well-formed single append with a standing share link", async () => {
+    await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         interestSignups: arrayUnion({ id: "i2", firstName: "New" }),
       }),
