@@ -162,6 +162,46 @@ describe("suggestPrimaryPosition — eval-derived primary", () => {
   it("returns null for a missing player", () => {
     expect(suggestPrimaryPosition(null, base)).toBeNull();
   });
+
+  // The post-stat-loss shape: coach-graded intangibles differ per kid but
+  // every tangible (glove/range/arm) sits at the neutral 3 because no stats
+  // exist to derive them. The field ranking then reflects the weight table
+  // (CF leans hardest on speed/baserunning/IQ), not the kid — every player
+  // on the roster would be stamped CF. Decline to suggest instead.
+  it("declines a field suggestion when only intangibles differ (all tangibles neutral)", () => {
+    const grades = { ...base, speed: 5, baserunning: 4, baseballIQ: 4 };
+    const s = suggestPrimaryPosition(
+      { comfortablePositions: ["1B", "2B", "3B", "SS", "LF", "CF", "RF"] },
+      grades,
+    );
+    expect(s?.position).toBeNull();
+    expect(s?.reason).toBe("not-enough-position-signal");
+  });
+
+  it("re-enables field suggestions once a tangible differentiates (e.g. imported fielding stats)", () => {
+    const grades = {
+      ...base,
+      speed: 5,
+      baserunning: 4,
+      baseballIQ: 4,
+      glove: 4.5,
+      range: 4.5,
+    };
+    const s = suggestPrimaryPosition(
+      { comfortablePositions: ["1B", "CF"] },
+      grades,
+    );
+    expect(s?.position).toBe("CF");
+  });
+
+  it("still suggests catcher on catching grades even with neutral field tangibles", () => {
+    const grades = { ...base, receiving: 5, blocking: 5, throwing: 5 };
+    const s = suggestPrimaryPosition(
+      { comfortablePositions: ["C", "RF"] },
+      grades,
+    );
+    expect(s?.position).toBe("C");
+  });
 });
 
 describe("Speed / Base Running split (v8)", () => {

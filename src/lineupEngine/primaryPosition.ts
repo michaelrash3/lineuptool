@@ -227,7 +227,27 @@ export function suggestPrimaryPosition(
     .map(({ position, fit }) => ({ position, fit }));
   const hasSignal = best.signal >= 0.12 || best.fit >= 0.72;
   const separated = scored.length === 1 ? hasSignal : margin >= 0.01;
-  if (!hasSignal || !separated) {
+  // Field spots are told apart by the TANGIBLES (glove/range/arm — stat- or
+  // showcase-derived). When every tangible sits at the neutral 3 (no stats
+  // imported yet, or a roster whose stats were lost), the field ranking
+  // degenerates: the only spread comes from the coach-graded intangibles, so
+  // whichever position's weight table leans hardest on speed/baserunning/IQ
+  // — CF — "wins" for every kid on the roster. That is a property of the
+  // weight table, not the kid; decline to suggest a field spot rather than
+  // stamp the whole roster CF. P/C keep their own scorers (velocity,
+  // receiving, …) and are unaffected.
+  const gAll = { ...DEFAULT_GRADES, ...(grades || {}) } as Record<
+    string,
+    number
+  >;
+  const tangiblesNeutral =
+    Math.abs(gloveOf(gAll) - 3) < 0.05 &&
+    Math.abs(rangeOf(gAll) - 3) < 0.05 &&
+    Math.abs(armStrengthOf(gAll) - 3) < 0.05 &&
+    Math.abs(armAccuracyOf(gAll) - 3) < 0.05;
+  const bestIsField =
+    !!POSITION_FIT_WEIGHTS[canonicalizeOutfield(best.position)];
+  if (!hasSignal || !separated || (bestIsField && tangiblesNeutral)) {
     return {
       position: null,
       fit: best.fit,
@@ -235,9 +255,10 @@ export function suggestPrimaryPosition(
       alternatives: scored
         .slice(0, 3)
         .map(({ position, fit }) => ({ position, fit })),
-      reason: !hasSignal
-        ? "not-enough-position-signal"
-        : "position-scores-too-close",
+      reason:
+        !hasSignal || (bestIsField && tangiblesNeutral)
+          ? "not-enough-position-signal"
+          : "position-scores-too-close",
     };
   }
   return { position: best.position, fit: best.fit, confidence, alternatives };
