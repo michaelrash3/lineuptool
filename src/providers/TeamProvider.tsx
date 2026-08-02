@@ -227,6 +227,14 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // which previously produced phantom "save failed" toasts (no activeTeamId yet)
   // and risked writing default values onto a real team mid-load.
   const loadedTeamIdRef = useRef<string | null>(null);
+  // The team whose doc has been delivered by a SERVER-confirmed snapshot
+  // (metadata.fromCache === false) this session — as opposed to only the
+  // offline cache. The roster-wipe guard consults this before ever allowing
+  // an empty players write over an "already empty" roster: a device whose
+  // cache predates the roster paints (and "loads") an empty team that the
+  // server never agreed to, and trusting that emptiness is exactly how a
+  // stale device can erase a real roster. Cleared on team-doc teardown.
+  const teamDocServerConfirmedRef = useRef<string | null>(null);
   // The team's legacy `evaluationEvents` ARRAY as last read from the doc
   // (post schema-migration). Held separately so the backfill can always migrate
   // from the real array even once reads switch to the subcollection — otherwise
@@ -613,6 +621,14 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
 
     const handleSnap = (snap: DocumentSnapshot) => {
       if (cancelled) return;
+      // Server confirmation for the roster-wipe guard. Strict fromCache ===
+      // false: a snapshot without metadata (never the real SDK) reads as
+      // unconfirmed, which is the safe direction. Recorded for existing AND
+      // missing docs — "the server says this doc doesn't exist" is a
+      // confirmation too.
+      if (snap.metadata?.fromCache === false) {
+        teamDocServerConfirmedRef.current = activeTeamId;
+      }
       if (snap.exists()) {
         const raw = snap.data();
         // Legacy signup ARRAYS, captured for the signup subscriptions' union
@@ -901,7 +917,14 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             ...(raw.evaluationEvents !== undefined
               ? { evaluationEvents: migratedEvents }
               : {}),
-            players: migratedPlayers,
+            // Only carry players when there was something to migrate: an
+            // empty/absent array migrates to an empty array, and writing that
+            // back is at best a no-op and at worst (raced against another
+            // device's real roster) a wipe vector — the ladder must never be
+            // the thing that owns emptying a roster.
+            ...(Array.isArray(raw.players) && raw.players.length > 0
+              ? { players: migratedPlayers }
+              : {}),
             ...(migratedTryoutSessions !== undefined
               ? { tryoutSessions: migratedTryoutSessions }
               : {}),
@@ -980,7 +1003,17 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const subscribe = () => {
-      unsub = onSnapshot(ref, handleSnap, handleErr);
+      // includeMetadataChanges so the cache→server transition is DELIVERED
+      // even when the payload is byte-identical: without it, a doc whose
+      // cached copy matches the server never re-fires, and the server
+      // confirmation the roster-wipe guard requires would never arrive.
+      // Same option, same reason, as the signup subscriptions below.
+      unsub = onSnapshot(
+        ref,
+        { includeMetadataChanges: true },
+        handleSnap,
+        handleErr,
+      );
     };
     subscribe();
 
@@ -988,6 +1021,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       cancelled = true;
       if (retryTimeout) clearTimeout(retryTimeout);
       unsub();
+      // The next team must re-prove server confirmation from scratch.
+      teamDocServerConfirmedRef.current = null;
       // Drop every piece of TEAM-SCOPED state this subscription captured. It
       // is written only in the exists() branch above, so without this it
       // outlives the team it came from: switch teams (or sign out, or open a
@@ -1065,6 +1100,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           updates,
           teamDataRef.current?.players,
           loadedTeamIdRef.current === activeTeamId,
+          teamDocServerConfirmedRef.current === activeTeamId,
         );
         if (wipeReason) {
           const message = `Refused to save an empty roster because ${wipeReason}.`;
@@ -1486,6 +1522,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           { players: patch.players },
           prevTeam.players,
           teamLoaded,
+          teamDocServerConfirmedRef.current === activeTeamId,
         );
         if (wipeReason) {
           const message = `Refused to save an empty roster because ${wipeReason}.`;
@@ -2028,6 +2065,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     const denied = signupSubsDeniedRef.current;
     const subDocs = signupSubDocsRef.current;
     const subIds = signupSubIdsRef.current;
+    const retryTimers = signupBackfillRetryTimersRef.current;
     const keys: SignupCollectionKey[] = ["tryoutSignups", "interestSignups"];
     const unsubs = keys.map((key) =>
       onSnapshot(
@@ -2089,11 +2127,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // teardown complete and spares the next team a stray render.
       // activeTeamId here is the effect's captured value — the team being torn
       // down, not the one replacing it.
-      const pendingRetry =
-        signupBackfillRetryTimersRef.current.get(activeTeamId);
+      const pendingRetry = retryTimers.get(activeTeamId);
       if (pendingRetry) {
         clearTimeout(pendingRetry);
-        signupBackfillRetryTimersRef.current.delete(activeTeamId);
+        retryTimers.delete(activeTeamId);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
