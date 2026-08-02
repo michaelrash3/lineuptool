@@ -128,6 +128,55 @@ describe("RosterTab", () => {
     expect(screen.getAllByText("Lily Chen").length).toBe(1);
   });
 
+  // Departed players are kept for records, so the Departed section carries the
+  // one-tap permanent delete (routed through removePlayer — same confirm +
+  // full reference cascade + Undo as the profile's Delete button).
+  describe("departed player delete", () => {
+    const rosterWithDeparted = [
+      ...players,
+      {
+        id: "p3",
+        name: "Zoe Kim",
+        number: "18",
+        rosterStatus: "departed",
+      },
+    ];
+
+    it("offers Delete on departed rows only, and routes it through removePlayer", async () => {
+      const removePlayer = jest.fn();
+      renderWithProviders(<RosterTab />, {
+        team: {
+          team: { players: rosterWithDeparted, games: [] },
+          currentRole: "head",
+          removePlayer,
+        },
+      });
+      const del = screen.getByRole("button", {
+        name: /delete zoe kim permanently/i,
+      });
+      // Active players have no row-level delete.
+      expect(
+        screen.queryByRole("button", { name: /delete ava rivera/i }),
+      ).not.toBeInTheDocument();
+      await userEvent.click(del);
+      expect(removePlayer).toHaveBeenCalledWith("p3");
+    });
+
+    it("hides the departed delete from assistants", () => {
+      renderWithProviders(<RosterTab />, {
+        team: {
+          team: { players: rosterWithDeparted, games: [] },
+          currentRole: "assistant",
+          removePlayer: jest.fn(),
+        },
+      });
+      expect(screen.getAllByText("Zoe Kim").length).toBeGreaterThan(0);
+      expect(
+        screen.queryByRole("button", { name: /delete zoe kim/i }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it("stats side panel shows team leaders and switches to a player on jersey tap", async () => {
     renderWithProviders(<RosterTab />, {
       team: {

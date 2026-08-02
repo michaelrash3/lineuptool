@@ -97,6 +97,12 @@ const PlayerRow = memo(
     showHealth,
     logoUrl,
     stripped,
+    // Optional permanent-delete affordance. Only the Departed section passes
+    // it (editors only): departed kids are kept for records, so this is the
+    // one list where "remove for good" is a first-class action instead of a
+    // trip through the profile. Routes through removePlayer — same confirm,
+    // full reference cascade, and Undo as the profile's Delete.
+    onDelete,
   }: any) => {
     const rosterStatus = getRosterStatus(player);
     const absent = rosterStatus !== "active";
@@ -183,6 +189,18 @@ const PlayerRow = memo(
                 }}
                 title={hasDeparted ? "Departed" : "Present"}
               />
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(player.id)}
+                  aria-label={`Delete ${player.name} permanently`}
+                  title="Delete permanently"
+                  className="ml-auto shrink-0 min-h-[44px] px-2.5 inline-flex items-center gap-1.5 t-chip font-black uppercase tracking-widest rounded-lg border border-line bg-loss-bg text-loss hover:opacity-80 transition-opacity"
+                >
+                  <Icons.Trash className="w-3.5 h-3.5" />
+                  Delete
+                </button>
+              )}
             </div>
             <div className="flex flex-wrap gap-1.5 mt-1.5">
               <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink">
@@ -407,6 +425,7 @@ export const RosterTab = memo(() => {
     uploadStatsCsv,
     exportRosterCsv,
     exportPlayerInfoCsv,
+    removePlayer,
   } = useTeam();
   const canEdit = currentRole !== "assistant";
   // openPlayerProfile is a plain router navigate to /roster/:id — ONE history
@@ -680,6 +699,7 @@ export const RosterTab = memo(() => {
                             showPositionTag={canEdit}
                             logoUrl={(team as any)?.logoUrl}
                             stripped={stripped}
+                            onDelete={canEdit ? removePlayer : undefined}
                           />
                         </StaggerItem>
                       ))}
