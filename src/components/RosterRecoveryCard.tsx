@@ -101,9 +101,10 @@ export const RosterRecoveryCard = () => {
                 : "Rebuild roster"}
           </button>
           <p className="t-label text-ink-3 mt-2">
-            Positions default to &ldquo;anywhere&rdquo; — tighten them per
-            player afterwards. Imported stat lines stay on each game and roll
-            back up automatically.
+            Field positions default to &ldquo;anywhere&rdquo;; Pitcher and
+            Catcher are only kept where your depth chart listed them — mark the
+            rest from each player&apos;s profile. Imported stat lines stay on
+            each game and roll back up automatically.
           </p>
         </div>
       </div>
