@@ -53,9 +53,13 @@ export interface RecoveredPlayerEvidence {
 }
 
 // The full position set, matching the schema-v4 migration's permissive
-// default (every position, catcher included). Rebuilt players get the
-// permissive set so the lineup engine treats nobody as ineligible — the
-// depth-chart hint in the preview is where the coach re-narrows.
+// default. Rebuilt players get the permissive set for the FIELD positions so
+// the lineup engine treats nobody as ineligible — but Pitcher and Catcher are
+// opt-in specialties throughout the app (they gate eval categories, arm care,
+// and the catcher policies), so a rebuilt player only gets "P"/"C" when the
+// surviving depth chart actually lists them there. Granting them to everyone
+// would flag the whole roster as pitcher-catchers and put every kid on the
+// Pitching/Catching eval tabs.
 const ALL_POSITIONS = [
   "P",
   "C",
@@ -69,6 +73,7 @@ const ALL_POSITIONS = [
   "RCF",
   "RF",
 ];
+const SPECIALTY_POSITIONS = new Set(["P", "C"]);
 
 const isNonEmptyString = (v: unknown): v is string =>
   typeof v === "string" && v.length > 0;
@@ -205,8 +210,12 @@ export const rebuildPlayersFromEvidence = (
     const player: Player = {
       id: e.id,
       name: e.name || `Recovered player ${++unnamed}`,
-      // Permissive position default (see ALL_POSITIONS above).
-      comfortablePositions: [...ALL_POSITIONS],
+      // Permissive field-position default; P/C only on depth-chart evidence
+      // (see ALL_POSITIONS above).
+      comfortablePositions: ALL_POSITIONS.filter(
+        (pos) =>
+          !SPECIALTY_POSITIONS.has(pos) || e.depthPositions.includes(pos),
+      ),
     };
     if (e.number) player.number = e.number;
     if (e.dob) player.dob = e.dob;

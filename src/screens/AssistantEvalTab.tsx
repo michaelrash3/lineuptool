@@ -6,6 +6,7 @@ import {
   EVAL_GROUPS_UNIVERSAL,
   EVAL_GROUPS_KID_PITCH_ADDONS,
   handGradedCategoriesForTeam,
+  handGradedCategoriesForPlayer,
   isKidPitchFormat,
   playerIsPitcher,
   playerIsCatcher,
@@ -56,15 +57,10 @@ export const AssistantEvalTab = memo(() => {
     () => handGradedCategoriesForTeam(pitchingFormat, categoryConfig),
     [pitchingFormat, categoryConfig],
   );
-  // Read-only views of a PAST round keep hidden categories: the round may
-  // carry grades for one, and hiding is forward-only.
-  const historyCategories = useMemo(
-    () =>
-      handGradedCategoriesForTeam(pitchingFormat, categoryConfig, {
-        includeHidden: true,
-      }),
-    [pitchingFormat, categoryConfig],
-  );
+  // (Past-round read-only cards resolve their category list PER PLAYER at
+  // render — handGradedCategoriesForPlayer with includeHidden — so hidden
+  // categories still show on a history surface but pitcher/catcher
+  // specialties only appear under kids who hold the position.)
   const includeKidPitchAddons = useMemo(
     () => isKidPitchFormat(pitchingFormat),
     [pitchingFormat],
@@ -244,7 +240,16 @@ export const AssistantEvalTab = memo(() => {
               key={`past-${p.id}`}
               player={p}
               grades={viewingPastRound.grades?.[p.id]}
-              activeCategories={historyCategories}
+              // Per-PLAYER history list: pitcher/catcher specialties only for
+              // kids who hold the position — the team-wide list would render
+              // every specialty row (seeded, never-editable defaults) under
+              // every kid. Hidden categories stay (history surface).
+              activeCategories={handGradedCategoriesForPlayer(
+                pitchingFormat,
+                p,
+                categoryConfig,
+                { includeHidden: true },
+              )}
               positions={activePositions}
               readOnly
             />

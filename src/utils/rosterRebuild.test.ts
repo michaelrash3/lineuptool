@@ -167,22 +167,21 @@ describe("rebuildPlayersFromEvidence / planRosterRebuild", () => {
     expect(sam.absences).toEqual(["2026-04-01", "2026-04-10", "2026-04-11"]);
   });
 
-  it("defaults every rebuilt player to the permissive all-positions set", () => {
+  // P and C gate eval specialties (Pitching/Catching tabs), arm care, and
+  // catcher policies app-wide — a rebuild that granted them to everyone would
+  // put the whole roster on those surfaces. Field positions stay permissive.
+  it("defaults field positions to permissive but P/C only on depth-chart evidence", () => {
     const plan = planRosterRebuild(wipedTeam());
+    const fieldOnly = ["1B", "2B", "3B", "SS", "LF", "LCF", "CF", "RCF", "RF"];
+    // p-lineup1 is listed under P on the depth chart → keeps pitcher.
+    const pitcher = plan.players.find((p) => p.id === "p-lineup1")!;
+    expect(pitcher.comfortablePositions).toEqual(["P", ...fieldOnly]);
+    // Nobody has C depth-chart evidence; everyone else has neither specialty.
     for (const p of plan.players) {
-      expect(p.comfortablePositions).toEqual([
-        "P",
-        "C",
-        "1B",
-        "2B",
-        "3B",
-        "SS",
-        "LF",
-        "LCF",
-        "CF",
-        "RCF",
-        "RF",
-      ]);
+      expect(p.comfortablePositions).not.toContain("C");
+      if (p.id !== "p-lineup1") {
+        expect(p.comfortablePositions).toEqual(fieldOnly);
+      }
     }
   });
 

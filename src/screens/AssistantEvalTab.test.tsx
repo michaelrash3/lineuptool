@@ -1,7 +1,7 @@
 import React from "react";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AssistantEvalTab } from "./AssistantEvalTab";
 import { renderWithProviders } from "../test-utils";
 
@@ -122,5 +122,72 @@ describe("AssistantEvalTab — per-team categories", () => {
       screen.queryByRole("button", { name: "Baserunning" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hitting" })).toBeInTheDocument();
+  });
+});
+
+// ---- Past-round read-only view: per-player specialty gating ----------------
+// Pitching/Catching categories only render under kids who hold the position.
+// The team-wide history list used to hand every card every specialty row —
+// seeded, never-editable defaults under kids the grading tabs themselves
+// would never have shown.
+describe("AssistantEvalTab — past round per-player categories", () => {
+  const renderPastRound = () =>
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/evaluation/round/mine"]}>
+        <Routes>
+          <Route
+            path="/evaluation/round/:roundId"
+            element={<AssistantEvalTab />}
+          />
+        </Routes>
+      </MemoryRouter>,
+      {
+        team: {
+          currentRole: "assistant",
+          user: { uid: "assistant-1" },
+          saveAssistantEvaluation: jest.fn(),
+          team: {
+            pitchingFormat: "Kid Pitch",
+            defenseSize: 9,
+            players: [
+              {
+                id: "p-cat",
+                name: "Casey Catcher",
+                present: true,
+                comfortablePositions: ["C", "1B"],
+              },
+              {
+                id: "p-field",
+                name: "Frankie Fielder",
+                present: true,
+                comfortablePositions: ["1B", "LF"],
+              },
+            ],
+            evaluationEvents: [
+              {
+                id: "mine",
+                date: "2026-06-20",
+                coachRole: "Assistant",
+                evaluatorId: "assistant-1",
+                grades: {
+                  "p-cat": { blocking: 4, receiving: 3 },
+                  "p-field": { blocking: 3, receiving: 3 },
+                },
+              },
+            ],
+          },
+        },
+      },
+    );
+
+  it("shows Catching rows only under the catcher, and no Pitching rows without a pitcher", () => {
+    renderPastRound();
+    expect(screen.getByText(/read-only view/i)).toBeInTheDocument();
+    // Exactly ONE card (the catcher's) carries the Catching categories, even
+    // though the saved round holds seeded values for the fielder too.
+    expect(screen.getAllByText("Blocking")).toHaveLength(1);
+    expect(screen.getAllByText("Receiving")).toHaveLength(1);
+    // Nobody has "P" — the Pitching specialty renders for no one.
+    expect(screen.queryByText("Pitch Velocity")).not.toBeInTheDocument();
   });
 });
