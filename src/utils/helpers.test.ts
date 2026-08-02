@@ -2312,7 +2312,12 @@ describe("blockedRosterWipeReason (empty-roster write guard)", () => {
       blockedRosterWipeReason({ players: roster }, roster, true, true),
     ).toBeNull();
     expect(
-      blockedRosterWipeReason({ players: [{ id: "p9" }] }, roster, false, false),
+      blockedRosterWipeReason(
+        { players: [{ id: "p9" }] },
+        roster,
+        false,
+        false,
+      ),
     ).toBeNull();
     expect(
       blockedRosterWipeReason({ name: "Hawks" } as any, roster, false, false),

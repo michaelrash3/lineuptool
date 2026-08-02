@@ -77,7 +77,8 @@ const isNonEmptyString = (v: unknown): v is string =>
 const bySubmittedAtDesc = (
   a: { submittedAt?: string },
   b: { submittedAt?: string },
-): number => String(b.submittedAt || "").localeCompare(String(a.submittedAt || ""));
+): number =>
+  String(b.submittedAt || "").localeCompare(String(a.submittedAt || ""));
 
 export const collectRosterEvidence = (
   source: RosterEvidenceSource,
@@ -117,14 +118,17 @@ export const collectRosterEvidence = (
     ] as Inning[]) {
       if (!inning) continue;
       for (const slot of Object.values(inning)) {
-        if (Array.isArray(slot)) slot.forEach((p) => mineSlim(p, "game lineups"));
+        if (Array.isArray(slot))
+          slot.forEach((p) => mineSlim(p, "game lineups"));
         else if (slot) mineSlim(slot, "game lineups");
       }
     }
     for (const p of Array.isArray(g.battingLineup) ? g.battingLineup : [])
       mineSlim(p, "batting orders");
-    for (const id of Object.keys(g.attendance || {})) seen(id, "game attendance");
-    for (const id of Object.keys(g.playerStats || {})) seen(id, "game stat lines");
+    for (const id of Object.keys(g.attendance || {}))
+      seen(id, "game attendance");
+    for (const id of Object.keys(g.playerStats || {}))
+      seen(id, "game stat lines");
   }
 
   for (const p of source.practices || []) {
@@ -206,8 +210,7 @@ export const rebuildPlayersFromEvidence = (
     };
     if (e.number) player.number = e.number;
     if (e.dob) player.dob = e.dob;
-    if (e.absenceDates.length > 0)
-      player.absences = [...e.absenceDates].sort();
+    if (e.absenceDates.length > 0) player.absences = [...e.absenceDates].sort();
     if (e.availabilitySubmittedAt)
       player.availabilitySubmittedAt = e.availabilitySubmittedAt;
     const sub = e.info;

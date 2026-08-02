@@ -22,9 +22,7 @@ export const RosterRecoveryCard = () => {
 
   const unnamed = plan.players.length - plan.namedCount;
   const sourceLabels = [
-    ...new Set(
-      [...plan.evidence.values()].flatMap((e) => e.sources),
-    ),
+    ...new Set([...plan.evidence.values()].flatMap((e) => e.sources)),
   ];
 
   const restore = () => {
@@ -63,8 +61,8 @@ export const RosterRecoveryCard = () => {
             Your roster list is empty, but this season still references{" "}
             <strong>{plan.players.length}</strong> player
             {plan.players.length === 1 ? "" : "s"} ({sourceLabels.join(", ")}).
-            Restoring re-links every game, practice, evaluation, and stat line
-            — they were never deleted, they key on each player&apos;s id.
+            Restoring re-links every game, practice, evaluation, and stat line —
+            they were never deleted, they key on each player&apos;s id.
             {unnamed > 0 && (
               <>
                 {" "}
@@ -81,9 +79,7 @@ export const RosterRecoveryCard = () => {
               </li>
             ))}
             {plan.players.length > 12 && (
-              <li className="text-ink-3">
-                +{plan.players.length - 12} more
-              </li>
+              <li className="text-ink-3">+{plan.players.length - 12} more</li>
             )}
           </ul>
           <button

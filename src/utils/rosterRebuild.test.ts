@@ -206,8 +206,6 @@ describe("rebuildPlayersFromEvidence / planRosterRebuild", () => {
   it("returns an empty plan when nothing references any player", () => {
     expect(planRosterRebuild({}).players).toEqual([]);
     expect(planRosterRebuild(null).players).toEqual([]);
-    expect(
-      rebuildPlayersFromEvidence(collectRosterEvidence({})),
-    ).toEqual([]);
+    expect(rebuildPlayersFromEvidence(collectRosterEvidence({}))).toEqual([]);
   });
 });
