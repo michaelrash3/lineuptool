@@ -11,6 +11,7 @@ import { PortalShareCard } from "../components/PortalShareCard";
 import { copyTextToClipboard } from "../utils/clipboard";
 import { ImportCsvButton } from "../components/ImportCsvButton";
 import { RosterIntegrityPanel } from "./roster/RosterIntegrityPanel";
+import { RosterRecoveryCard } from "../components/RosterRecoveryCard";
 import { RosterStatsPanel } from "../components/RosterStatsPanel";
 import { StaggerList, StaggerItem } from "../components/motion";
 import { downloadRosterDirectoryPdf } from "../roster/rosterDirectoryPdf";
@@ -606,17 +607,20 @@ export const RosterTab = memo(() => {
           )}
           <div className="p-4 sm:p-6">
             {players.length === 0 ? (
-              <EmptyState
-                glyph="🧢"
-                title="No Roster Found"
-                body="Manually add players to build your team, or head to Settings to import your stats file."
-                {...(canEdit
-                  ? {
-                      action: "Add Player",
-                      onAction: () => openAddPlayer(),
-                    }
-                  : {})}
-              />
+              <>
+                {canEdit && <RosterRecoveryCard />}
+                <EmptyState
+                  glyph="🧢"
+                  title="No Roster Found"
+                  body="Manually add players to build your team, or head to Settings to import your stats file."
+                  {...(canEdit
+                    ? {
+                        action: "Add Player",
+                        onAction: () => openAddPlayer(),
+                      }
+                    : {})}
+                />
+              </>
             ) : visiblePlayers.length === 0 ? (
               <div className="text-center py-12">
                 <Icons.Jersey className="w-10 h-10 text-ink-3 mx-auto mb-3" />

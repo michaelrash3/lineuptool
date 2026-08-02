@@ -1098,20 +1098,30 @@ export const mergeTeamEntries = (
 // Roster-wipe guard for team-doc writes. Returns a human-readable reason when
 // a write carrying an EMPTY players array must be blocked, or null when the
 // write is safe. Empty-roster writes are only ever legitimate when the team's
-// doc has actually loaded on this device AND the loaded roster is already
-// empty — anything else is a placeholder/default leaking into a save (the
-// data-loss class of bug) and gets refused. Deliberate destructive flows
-// (Advance Season, backup restore) opt out explicitly at the call site.
+// doc has actually loaded on this device, the loaded roster is already
+// empty, AND that emptiness came from the SERVER — anything else is a
+// placeholder/default/stale-cache state leaking into a save (the data-loss
+// class of bug) and gets refused. The server-confirmation requirement is what
+// closes the stale-cache loophole: this app's offline-first persistence
+// happily paints a team doc cached before the roster was ever built, and a
+// device "loaded" from that cache used to satisfy the already-empty pass —
+// letting it replace a real roster on the server with its own emptiness.
+// Deliberate destructive flows (Advance Season, backup restore) opt out
+// explicitly at the call site.
 export const blockedRosterWipeReason = (
   updates: { players?: unknown },
   currentPlayers: unknown,
   teamLoaded: boolean,
+  serverConfirmed: boolean,
 ): string | null => {
   if (!Array.isArray(updates.players) || updates.players.length > 0)
     return null;
   if (!teamLoaded)
     return "this team's data hasn't finished loading on this device yet";
   const prev = Array.isArray(currentPlayers) ? currentPlayers : [];
-  if (prev.length === 0) return null;
+  if (prev.length === 0) {
+    if (serverConfirmed) return null;
+    return "this device has only a cached copy of the team and the server hasn't confirmed the roster is empty";
+  }
   return `it would erase ${prev.length} player${prev.length === 1 ? "" : "s"}`;
 };

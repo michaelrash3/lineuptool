@@ -2282,38 +2282,55 @@ describe("blockedRosterWipeReason (empty-roster write guard)", () => {
   const roster = [{ id: "p1" }, { id: "p2" }];
 
   it("blocks an empty players write before the team doc has loaded", () => {
-    expect(blockedRosterWipeReason({ players: [] }, [], false)).toMatch(
+    expect(blockedRosterWipeReason({ players: [] }, [], false, true)).toMatch(
       /hasn't finished loading/,
     );
   });
 
   it("blocks an empty players write over a loaded non-empty roster", () => {
-    expect(blockedRosterWipeReason({ players: [] }, roster, true)).toMatch(
-      /erase 2 players/,
-    );
+    expect(
+      blockedRosterWipeReason({ players: [] }, roster, true, true),
+    ).toMatch(/erase 2 players/);
   });
 
-  it("allows an empty write when the loaded roster is already empty", () => {
-    expect(blockedRosterWipeReason({ players: [] }, [], true)).toBeNull();
+  it("allows an empty write when the loaded roster is already empty AND server-confirmed", () => {
+    expect(blockedRosterWipeReason({ players: [] }, [], true, true)).toBeNull();
+  });
+
+  // The stale-cache loophole: a device whose offline cache predates the
+  // roster "loads" an empty team the server never agreed to. Its emptiness
+  // must not be trusted — a mapEntries resolved against it would replace the
+  // real roster with nothing.
+  it("blocks an empty-over-empty write when the emptiness is cache-only", () => {
+    expect(blockedRosterWipeReason({ players: [] }, [], true, false)).toMatch(
+      /server hasn't confirmed/,
+    );
   });
 
   it("allows non-empty players writes and writes that don't touch players", () => {
     expect(
-      blockedRosterWipeReason({ players: roster }, roster, true),
+      blockedRosterWipeReason({ players: roster }, roster, true, true),
     ).toBeNull();
     expect(
-      blockedRosterWipeReason({ players: [{ id: "p9" }] }, roster, false),
+      blockedRosterWipeReason(
+        { players: [{ id: "p9" }] },
+        roster,
+        false,
+        false,
+      ),
     ).toBeNull();
     expect(
-      blockedRosterWipeReason({ name: "Hawks" } as any, roster, false),
+      blockedRosterWipeReason({ name: "Hawks" } as any, roster, false, false),
     ).toBeNull();
-    expect(blockedRosterWipeReason({}, roster, true)).toBeNull();
+    expect(blockedRosterWipeReason({}, roster, true, true)).toBeNull();
   });
 
   it("treats a malformed current roster as empty rather than crashing", () => {
-    expect(blockedRosterWipeReason({ players: [] }, null, true)).toBeNull();
     expect(
-      blockedRosterWipeReason({ players: [] }, undefined, true),
+      blockedRosterWipeReason({ players: [] }, null, true, true),
+    ).toBeNull();
+    expect(
+      blockedRosterWipeReason({ players: [] }, undefined, true, true),
     ).toBeNull();
   });
 });
