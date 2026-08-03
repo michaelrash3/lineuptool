@@ -584,7 +584,15 @@ export const useTryoutFlows = ({
           `${sub.firstName || ""} ${sub.lastName || ""}`.trim() || player.name,
       });
     },
-    [db, appId, teamId, teamDataRef, updateTeamArrays, toast, signupWriteFailed],
+    [
+      db,
+      appId,
+      teamId,
+      teamDataRef,
+      updateTeamArrays,
+      toast,
+      signupWriteFailed,
+    ],
   );
 
   // Drop a parent-submitted availability entry. Coach-only; the two-tap confirm
@@ -663,7 +671,15 @@ export const useTryoutFlows = ({
         });
       }
     },
-    [db, appId, teamId, teamDataRef, updateTeamArrays, toast, signupWriteFailed],
+    [
+      db,
+      appId,
+      teamId,
+      teamDataRef,
+      updateTeamArrays,
+      toast,
+      signupWriteFailed,
+    ],
   );
 
   // Auto-apply every un-applied availability submission whose name + DOB

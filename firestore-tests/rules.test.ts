@@ -1501,9 +1501,7 @@ describe("portal submission subcollections (Phase 1b — per-entry docs)", () =>
 
   it("lets a member read, list, update and delete submissions (coach curation)", async () => {
     await assertSucceeds(
-      getDoc(
-        doc(dbFor(ASSISTANT), ...playerInfoSubPath("team-1", "pi-doc-1")),
-      ),
+      getDoc(doc(dbFor(ASSISTANT), ...playerInfoSubPath("team-1", "pi-doc-1"))),
     );
     await assertSucceeds(
       getDocs(query(submissionsCol(ASSISTANT, "playerInfoSubmissions"))),

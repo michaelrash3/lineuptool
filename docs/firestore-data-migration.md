@@ -57,14 +57,14 @@ roster/schedule/evals in the app), so the lost-update risk is low and the
 churn/risk of converting them is high. Documented here so the trade-off is
 explicit rather than accidental:
 
-| Field                                        | Writer(s)                                        | Why left as a whole-array write                                                                                                               |
-| -------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `players`                                    | `usePlayerCrud`, `acceptTryout`, `advanceSeason` | Edited only by signed-in staff; many ops are inherently multi-element (reorder, bulk import, season advance).                                 |
-| `games`                                      | `useGameCrud`, lineup/finalize flows             | Same; games are also slimmed (`slimGame`) on write, which assumes a full array.                                                               |
-| `evaluationEvents`                           | _(since moved)_                                  | **No longer a team array** — eval rounds live per-doc in the `evalRounds` subcollection (Phase 2 below).                                      |
-| `coachRoles` (head-initiated `setCoachRole`) | `useTeamMembership`                              | Owner-only; the **self-join** path already uses the atomic dotted write.                                                                      |
-| `tryoutSignups` / `interestSignups`          | _(since moved)_                                  | **No longer team arrays** — per-entry docs in the signup subcollections (Phase 1 below); legacy arrays union-read + backfilled until dropped. |
-| `playerInfoSubmissions` / `availabilitySubmissions` | _(since moved)_                           | **No longer team arrays** — per-entry docs in the submission subcollections (Phase 1b below); same union-read + backfill + drop machinery.    |
+| Field                                               | Writer(s)                                        | Why left as a whole-array write                                                                                                               |
+| --------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `players`                                           | `usePlayerCrud`, `acceptTryout`, `advanceSeason` | Edited only by signed-in staff; many ops are inherently multi-element (reorder, bulk import, season advance).                                 |
+| `games`                                             | `useGameCrud`, lineup/finalize flows             | Same; games are also slimmed (`slimGame`) on write, which assumes a full array.                                                               |
+| `evaluationEvents`                                  | _(since moved)_                                  | **No longer a team array** — eval rounds live per-doc in the `evalRounds` subcollection (Phase 2 below).                                      |
+| `coachRoles` (head-initiated `setCoachRole`)        | `useTeamMembership`                              | Owner-only; the **self-join** path already uses the atomic dotted write.                                                                      |
+| `tryoutSignups` / `interestSignups`                 | _(since moved)_                                  | **No longer team arrays** — per-entry docs in the signup subcollections (Phase 1 below); legacy arrays union-read + backfilled until dropped. |
+| `playerInfoSubmissions` / `availabilitySubmissions` | _(since moved)_                                  | **No longer team arrays** — per-entry docs in the submission subcollections (Phase 1b below); same union-read + backfill + drop machinery.    |
 
 If/when these become contended (e.g. multiple assistants entering evals
 simultaneously), prefer per-entry subcollection docs (below) over array
