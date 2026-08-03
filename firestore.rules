@@ -193,7 +193,21 @@ service cloud.firestore {
                     && (!('tryoutSignups' in request.resource.data)
                         || ('tryoutSignups' in resource.data))
                     && (!('interestSignups' in request.resource.data)
-                        || ('interestSignups' in resource.data));
+                        || ('interestSignups' in resource.data))
+                    // playerInfoSubmissions / availabilitySubmissions are the
+                    // last two fields on the ladder (Phase 1b — submissions
+                    // live in the per-entry subcollections below). Same
+                    // ratchet, added in the SAME release as their drop
+                    // machinery: once a team's array is dropped, no member
+                    // write may recreate it. The deprecated public append
+                    // lanes below are separate allow rules and unaffected —
+                    // a cached portal client can still append for this one
+                    // release (self-healing: the backfill mirrors the entry
+                    // and the head's client re-drops the array).
+                    && (!('playerInfoSubmissions' in request.resource.data)
+                        || ('playerInfoSubmissions' in resource.data))
+                    && (!('availabilitySubmissions' in request.resource.data)
+                        || ('availabilitySubmissions' in resource.data));
 
       // Only the current owner can delete the team document.
       allow delete: if isCurrentOwner();
@@ -201,14 +215,18 @@ service cloud.firestore {
       // Team bootstrap: signed-in creator can create a new team doc when
       // ownerId is set to their UID. A new doc can never be born with a
       // dropped legacy field — evaluationEvents, tryoutSignups,
-      // interestSignups (see the update-rule ratchets) — combined, each
-      // field can only ever disappear from the fleet. createTeam writes
-      // NEW_TEAM_DOC (src/constants/ui.ts), which seeds none of them.
+      // interestSignups, playerInfoSubmissions, availabilitySubmissions (see
+      // the update-rule ratchets) — combined, each field can only ever
+      // disappear from the fleet. createTeam writes NEW_TEAM_DOC
+      // (src/constants/ui.ts), which seeds none of them; backup restore
+      // merges onto an existing doc and strips them too (backupSanitizer).
       allow create: if isSignedIn()
                     && request.resource.data.ownerId == request.auth.uid
                     && !('evaluationEvents' in request.resource.data)
                     && !('tryoutSignups' in request.resource.data)
-                    && !('interestSignups' in request.resource.data);
+                    && !('interestSignups' in request.resource.data)
+                    && !('playerInfoSubmissions' in request.resource.data)
+                    && !('availabilitySubmissions' in request.resource.data);
 
       // NOTE: there is deliberately NO "read if a join code exists" rule here.
       // The old `allow read: if isSignedIn() && resource.data.joinCode != null;`
@@ -267,14 +285,18 @@ service cloud.firestore {
       // update rule stays: a team doc that still carries an array may
       // rewrite/clean/drop it (coach-side shapes), but once dropped nothing
       // recreates it. (The playerInfoSubmissions / availabilitySubmissions
-      // lanes below are NOT deprecated yet — they migrate in a later phase
-      // and still use appendsExactlyOne above.)
+      // lanes below are now on the same path — DEPRECATED as of Phase 1b,
+      // kept one release, then removed like these were.)
 
-      // Public player-info write path (anonymous auth included): a parent
-      // submits uniform/equipment sizing + logistics for a rostered kid via
-      // the same standing share link as the interest form. Allowed any time a
-      // share link exists (no open/closed gate — sizing is collected
-      // year-round). Same append-only integrity caps as the signup paths.
+      // DEPRECATED public player-info array lane (Phase 1b of
+      // docs/firestore-data-migration.md): the portal writes per-entry docs
+      // to the playerInfoSubmissions SUBCOLLECTION below as of this release.
+      // This append-exactly-one lane is retained exactly one release for
+      // cached portal clients still running the arrayUnion code (the same
+      // one-release courtesy the tryout/interest lanes got); the coach
+      // client's union read + lazy backfill absorbs anything that lands
+      // here. Remove next release, flipping the emulator tests to DENIED
+      // probes — after that a straggler fails loudly with permission-denied.
       allow update: if isSignedIn()
                     && resource.data.tryoutShareId != null
                     && request.resource.data.diff(resource.data)
@@ -282,10 +304,9 @@ service cloud.firestore {
                          .hasOnly(['playerInfoSubmissions'])
                     && appendsExactlyOne('playerInfoSubmissions');
 
-      // Public availability write path (anonymous auth included): a parent
-      // submits the dates their kid is unavailable via the same standing share
-      // link. Allowed any time a share link exists. Same append-only integrity
-      // caps as the other public arrays.
+      // DEPRECATED public availability array lane — same one-release
+      // retention as the player-info lane above; the subcollection below is
+      // the write path.
       allow update: if isSignedIn()
                     && resource.data.tryoutShareId != null
                     && request.resource.data.diff(resource.data)
@@ -481,6 +502,103 @@ service cloud.firestore {
                           && publicSignupIdOk(leadId)
                           && portalKeysOnly()
                           && signupCapsOk());
+        allow update, delete: if isTeamMember();
+      }
+
+      // ----- Per-entry portal submissions (Phase 1b of
+      // docs/firestore-data-migration.md — the last two public-write lanes
+      // move off the 1 MiB team doc, mirroring the tryout/interest signups
+      // above). READ is member-only (family PII); CREATE stays open to any
+      // signed-in caller (anonymous portal auth counts) under the standing
+      // share-link gate the deprecated array lanes use, plus a field
+      // allowlist + per-field size caps. UPDATE/DELETE are member-only.
+      //
+      // appliedToPlayerId / appliedAt are deliberately OFF the public
+      // allowlists: a coach stamps them when applying a submission onto a
+      // roster player, and a self-declared "already handled" flag would hide
+      // a hostile submission from the inbox.
+      match /playerInfoSubmissions/{subId} {
+        function portalKeysOnly() {
+          return request.resource.data.keys().hasOnly([
+            'id', 'submittedAt', 'firstName', 'lastName', 'dob', 'number',
+            'hatSize', 'shirtSize', 'pantsSize', 'height', 'weight',
+            'school', 'grade', 'parentName', 'email', 'phone',
+            'parent2Name', 'parent2Phone', 'parent2Email', 'notes'
+          ]);
+        }
+        // Mirrors the PlayerInfoPortal clamps (SIGNUP_LIMITS) with headroom,
+        // same policy as signupCapsOk above.
+        function playerInfoCapsOk() {
+          return signupStrOk('id', 60)
+            && signupStrOk('submittedAt', 40)
+            && signupStrOk('firstName', 60)
+            && signupStrOk('lastName', 60)
+            && signupStrOk('dob', 40)
+            && signupStrOk('number', 60)
+            && signupStrOk('hatSize', 60)
+            && signupStrOk('shirtSize', 60)
+            && signupStrOk('pantsSize', 60)
+            && signupStrOk('height', 60)
+            && signupStrOk('weight', 60)
+            && signupStrOk('school', 80)
+            && signupStrOk('grade', 60)
+            && signupStrOk('parentName', 80)
+            && signupStrOk('email', 254)
+            && signupStrOk('phone', 40)
+            && signupStrOk('parent2Name', 80)
+            && signupStrOk('parent2Phone', 40)
+            && signupStrOk('parent2Email', 254)
+            && signupStrOk('notes', 600);
+        }
+        allow read: if isTeamMember();
+        // Member create is unconstrained so the lazy backfill can copy legacy
+        // array entries verbatim (they may carry emergencyName/emergencyPhone
+        // or an applied stamp the portal shape never sends).
+        allow create: if isTeamMember()
+                      || (isSignedIn()
+                          && teamDoc().tryoutShareId != null
+                          && publicSignupIdOk(subId)
+                          && portalKeysOnly()
+                          && playerInfoCapsOk());
+        allow update, delete: if isTeamMember();
+      }
+
+      match /availabilitySubmissions/{subId} {
+        function portalKeysOnly() {
+          return request.resource.data.keys().hasOnly([
+            'id', 'submittedAt', 'firstName', 'lastName', 'dob',
+            'parentName', 'email', 'phone', 'dates', 'blocks'
+          ]);
+        }
+        // dates/blocks are lists rules can only bound in LENGTH (no
+        // per-element checks without a fixed value set). The portal caps both
+        // at 366; 400 leaves headroom. Accepted residual: a hostile element
+        // can be oversized, but it now bloats only its own per-entry doc
+        // (bounded by Firestore's 1 MiB per-doc cap) — never the shared team
+        // doc the array lanes used to grow.
+        function availabilityCapsOk() {
+          return signupStrOk('id', 60)
+            && signupStrOk('submittedAt', 40)
+            && signupStrOk('firstName', 60)
+            && signupStrOk('lastName', 60)
+            && signupStrOk('dob', 40)
+            && signupStrOk('parentName', 80)
+            && signupStrOk('email', 254)
+            && signupStrOk('phone', 40)
+            && (!('dates' in request.resource.data)
+                || (request.resource.data.dates is list
+                    && request.resource.data.dates.size() <= 400))
+            && (!('blocks' in request.resource.data)
+                || (request.resource.data.blocks is list
+                    && request.resource.data.blocks.size() <= 400));
+        }
+        allow read: if isTeamMember();
+        allow create: if isTeamMember()
+                      || (isSignedIn()
+                          && teamDoc().tryoutShareId != null
+                          && publicSignupIdOk(subId)
+                          && portalKeysOnly()
+                          && availabilityCapsOk());
         allow update, delete: if isTeamMember();
       }
     }

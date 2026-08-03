@@ -1,14 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import {
-  arrayUnion,
-  collection,
-  doc,
-  getDocs,
-  query,
-  updateDoc,
-  where,
-} from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
 import { auth, appId, db } from "../firebase";
 import { APP_NAME } from "../constants/ui";
@@ -21,8 +13,8 @@ import {
   buildMonthGrid,
   addAbsenceDateRange,
   removeAbsenceDates,
-  genId,
 } from "../utils/helpers";
+import { newSignupId, upsertSignupDoc } from "../utils/tryoutSignupDocs";
 import { applyTeamInkVars } from "../utils/contrast";
 import { reportError } from "../utils/errorReporter";
 import { Button, Eyebrow } from "../components/shared";
@@ -365,8 +357,12 @@ export const AvailabilityPortal = () => {
     setError(null);
     setSubmitting(true);
 
+    // The id is a Firestore auto-id and doubles as the doc id (Phase 1b of
+    // docs/firestore-data-migration.md): the submission is its own per-entry
+    // doc in the availabilitySubmissions subcollection, not a team-doc
+    // arrayUnion.
     const submission = {
-      id: genId("av"),
+      id: newSignupId(db, appId, teamDocId!, "availabilitySubmissions"),
       submittedAt: new Date().toISOString(),
       firstName: clampText(form.firstName, SIGNUP_LIMITS.name),
       lastName: clampText(form.lastName, SIGNUP_LIMITS.name),
@@ -391,9 +387,12 @@ export const AvailabilityPortal = () => {
     };
 
     try {
-      await updateDoc(
-        doc(db, "artifacts", appId, "public", "data", "teams", teamDocId!),
-        { availabilitySubmissions: arrayUnion(submission) },
+      await upsertSignupDoc(
+        db,
+        appId,
+        teamDocId!,
+        "availabilitySubmissions",
+        submission,
       );
       setPhase("sent");
     } catch (err) {

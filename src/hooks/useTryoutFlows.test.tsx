@@ -103,7 +103,12 @@ const setup = (
   user: any = { uid: "u1" },
   // Raw LEGACY team-doc arrays (default: fully migrated, arrays empty) —
   // distinct from teamData.<key>, which is the assembled union.
-  raw: { tryout?: any[]; interest?: any[] } = {},
+  raw: {
+    tryout?: any[];
+    interest?: any[];
+    playerInfo?: any[];
+    availability?: any[];
+  } = {},
 ) => {
   const updateTeam = jest.fn();
   const updateTeamArrays = jest.fn();
@@ -118,11 +123,15 @@ const setup = (
   };
   const rawTryoutSignupsRef = { current: raw.tryout ?? [] };
   const rawInterestSignupsRef = { current: raw.interest ?? [] };
+  const rawPlayerInfoSubmissionsRef = { current: raw.playerInfo ?? [] };
+  const rawAvailabilitySubmissionsRef = { current: raw.availability ?? [] };
   const { result } = renderHook(() =>
     useTryoutFlows({
       teamDataRef: { current: teamData },
       rawTryoutSignupsRef,
       rawInterestSignupsRef,
+      rawPlayerInfoSubmissionsRef,
+      rawAvailabilitySubmissionsRef,
       updateTeam,
       updateTeamArrays,
       toast,
@@ -738,7 +747,7 @@ describe("useTryoutFlows", () => {
     expect(u2).not.toHaveBeenCalled();
   });
 
-  it("applyAvailabilityToPlayer unions against the LATEST roster record", () => {
+  it("applyAvailabilityToPlayer unions against the LATEST roster record and stamps the subdoc", () => {
     const { result, updateTeamArrays } = setup({
       players: [{ id: "p1", name: "Ava", absences: ["2026-07-01"] }],
       availabilitySubmissions: [
@@ -747,33 +756,31 @@ describe("useTryoutFlows", () => {
     });
     act(() => result.current.applyAvailabilityToPlayer("sub1", "p1"));
     expect(updateTeamArrays).toHaveBeenCalledTimes(1);
-    const ops = updateTeamArrays.mock.calls[0][0];
-    expect(ops.map((u: any) => [u.op, u.key])).toEqual([
-      ["mapEntries", "players"],
-      ["mapEntries", "availabilitySubmissions"],
-    ]);
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect([op.op, op.key]).toEqual(["mapEntries", "players"]);
     // Another coach added an absence AFTER this screen rendered — the union
     // runs over the latest record, so both survive alongside the submission.
     const serverState = {
       players: [
         { id: "p1", name: "Ava", absences: ["2026-07-01", "2026-07-02"] },
       ],
-      availabilitySubmissions: [
-        { id: "sub1", firstName: "Ava", dates: ["2026-07-04"] },
-      ],
     };
-    const next = applyTeamOps(serverState, ops);
+    const next = applyTeamOps(serverState, [op]);
     expect(next.players[0].absences).toEqual([
       "2026-07-01",
       "2026-07-02",
       "2026-07-04",
     ]);
-    expect(next.availabilitySubmissions[0]).toMatchObject({
-      appliedToPlayerId: "p1",
-    });
+    // The handled stamp is a full-entry upsert of the submission's OWN doc —
+    // never a team-doc array write (the array is a legacy home mid-drain).
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    const [, , , upsertKey, stamped] = mockUpsert.mock.calls[0];
+    expect(upsertKey).toBe("availabilitySubmissions");
+    expect(stamped).toMatchObject({ id: "sub1", appliedToPlayerId: "p1" });
+    expect(stamped.appliedAt).toBeTruthy();
   });
 
-  it("autoApplyAvailability applies confident matches in one atomic write", () => {
+  it("autoApplyAvailability applies confident matches and stamps them in one batch", () => {
     const { result, teamData, updateTeamArrays } = setup({
       players: [
         { id: "p1", name: "Ava Rivera", dob: "2017-04-01" },
@@ -797,15 +804,19 @@ describe("useTryoutFlows", () => {
     });
     expect(applied).toBe(1);
     expect(updateTeamArrays).toHaveBeenCalledTimes(1);
-    const next = applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0]);
+    const next = applyTeamOps(teamData, [updateTeamArrays.mock.calls[0][0]]);
     expect(next.players[0].absences).toEqual(["2026-07-10"]);
-    expect(next.availabilitySubmissions[0]).toMatchObject({
-      appliedToPlayerId: "p1",
-    });
-    expect(next.availabilitySubmissions[1].appliedToPlayerId).toBeUndefined();
+    // One batch, one full-entry set per MATCHED submission — the unmatched one
+    // is untouched in both homes.
+    const batch = lastBatch();
+    expect(batch.set).toHaveBeenCalledTimes(1);
+    const [ref, stamped] = batch.set.mock.calls[0];
+    expect(ref.path.endsWith("availabilitySubmissions/sub1")).toBe(true);
+    expect(stamped).toMatchObject({ id: "sub1", appliedToPlayerId: "p1" });
+    expect(batch.commit).toHaveBeenCalledTimes(1);
   });
 
-  it("applyPlayerInfoToPlayer fills gaps against the LATEST roster record", () => {
+  it("applyPlayerInfoToPlayer fills gaps against the LATEST roster record and stamps the subdoc", () => {
     const { result, updateTeamArrays } = setup({
       players: [{ id: "p1", name: "Ava" }], // no dob in the snapshot
       playerInfoSubmissions: [
@@ -819,25 +830,60 @@ describe("useTryoutFlows", () => {
       ],
     });
     act(() => result.current.applyPlayerInfoToPlayer("sub1", "p1"));
-    const ops = updateTeamArrays.mock.calls[0][0];
-    expect(ops.map((u: any) => [u.op, u.key])).toEqual([
-      ["mapEntries", "players"],
-      ["mapEntries", "playerInfoSubmissions"],
-    ]);
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect([op.op, op.key]).toEqual(["mapEntries", "players"]);
     // The coach set a DOB after the screen rendered — the gap-fill check runs
     // against the latest record, so the curated DOB wins over the submission.
     const serverState = {
       players: [{ id: "p1", name: "Ava", dob: "2017-04-02" }],
-      playerInfoSubmissions: [
-        { id: "sub1", firstName: "Ava", dob: "2017-04-01", shirtSize: "YM" },
-      ],
     };
-    const next = applyTeamOps(serverState, ops);
+    const next = applyTeamOps(serverState, [op]);
     expect(next.players[0].dob).toBe("2017-04-02"); // not clobbered
     expect(next.players[0].shirtSize).toBe("YM"); // always-set field applied
-    expect(next.playerInfoSubmissions[0]).toMatchObject({
-      appliedToPlayerId: "p1",
-    });
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    const [, , , upsertKey, stamped] = mockUpsert.mock.calls[0];
+    expect(upsertKey).toBe("playerInfoSubmissions");
+    expect(stamped).toMatchObject({ id: "sub1", appliedToPlayerId: "p1" });
+  });
+
+  it("deletePlayerInfoSubmission clears BOTH homes (subdoc + exact legacy twin)", () => {
+    const storedLegacy = { id: "sub1", firstName: "Ava", shirtSize: "YS" };
+    const { result, updateTeamArrays } = setup(
+      // The union carries an EDITED copy — the arrayRemove must still be
+      // handed the exact stored legacy element, not the union's.
+      { playerInfoSubmissions: [{ id: "sub1", shirtSize: "YM" }] },
+      undefined,
+      { playerInfo: [storedLegacy] },
+    );
+    act(() => result.current.deletePlayerInfoSubmission("sub1"));
+    expect(mockDeleteSignup).toHaveBeenCalledWith(
+      db,
+      "test-app",
+      "team-1",
+      "playerInfoSubmissions",
+      "sub1",
+    );
+    expect(legacyRemoved("playerInfoSubmissions")![0]).toBe(storedLegacy);
+    expect(updateTeamArrays).not.toHaveBeenCalled();
+  });
+
+  it("deleteAvailabilitySubmission clears BOTH homes (subdoc + exact legacy twin)", () => {
+    const storedLegacy = { id: "av1", firstName: "Mia", dates: ["2026-07-04"] };
+    const { result, updateTeamArrays } = setup(
+      { availabilitySubmissions: [{ id: "av1", dates: ["2026-07-04"] }] },
+      undefined,
+      { availability: [storedLegacy] },
+    );
+    act(() => result.current.deleteAvailabilitySubmission("av1"));
+    expect(mockDeleteSignup).toHaveBeenCalledWith(
+      db,
+      "test-app",
+      "team-1",
+      "availabilitySubmissions",
+      "av1",
+    );
+    expect(legacyRemoved("availabilitySubmissions")![0]).toBe(storedLegacy);
+    expect(updateTeamArrays).not.toHaveBeenCalled();
   });
 
   // Every signup write here is fire-and-forget: nothing awaits it, so the ONLY

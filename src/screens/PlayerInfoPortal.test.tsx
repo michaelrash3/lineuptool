@@ -1,7 +1,8 @@
 import { vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { getDocs, updateDoc } from "firebase/firestore";
+import { getDocs } from "firebase/firestore";
+import { newSignupId, upsertSignupDoc } from "../utils/tryoutSignupDocs";
 
 // Stub Firebase so the public portal renders without a real backend.
 vi.mock("../firebase", () => ({ auth: {}, appId: "app", db: {} }));
@@ -10,18 +11,22 @@ vi.mock("firebase/auth", () => ({
 }));
 vi.mock("firebase/firestore", () => ({
   collection: vi.fn(() => ({})),
-  doc: vi.fn(() => ({})),
   getDocs: vi.fn(),
   query: vi.fn(() => ({})),
   where: vi.fn(() => ({})),
-  updateDoc: vi.fn(() => Promise.resolve()),
-  arrayUnion: vi.fn((v) => ({ __arrayUnion: v })),
+}));
+// The per-entry submission write (Phase 1b): the portal mints a Firestore
+// auto-id and setDocs its own doc — no team-doc arrayUnion anymore.
+vi.mock("../utils/tryoutSignupDocs", () => ({
+  newSignupId: vi.fn(() => "aAbBcCdDeEfFgGhHiIjJ"),
+  upsertSignupDoc: vi.fn(() => Promise.resolve()),
 }));
 
 import { PlayerInfoPortal } from "./PlayerInfoPortal";
 
 const mockGetDocs = getDocs as unknown as ReturnType<typeof vi.fn>;
-const mockUpdateDoc = updateDoc as unknown as ReturnType<typeof vi.fn>;
+const mockNewSignupId = newSignupId as unknown as ReturnType<typeof vi.fn>;
+const mockUpsert = upsertSignupDoc as unknown as ReturnType<typeof vi.fn>;
 
 const mirrorDoc = {
   id: "team1",
@@ -44,7 +49,8 @@ const fill = (label: RegExp, value: string) =>
 
 beforeEach(() => {
   mockGetDocs.mockReset();
-  mockUpdateDoc.mockClear();
+  mockUpsert.mockClear();
+  mockNewSignupId.mockClear();
 });
 
 describe("PlayerInfoPortal", () => {
@@ -60,10 +66,10 @@ describe("PlayerInfoPortal", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/valid parent email/i);
-    expect(mockUpdateDoc).not.toHaveBeenCalled();
+    expect(mockUpsert).not.toHaveBeenCalled();
   });
 
-  it("trims/clamps fields and appends the submission once valid", async () => {
+  it("trims/clamps fields and writes the submission as its own doc once valid", async () => {
     renderPortal();
     await screen.findByText("Submit Player Info");
 
@@ -79,9 +85,11 @@ describe("PlayerInfoPortal", () => {
 
     fireEvent.click(screen.getByText("Submit Player Info"));
 
-    await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
-    const sub =
-      mockUpdateDoc.mock.calls[0][1].playerInfoSubmissions.__arrayUnion;
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledTimes(1));
+    const [, appId, teamId, key, sub] = mockUpsert.mock.calls[0];
+    expect(appId).toBe("app");
+    expect(teamId).toBe("team1"); // resolved from the sanitized mirror
+    expect(key).toBe("playerInfoSubmissions");
     expect(sub.firstName).toBe("Ava"); // trimmed
     expect(sub.dob).toBe("2015-04-10");
     expect(sub.email).toBe("parent@example.com");
@@ -89,7 +97,15 @@ describe("PlayerInfoPortal", () => {
     expect(sub.shirtSize).toBe("Adult S");
     expect(sub.grade).toBe("5th");
     expect(sub.parent2Name).toBe("Grandma Rivera");
-    expect(sub.id).toMatch(/^pi-/);
+    // Firestore auto-id from newSignupId — collision-safe AND long enough to
+    // pass the rules' legacy-id shadowing floor (20 chars).
+    expect(mockNewSignupId).toHaveBeenCalledWith(
+      expect.anything(),
+      "app",
+      "team1",
+      "playerInfoSubmissions",
+    );
+    expect(sub.id).toBe("aAbBcCdDeEfFgGhHiIjJ");
   });
 
   it("shows an error phase when the share link is not found", async () => {

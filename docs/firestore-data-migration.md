@@ -38,7 +38,9 @@ Two sanitized sibling docs already exist and are **not** affected by this plan:
   the emulator tests in `firestore-tests/rules.test.ts`. _(The signup array
   lanes have since been REMOVED — portal clients write per-entry subcollection
   docs; see Phase 1 below. `appendsExactlyOne` still guards the
-  `playerInfoSubmissions` / `availabilitySubmissions` lanes.)_
+  `playerInfoSubmissions` / `availabilitySubmissions` lanes, now DEPRECATED —
+  Phase 1b moved those portals to subcollection writes too, and the lanes get
+  the same one-release retirement.)_
 - **Join-code privacy.** Join resolution goes through the sanitized
   `teamInvites` doc; the full-team join-code read rule was removed.
 - **Atomic membership writes.** The join flow (`useInviteFlows.joinTeamByCode`)
@@ -55,13 +57,14 @@ roster/schedule/evals in the app), so the lost-update risk is low and the
 churn/risk of converting them is high. Documented here so the trade-off is
 explicit rather than accidental:
 
-| Field                                        | Writer(s)                                        | Why left as a whole-array write                                                                                                               |
-| -------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `players`                                    | `usePlayerCrud`, `acceptTryout`, `advanceSeason` | Edited only by signed-in staff; many ops are inherently multi-element (reorder, bulk import, season advance).                                 |
-| `games`                                      | `useGameCrud`, lineup/finalize flows             | Same; games are also slimmed (`slimGame`) on write, which assumes a full array.                                                               |
-| `evaluationEvents`                           | _(since moved)_                                  | **No longer a team array** — eval rounds live per-doc in the `evalRounds` subcollection (Phase 2 below).                                      |
-| `coachRoles` (head-initiated `setCoachRole`) | `useTeamMembership`                              | Owner-only; the **self-join** path already uses the atomic dotted write.                                                                      |
-| `tryoutSignups` / `interestSignups`          | _(since moved)_                                  | **No longer team arrays** — per-entry docs in the signup subcollections (Phase 1 below); legacy arrays union-read + backfilled until dropped. |
+| Field                                               | Writer(s)                                        | Why left as a whole-array write                                                                                                               |
+| --------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `players`                                           | `usePlayerCrud`, `acceptTryout`, `advanceSeason` | Edited only by signed-in staff; many ops are inherently multi-element (reorder, bulk import, season advance).                                 |
+| `games`                                             | `useGameCrud`, lineup/finalize flows             | Same; games are also slimmed (`slimGame`) on write, which assumes a full array.                                                               |
+| `evaluationEvents`                                  | _(since moved)_                                  | **No longer a team array** — eval rounds live per-doc in the `evalRounds` subcollection (Phase 2 below).                                      |
+| `coachRoles` (head-initiated `setCoachRole`)        | `useTeamMembership`                              | Owner-only; the **self-join** path already uses the atomic dotted write.                                                                      |
+| `tryoutSignups` / `interestSignups`                 | _(since moved)_                                  | **No longer team arrays** — per-entry docs in the signup subcollections (Phase 1 below); legacy arrays union-read + backfilled until dropped. |
+| `playerInfoSubmissions` / `availabilitySubmissions` | _(since moved)_                                  | **No longer team arrays** — per-entry docs in the submission subcollections (Phase 1b below); same union-read + backfill + drop machinery.    |
 
 If/when these become contended (e.g. multiple assistants entering evals
 simultaneously), prefer per-entry subcollection docs (below) over array
@@ -141,9 +144,66 @@ resource.data)` on the base update rule) and team CREATE may never seed
   **Phase 1 exit status: COMPLETE on the rules side.** The coach client's
   union read + lazy backfill (`assembleSignups` / `backfillSignupDocs`)
   deliberately stays until every team's per-team array drop has drained —
-  removing that client code is the last, separate step. Remaining
-  follow-up: migrate `playerInfoSubmissions` / `availabilitySubmissions`
-  the same way (their array lanes are still active, not deprecated).
+  removing that client code is the last, separate step. The remaining
+  follow-up — migrating `playerInfoSubmissions` / `availabilitySubmissions`
+  the same way — has since shipped as Phase 1b below.
+
+### Phase 1b — player-info + availability submissions → subcollections (SHIPPED)
+
+```
+artifacts/{appId}/public/data/teams/{teamId}/playerInfoSubmissions/{subId}
+artifacts/{appId}/public/data/teams/{teamId}/availabilitySubmissions/{subId}
+```
+
+The last two public-write array lanes, moved with the SAME machinery as
+Phase 1 — `SignupCollectionKey` in `src/utils/tryoutSignupDocs.ts` now spans
+all four lanes and every helper (union assembly, lazy backfill, coverage
+check, the drop) iterates `SIGNUP_COLLECTION_KEYS`:
+
+- **Rules:** member-only READ (family PII); public CREATE gated on the
+  standing share link (`tryoutShareId`, the same gate the array lanes use)
+  plus a per-collection field allowlist and size caps, the 20-char auto-id
+  floor (legacy-id shadowing guard), and — deliberately — NO public
+  `appliedToPlayerId`/`appliedAt`: the handled stamp is coach-only, so a
+  hostile submission can't hide itself from the inbox. Public UPDATE/DELETE
+  denied; members create/update/delete freely (backfill copies legacy
+  entries verbatim, including `emergencyName`/`emergencyPhone`-era shapes).
+  `availabilitySubmissions.dates`/`blocks` are bounded in length only (400,
+  portal caps at 366) — rules can't inspect list elements, and an oversized
+  element now bloats its own per-entry doc (Firestore's 1 MiB per-doc cap),
+  never the shared team doc.
+- **Portal writes:** both portals `setDoc` one per-entry doc with a
+  Firestore auto-id (`newSignupId` / `upsertSignupDoc`) — no more
+  `arrayUnion` against the team doc.
+- **Coach reads:** `TeamProvider` subscribes to all four lanes in the one
+  signup-subscription effect and publishes the union; the backfill and the
+  irreversible drop gate on all four lanes landing + server-confirming, and
+  `dropLegacySignupArrays` deletes all four legacy fields in one write
+  (deleteField on an already-missing key is a no-op, so teams the Phase 1
+  two-key drop already reached are fine).
+- **Coach writes:** deletes clear BOTH homes (subdoc + exact-entry legacy
+  arrayRemove); the apply flows stamp `appliedToPlayerId`/`appliedAt` via a
+  full-entry subdoc upsert (doubling as lazy per-entry migration), with the
+  roster-side merge still riding `updateTeamArrays`. The player-info
+  replace-on-resubmit reconcile now deletes superseded duplicates per-doc
+  instead of rewriting the array.
+- **Ratchet (partial, by design):** the base update rule ratchets both new
+  keys and team CREATE can't seed them, but the DEPRECATED public
+  append-exactly-one lanes stay open exactly one release for cached portal
+  clients (the Phase 1 courtesy). While they're open, a single-entry append
+  can recreate a dropped field — self-healing: the union surfaces it, the
+  backfill mirrors it, the head's client re-drops. Removing the lanes next
+  release makes the drop genuinely irreversible, mirroring Phase 1's exit.
+- **Lifecycle:** `deleteTeamCmd` sweeps all four subcollections before the
+  team doc goes; backup restore strips the two new keys like the other
+  retired arrays (`backupSanitizer`). Season advance touches NEITHER new
+  lane — sizing and standing availability survive the rollover, exactly as
+  the arrays did.
+
+**Phase 1b exit checklist (next release):** delete the two deprecated
+append lanes from `firestore.rules`, flip their emulator tests to DENIED
+probes (see the flipped Phase 1 tests for the shape), and confirm the
+network-first service worker has kept portal bundles fresh.
 
 ### Phase 2 — evaluations → subcollection (SHIPPED)
 

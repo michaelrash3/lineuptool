@@ -87,6 +87,28 @@ const interestSignupPath = (teamId: string, leadId: string) =>
     "interestSignups",
     leadId,
   ] as const;
+const playerInfoSubPath = (teamId: string, subId: string) =>
+  [
+    "artifacts",
+    APP_ID,
+    "public",
+    "data",
+    "teams",
+    teamId,
+    "playerInfoSubmissions",
+    subId,
+  ] as const;
+const availabilitySubPath = (teamId: string, subId: string) =>
+  [
+    "artifacts",
+    APP_ID,
+    "public",
+    "data",
+    "teams",
+    teamId,
+    "availabilitySubmissions",
+    subId,
+  ] as const;
 const mirrorPath = (teamId: string) =>
   ["artifacts", APP_ID, "public", "data", "teamPublic", teamId] as const;
 const invitePath = (code: string) =>
@@ -127,6 +149,11 @@ beforeEach(async () => {
       tryoutShareId: "share-1",
       tryoutSignups: [{ id: "s1", firstName: "Existing" }],
       interestSignups: [{ id: "i1", firstName: "Lead" }],
+      // Legacy Phase 1b arrays, still on the doc: the deprecated public
+      // append lanes and the member cleanup shapes are exercised against
+      // these, and the ratchet tests drop them.
+      playerInfoSubmissions: [{ id: "pi0", firstName: "Old" }],
+      availabilitySubmissions: [{ id: "av0", firstName: "Old" }],
       // A head-coach eval round, so finding-3.1 tests can target the head's
       // private grades from an assistant context.
       evaluationEvents: [
@@ -175,6 +202,23 @@ beforeEach(async () => {
       submittedAt: "2026-07-02T00:00:00.000Z",
       firstName: "Lead",
       lastName: "Doc",
+    });
+    // Per-entry portal submissions (Phase 1b) — one in each subcollection so
+    // the member/anonymous read + update/delete scoping tests have an
+    // existing doc to target.
+    await setDoc(doc(db, ...playerInfoSubPath("team-1", "pi-doc-1")), {
+      id: "pi-doc-1",
+      submittedAt: "2026-07-03T00:00:00.000Z",
+      firstName: "Sizing",
+      lastName: "Doc",
+      shirtSize: "YM",
+    });
+    await setDoc(doc(db, ...availabilitySubPath("team-1", "av-doc-1")), {
+      id: "av-doc-1",
+      submittedAt: "2026-07-04T00:00:00.000Z",
+      firstName: "Away",
+      lastName: "Doc",
+      dates: ["2026-07-10"],
     });
     // Legacy unclaimed team (no ownerId, no coachRoles): the sole member's
     // auto-claim write must keep working under the new guards.
@@ -728,6 +772,105 @@ describe("signup-array legacy-field ratchet (Phase 1 drop irreversibility)", () 
   });
 });
 
+// Phase 1b: the same ratchet, extended to the last two portal-written arrays.
+// Unlike Phase 1 the deprecated PUBLIC append lanes are still open this
+// release, so the ratchet's job here is narrower: member writes may never
+// recreate a dropped array, while a cached portal client's append still lands
+// (self-healing — the coach client's backfill mirrors it and the head's
+// client re-drops the array).
+describe("submission-array legacy-field ratchet (Phase 1b)", () => {
+  it("member cleanup shapes still work while the doc carries the arrays", async () => {
+    // Exact-entry arrayRemove (removeLegacySignupEntries shape).
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        playerInfoSubmissions: arrayRemove({ id: "pi0", firstName: "Old" }),
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        availabilitySubmissions: arrayRemove({ id: "av0", firstName: "Old" }),
+      }),
+    );
+  });
+
+  it("the head can drop ALL FOUR arrays in one write, and no member recreates the new pair", async () => {
+    // dropLegacySignupArrays' Phase 1b shape.
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        tryoutSignups: deleteField(),
+        interestSignups: deleteField(),
+        playerInfoSubmissions: deleteField(),
+        availabilitySubmissions: deleteField(),
+      }),
+    );
+    // A stale coach bundle's whole-array rewrite (the old apply/dedupe
+    // shapes) must fail LOUDLY rather than resurrect the field.
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        playerInfoSubmissions: [],
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        availabilitySubmissions: [{ id: "av-sneak" }, { id: "av-sneak-2" }],
+      }),
+    );
+    // A single-entry write is the ONE shape that still lands post-drop —
+    // from any signed-in caller, member or not — because the deprecated
+    // public append lane is an OR'd rule the base ratchet cannot veto, and
+    // on a dropped field any one-entry array IS a first append. This is the
+    // self-healing window, closed for everyone when the lane is removed next
+    // release.
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        availabilitySubmissions: arrayUnion({ id: "av-lane" }),
+      }),
+    );
+  });
+
+  it("the DEPRECATED public append lane still lands post-drop (the self-healing window)", async () => {
+    // Kept exactly one release for cached portal clients: an anonymous
+    // arrayUnion recreates the field with one entry, the union read surfaces
+    // it, the backfill mirrors it, and the head's client drops the array
+    // again. Removing the lane next release flips this expectation to DENIED.
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
+        playerInfoSubmissions: deleteField(),
+        availabilitySubmissions: deleteField(),
+      });
+    });
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
+        playerInfoSubmissions: arrayUnion({ id: "pi-cached", firstName: "N" }),
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
+        availabilitySubmissions: arrayUnion({ id: "av-cached", dates: [] }),
+      }),
+    );
+  });
+
+  it("a new team doc cannot be born with the submission arrays", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), ...teamPath("team-fresh")), {
+        name: "Fresh",
+        ownerId: OWNER,
+        members: [OWNER],
+        playerInfoSubmissions: [],
+      }),
+    );
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), ...teamPath("team-fresh")), {
+        name: "Fresh",
+        ownerId: OWNER,
+        members: [OWNER],
+        availabilitySubmissions: [],
+      }),
+    );
+  });
+});
+
 // docs/eval-authz-design.md, Option A — the REAL fix for finding 3.1. Rounds
 // move off the shared `evaluationEvents` array into per-author documents so
 // reads AND writes are authorization-scoped: a head coach manages every round,
@@ -1157,6 +1300,229 @@ describe("signup subcollections (Phase 1 — per-entry docs)", () => {
   });
 });
 
+// Phase 1b of docs/firestore-data-migration.md — the last two public-write
+// lanes move to per-entry docs, mirroring the tryout/interest subcollections
+// above: member-only READ/UPDATE/DELETE, public CREATE under the standing
+// share-link gate + allowlist + caps + the auto-id length floor.
+const submissionsCol = (
+  uid: string | undefined,
+  key: "playerInfoSubmissions" | "availabilitySubmissions",
+) =>
+  collection(
+    dbFor(uid),
+    "artifacts",
+    APP_ID,
+    "public",
+    "data",
+    "teams",
+    "team-1",
+    key,
+  );
+
+const portalPlayerInfo = {
+  id: AUTO_ID,
+  submittedAt: "2026-07-20T12:00:00.000Z",
+  firstName: "Nia",
+  lastName: "Vasquez",
+  dob: "2015-04-01",
+  number: "12",
+  hatSize: "MED-LG",
+  shirtSize: "YL",
+  pantsSize: "YL",
+  height: `4'8"`,
+  weight: "85 lbs",
+  school: "Jefferson Elementary",
+  grade: "5th",
+  parentName: "Pat Vasquez",
+  email: "pat@example.com",
+  phone: "555-0100",
+  parent2Name: "Sam Vasquez",
+  parent2Phone: "555-0101",
+  parent2Email: "sam@example.com",
+  notes: "Allergic to bees",
+};
+const portalAvailability = {
+  id: AUTO_ID_2,
+  submittedAt: "2026-07-21T12:00:00.000Z",
+  firstName: "Nia",
+  lastName: "Vasquez",
+  dob: "2015-04-01",
+  parentName: "Pat Vasquez",
+  email: "pat@example.com",
+  phone: "555-0100",
+  dates: ["2026-08-01", "2026-08-02"],
+  blocks: [{ date: "2026-08-01", startTime: "09:00", reason: "camp" }],
+};
+
+describe("portal submission subcollections (Phase 1b — per-entry docs)", () => {
+  it("lets an anonymous visitor create a valid player-info submission while a share link exists", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...playerInfoSubPath("team-1", AUTO_ID)),
+        portalPlayerInfo,
+      ),
+    );
+  });
+
+  it("lets an anonymous visitor create a valid availability submission while a share link exists", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...availabilitySubPath("team-1", AUTO_ID_2)),
+        portalAvailability,
+      ),
+    );
+  });
+
+  it("denies both public creates when no share link exists", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
+        tryoutShareId: null,
+      });
+    });
+    await assertFails(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...playerInfoSubPath("team-1", AUTO_ID)),
+        portalPlayerInfo,
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...availabilitySubPath("team-1", AUTO_ID_2)),
+        portalAvailability,
+      ),
+    );
+  });
+
+  it("denies a public create declaring the coach-only applied stamp", async () => {
+    // appliedToPlayerId/appliedAt mark a submission as handled — a
+    // self-declared stamp would hide a hostile submission from the inbox.
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...playerInfoSubPath("team-1", AUTO_ID)), {
+        ...portalPlayerInfo,
+        appliedToPlayerId: "p1",
+      }),
+    );
+    await assertFails(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...availabilitySubPath("team-1", AUTO_ID_2)),
+        { ...portalAvailability, appliedAt: "2026-07-21T13:00:00.000Z" },
+      ),
+    );
+  });
+
+  it("denies a public create with an oversized field", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...playerInfoSubPath("team-1", AUTO_ID)), {
+        ...portalPlayerInfo,
+        notes: "x".repeat(601),
+      }),
+    );
+    await assertFails(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...availabilitySubPath("team-1", AUTO_ID_2)),
+        { ...portalAvailability, firstName: "x".repeat(61) },
+      ),
+    );
+  });
+
+  it("bounds the availability date/block lists (and rejects non-list shapes)", async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...availabilitySubPath("team-1", AUTO_ID_2)),
+        {
+          ...portalAvailability,
+          dates: Array.from({ length: 401 }, (_, i) => `d${i}`),
+        },
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...availabilitySubPath("team-1", AUTO_ID_2)),
+        { ...portalAvailability, blocks: "not-a-list" },
+      ),
+    );
+  });
+
+  it("denies a public create at a short legacy-style id (shadowing guard), member allowed", async () => {
+    // Same attack the tryout lane closes: plant a doc at a known legacy genId
+    // ("pi-xxxxxxxx" / "av-xxxxxxxx") and the union + skip-existing backfill +
+    // head-only drop chain into permanently replacing a family's entry.
+    await assertFails(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...playerInfoSubPath("team-1", "pi-abc123")),
+        { ...portalPlayerInfo, id: "pi-abc123" },
+      ),
+    );
+    // The lazy backfill (a member) must still mirror short legacy ids.
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER), ...playerInfoSubPath("team-1", "pi-abc123")), {
+        ...portalPlayerInfo,
+        id: "pi-abc123",
+        // ...even carrying legacy-only keys the portal shape never sends.
+        emergencyName: "Grandma",
+      }),
+    );
+  });
+
+  it("denies a public create whose in-data id disagrees with the doc id", async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...availabilitySubPath("team-1", AUTO_ID_2)),
+        { ...portalAvailability, id: "av-somethingelse" },
+      ),
+    );
+  });
+
+  it("denies an unauthenticated create (the portals sign in anonymously first)", async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(), ...playerInfoSubPath("team-1", AUTO_ID)),
+        portalPlayerInfo,
+      ),
+    );
+  });
+
+  it("denies a public visitor reading, updating or deleting an existing submission", async () => {
+    await assertFails(
+      getDoc(doc(dbFor(OUTSIDER), ...playerInfoSubPath("team-1", "pi-doc-1"))),
+    );
+    await assertFails(
+      updateDoc(
+        doc(dbFor(OUTSIDER), ...playerInfoSubPath("team-1", "pi-doc-1")),
+        { notes: "defaced" },
+      ),
+    );
+    await assertFails(
+      deleteDoc(
+        doc(dbFor(OUTSIDER), ...availabilitySubPath("team-1", "av-doc-1")),
+      ),
+    );
+  });
+
+  it("lets a member read, list, update and delete submissions (coach curation)", async () => {
+    await assertSucceeds(
+      getDoc(doc(dbFor(ASSISTANT), ...playerInfoSubPath("team-1", "pi-doc-1"))),
+    );
+    await assertSucceeds(
+      getDocs(query(submissionsCol(ASSISTANT, "playerInfoSubmissions"))),
+    );
+    await assertSucceeds(
+      getDocs(query(submissionsCol(ASSISTANT, "availabilitySubmissions"))),
+    );
+    await assertSucceeds(
+      updateDoc(
+        doc(dbFor(ASSISTANT), ...playerInfoSubPath("team-1", "pi-doc-1")),
+        { appliedToPlayerId: "p1", appliedAt: "2026-07-21T13:00:00.000Z" },
+      ),
+    );
+    await assertSucceeds(
+      deleteDoc(
+        doc(dbFor(ASSISTANT), ...availabilitySubPath("team-1", "av-doc-1")),
+      ),
+    );
+  });
+});
+
 // Prerequisites for the finances gate: without these, a member self-promotes
 // to 'head' and sails through it.
 describe("coachRoles escalation", () => {
@@ -1289,8 +1655,10 @@ describe("sanitized invite lookup + self-join", () => {
 // REMOVED (Phase 1 exit): a cached pre-#582 portal client's arrayUnion is
 // now DENIED even in the friendliest possible state — tryouts open / share
 // link standing, array still on the doc, perfectly-shaped single append.
-// The playerInfoSubmissions / availabilitySubmissions lanes below are NOT
-// deprecated and still accept append-exactly-one.
+// The playerInfoSubmissions / availabilitySubmissions lanes below are now
+// DEPRECATED (Phase 1b — the portals write per-entry subcollection docs) but
+// still accept append-exactly-one for one release; removing them flips these
+// allow expectations to DENIED probes, exactly as happened above.
 describe("public signup append constraints", () => {
   it("DENIES the removed tryout array lane — a well-formed single append while tryouts are open", async () => {
     // Exactly the write the old lane allowed; the flip of the former

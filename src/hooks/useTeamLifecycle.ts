@@ -777,9 +777,10 @@ export const useTeamLifecycle = ({
     downloadTeamBackup(teamDataRef.current, activeTeamId, "snapshot");
     try {
       // Deleting the team doc does NOT delete its subcollections — Firestore
-      // has no cascade — so without this sweep every tryout and interest
-      // signup (real family names, emails and phone numbers) would outlive the
-      // team forever. Swept FIRST, while the team doc still exists: the
+      // has no cascade — so without this sweep every tryout signup, interest
+      // lead, player-info and availability submission (real family names,
+      // emails and phone numbers) would outlive the team forever. Swept
+      // FIRST, while the team doc still exists: the
       // subcollection delete rule resolves membership by reading that parent
       // doc, so anything still here after the team doc is gone can never be
       // deleted by a client again.
@@ -792,6 +793,13 @@ export const useTeamLifecycle = ({
       const sweepFailures = await failuresWithinReportWindow([
         deleteAllSignupDocs(db, appId, activeTeamId!, "tryoutSignups"),
         deleteAllSignupDocs(db, appId, activeTeamId!, "interestSignups"),
+        deleteAllSignupDocs(db, appId, activeTeamId!, "playerInfoSubmissions"),
+        deleteAllSignupDocs(
+          db,
+          appId,
+          activeTeamId!,
+          "availabilitySubmissions",
+        ),
       ]);
       await deleteDoc(
         doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId!),
