@@ -261,7 +261,7 @@ describe("createTeam", () => {
 });
 
 describe("deleteTeamCmd", () => {
-  it("sweeps both signup subcollections BEFORE the team doc is deleted", async () => {
+  it("sweeps every portal subcollection BEFORE the team doc is deleted", async () => {
     // Firestore doesn't cascade: without this the families' signup PII (names,
     // emails, phones) outlives the team forever. And it has to run first —
     // the subcollection delete rule reads membership off the parent team doc,
@@ -275,6 +275,8 @@ describe("deleteTeamCmd", () => {
     ).toEqual([
       ["test-app", "t1", "tryoutSignups"],
       ["test-app", "t1", "interestSignups"],
+      ["test-app", "t1", "playerInfoSubmissions"],
+      ["test-app", "t1", "availabilitySubmissions"],
     ]);
     expect(Math.max(...mockSweepSignups.mock.invocationCallOrder)).toBeLessThan(
       mockDeleteDoc.mock.invocationCallOrder[0],

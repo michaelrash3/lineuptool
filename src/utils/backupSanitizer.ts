@@ -26,6 +26,8 @@ const ACL_KEYS = ["ownerId", "members", "coachRoles", "joinCode"] as const;
 const RETIRED_ARRAY_KEYS = [
   "tryoutSignups",
   "interestSignups",
+  "playerInfoSubmissions",
+  "availabilitySubmissions",
   "evaluationEvents",
 ] as const;
 

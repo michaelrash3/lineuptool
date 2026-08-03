@@ -1,14 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import {
-  arrayUnion,
-  collection,
-  doc,
-  getDocs,
-  query,
-  updateDoc,
-  where,
-} from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
 import { auth, appId, db } from "../firebase";
 import { APP_NAME } from "../constants/ui";
@@ -18,8 +10,8 @@ import {
   isValidEmail,
   isSafeCssColor,
   isSafeImageUrl,
-  genId,
 } from "../utils/helpers";
+import { newSignupId, upsertSignupDoc } from "../utils/tryoutSignupDocs";
 import { applyTeamInkVars } from "../utils/contrast";
 import { reportError } from "../utils/errorReporter";
 import { Button, Eyebrow } from "../components/shared";
@@ -115,7 +107,7 @@ export const PlayerInfoPortal = () => {
   const [teamDocId, setTeamDocId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Guards against double-submit on flaky wifi (the second write would fire
-  // before the first arrayUnion rehydrates locally).
+  // before the first one rehydrates locally).
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     firstName: "",
@@ -231,8 +223,13 @@ export const PlayerInfoPortal = () => {
     setSubmitting(true);
 
     // Trim + length-clamp every free-text field before it leaves the browser.
+    // The id is a Firestore auto-id and doubles as the doc id (Phase 1b of
+    // docs/firestore-data-migration.md): the submission is its own per-entry
+    // doc in the playerInfoSubmissions subcollection, not a team-doc
+    // arrayUnion — a parent's write can no longer grow (or race) the shared
+    // 1 MiB team document.
     const submission = {
-      id: genId("pi"),
+      id: newSignupId(db, appId, teamDocId!, "playerInfoSubmissions"),
       submittedAt: new Date().toISOString(),
       firstName: clampText(form.firstName, SIGNUP_LIMITS.name),
       lastName: clampText(form.lastName, SIGNUP_LIMITS.name),
@@ -255,9 +252,12 @@ export const PlayerInfoPortal = () => {
     };
 
     try {
-      await updateDoc(
-        doc(db, "artifacts", appId, "public", "data", "teams", teamDocId!),
-        { playerInfoSubmissions: arrayUnion(submission) },
+      await upsertSignupDoc(
+        db,
+        appId,
+        teamDocId!,
+        "playerInfoSubmissions",
+        submission,
       );
       setPhase("sent");
     } catch (err) {

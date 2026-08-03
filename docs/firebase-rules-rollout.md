@@ -94,10 +94,11 @@ self-join (only the joining user, only `assistant`, only themselves into
 `members`), the finances head-gate (owner/co-head allowed incl. dotted-path
 appends; assistant denied incl. bundled writes), coachRoles escalation denials,
 the REMOVED signup array lanes (a cached portal client's `arrayUnion` append
-is denied even while tryouts are open / a share link stands), the still-active
+is denied even while tryouts are open / a share link stands), the DEPRECATED
 `playerInfoSubmissions` / `availabilitySubmissions` append-exactly-one lanes
+(kept one release for cached portal clients — Phase 1b writes per-entry docs)
 vs remove/replace/multi-add/no-share-link denials, public mirror read/write
-access, and the Phase 1 signup subcollections (member-only
+access, and the Phase 1 + 1b portal subcollections (member-only
 read/list/update/delete; public create gated on the parent team's tryout
 state with a payload allowlist + size caps).
 

@@ -55,6 +55,10 @@ import {
   backfillSignupDocs,
   allLegacyMigrated,
   dropLegacySignupArrays,
+  deleteSignupDoc,
+  findLegacySignupEntries,
+  removeLegacySignupEntries,
+  SIGNUP_COLLECTION_KEYS,
   type SignupCollectionKey,
 } from "../utils/tryoutSignupDocs";
 import {
@@ -241,7 +245,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // a not-yet-soaked team would read its (empty) subcollection and never
   // populate. Finding-3.1 step 4.
   const rawEvalEventsRef = useRef<any[]>([]);
-  // Same discipline for the legacy signup ARRAYS (Phase 1 of
+  // Same discipline for the legacy signup ARRAYS (Phase 1 + 1b of
   // docs/firestore-data-migration.md, mirroring rawEvalEventsRef): the signup
   // subscriptions union these with the subcollection docs, and the lazy
   // backfill migrates from them — never from teamData, which holds the
@@ -249,6 +253,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // captured state in the team-doc effect's cleanup.
   const rawTryoutSignupsRef = useRef<any[]>([]);
   const rawInterestSignupsRef = useRef<any[]>([]);
+  const rawPlayerInfoSubmissionsRef = useRef<any[]>([]);
+  const rawAvailabilitySubmissionsRef = useRef<any[]>([]);
   // The latest signup subcollection DOCS per collection, as delivered by the
   // subscription callbacks. Held because assembly has TWO inputs — these docs
   // and the raw legacy arrays above — and either one moving has to re-assemble:
@@ -256,7 +262,12 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // append against, and the subscription callbacks need the arrays.
   const signupSubDocsRef = useRef<
     Record<SignupCollectionKey, Array<{ id: string; data: any }>>
-  >({ tryoutSignups: [], interestSignups: [] });
+  >({
+    tryoutSignups: [],
+    interestSignups: [],
+    playerInfoSubmissions: [],
+    availabilitySubmissions: [],
+  });
   // Current signup subcollection doc-id sets, kept fresh by the subscription
   // callbacks. The backfill passes them as its overwrite guard and the array
   // drop as its coverage proof — refs, so neither effect has to depend on the
@@ -264,6 +275,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const signupSubIdsRef = useRef<Record<SignupCollectionKey, Set<string>>>({
     tryoutSignups: new Set(),
     interestSignups: new Set(),
+    playerInfoSubmissions: new Set(),
+    availabilitySubmissions: new Set(),
   });
   // Whether each signup subscription has delivered a snapshot for the active
   // team. Until it has, assembly paints the legacy arrays alone (signups
@@ -272,6 +285,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const signupSubsLandedRef = useRef<Record<SignupCollectionKey, boolean>>({
     tryoutSignups: false,
     interestSignups: false,
+    playerInfoSubmissions: false,
+    availabilitySubmissions: false,
   });
   // Strictly stronger than `landed`: whether each subscription has delivered a
   // snapshot the SERVER confirmed (metadata.fromCache === false). Firestore
@@ -285,7 +300,12 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // both destroy data when it under-reports.
   const signupSubsServerConfirmedRef = useRef<
     Record<SignupCollectionKey, boolean>
-  >({ tryoutSignups: false, interestSignups: false });
+  >({
+    tryoutSignups: false,
+    interestSignups: false,
+    playerInfoSubmissions: false,
+    availabilitySubmissions: false,
+  });
   // A lane whose read the server REFUSED. onSnapshot errors are terminal —
   // Firestore never calls that listener again — so a denied lane can never
   // land and signupsReady can never flip this session. Published so consumers
@@ -294,6 +314,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const signupSubsDeniedRef = useRef<Record<SignupCollectionKey, boolean>>({
     tryoutSignups: false,
     interestSignups: false,
+    playerInfoSubmissions: false,
+    availabilitySubmissions: false,
   });
   // Bumped when a signup subscription reaches a milestone the migration
   // effects gate on — first snapshot landed, then first server-confirmed
@@ -319,6 +341,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // Published on the context so id-lookup consumers can tell "not delivered
   // yet" from "genuinely absent". Derived from the same landed flags the tick
   // announces, so it flips in the render the first snapshots land.
+  // Deliberately scoped to the TWO lanes its consumers (the letter pages'
+  // tryout/interest id lookups) actually wait on — the playerInfo and
+  // availability lanes have no deep-link consumers, and folding them in
+  // would only add ways for those lookups to stall.
   const signupsReady =
     signupSubsLandedRef.current.tryoutSignups &&
     signupSubsLandedRef.current.interestSignups;
@@ -337,10 +363,12 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // after the subscription landed must still become visible — that visibility
   // is the entire reason those lanes were kept.
   const assembledSignups = useCallback((key: SignupCollectionKey): any[] => {
-    const legacy =
-      key === "tryoutSignups"
-        ? rawTryoutSignupsRef.current
-        : rawInterestSignupsRef.current;
+    const legacy = {
+      tryoutSignups: rawTryoutSignupsRef,
+      interestSignups: rawInterestSignupsRef,
+      playerInfoSubmissions: rawPlayerInfoSubmissionsRef,
+      availabilitySubmissions: rawAvailabilitySubmissionsRef,
+    }[key].current;
     // Before the subscription lands there is no doc set to union, so paint the
     // legacy array alone: first load renders, and rules lag that denies the
     // subcollection read can't freeze a stale list. Once landed we always
@@ -639,6 +667,16 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           : [];
         rawInterestSignupsRef.current = Array.isArray(raw.interestSignups)
           ? raw.interestSignups
+          : [];
+        rawPlayerInfoSubmissionsRef.current = Array.isArray(
+          raw.playerInfoSubmissions,
+        )
+          ? raw.playerInfoSubmissions
+          : [];
+        rawAvailabilitySubmissionsRef.current = Array.isArray(
+          raw.availabilitySubmissions,
+        )
+          ? raw.availabilitySubmissions
           : [];
         // Eval schema migration:
         //   v1 (6-category) rounds get wiped — no straightforward mapping.
@@ -949,6 +987,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             // session — nothing else re-assembles when the ARRAY is what moved.
             tryoutSignups: assembledSignups("tryoutSignups"),
             interestSignups: assembledSignups("interestSignups"),
+            playerInfoSubmissions: assembledSignups("playerInfoSubmissions"),
+            availabilitySubmissions: assembledSignups(
+              "availabilitySubmissions",
+            ),
             players: migratedPlayers,
             evalSchemaVersion: EVAL_SCHEMA_VERSION,
           }));
@@ -966,6 +1008,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             // Re-assembled from both inputs (see the branch above).
             tryoutSignups: assembledSignups("tryoutSignups"),
             interestSignups: assembledSignups("interestSignups"),
+            playerInfoSubmissions: assembledSignups("playerInfoSubmissions"),
+            availabilitySubmissions: assembledSignups(
+              "availabilitySubmissions",
+            ),
           }));
         }
         // Mark which team's data is now loaded so write-effects
@@ -1037,6 +1083,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       rawEvalEventsRef.current = [];
       rawTryoutSignupsRef.current = [];
       rawInterestSignupsRef.current = [];
+      rawPlayerInfoSubmissionsRef.current = [];
+      rawAvailabilitySubmissionsRef.current = [];
       // The lineup UNDO buffer is team-scoped for the same reason: it holds a
       // snapshot of one team's roster in position/batting slots, and nothing
       // else ever clears it. The "Undo" action on the generate/re-roll toast
@@ -1609,15 +1657,23 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     updateTeam({ players: stripped });
   }, [activeTeamId, teamData.players, updateTeam]);
 
-  // Player Info replace-on-resubmit. The public portal can only ever APPEND to
-  // playerInfoSubmissions (the rules enforce append-only so an anonymous caller
-  // can't rewrite other families' entries), so a parent correcting their info
-  // leaves a stale duplicate behind. Reconcile coach-side: collapse to the
-  // latest submission per person and persist. (Availability stays add-only.)
-  // The signature ref makes this idempotent AND loop-safe: a failed, optimistic-
-  // rolled-back write restores the same source array, whose signature we've
-  // already acted on, so we don't retry-storm; a genuinely new submission
-  // changes the signature and reconciles again.
+  // Player Info replace-on-resubmit. The public portal can only ever ADD a
+  // playerInfoSubmissions entry (its own per-entry doc — the rules deny a
+  // public update/delete, so an anonymous caller can't rewrite other
+  // families' entries), so a parent correcting their info leaves a stale
+  // duplicate behind. Reconcile coach-side: collapse to the latest submission
+  // per person and delete the superseded copies. (Availability stays
+  // add-only.) Post-migration each superseded entry can live in TWO homes, so
+  // both are cleared: its subcollection doc (a no-op delete when it never
+  // migrated) and — via exact-entry arrayRemove against the RAW team-doc
+  // array, never the assembled union — its legacy twin, which the union would
+  // otherwise resurrect. Failures are silently dropped: this is background
+  // housekeeping, the display already dedupes (PlayerInfoTab), and a later
+  // session retries.
+  // The signature ref makes this idempotent AND loop-safe: a failed write
+  // leaves the same assembled array, whose signature we've already acted on,
+  // so we don't retry-storm; a genuinely new submission changes the signature
+  // and reconciles again.
   const playerInfoReconcileSigRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeTeamId || loadedTeamIdRef.current !== activeTeamId) return;
@@ -1628,8 +1684,27 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     const sig = subs.map((s: any) => `${s?.id}:${s?.submittedAt}`).join("|");
     if (playerInfoReconcileSigRef.current === sig) return;
     playerInfoReconcileSigRef.current = sig;
-    updateTeam({ playerInfoSubmissions: deduped });
-  }, [activeTeamId, teamData.playerInfoSubmissions, updateTeam]);
+    const keep = new Set(deduped.map((s: any) => s?.id));
+    const staleIds = subs
+      .map((s: any) => s?.id)
+      .filter((id: any) => id && !keep.has(id));
+    for (const id of staleIds) {
+      deleteSignupDoc(
+        db,
+        appId,
+        activeTeamId,
+        "playerInfoSubmissions",
+        id,
+      ).catch(() => {});
+    }
+    removeLegacySignupEntries(
+      db,
+      appId,
+      activeTeamId,
+      "playerInfoSubmissions",
+      findLegacySignupEntries(rawPlayerInfoSubmissionsRef.current, staleIds),
+    ).catch(() => {});
+  }, [activeTeamId, teamData.playerInfoSubmissions]);
 
   // Auto-correct defenseSize on age/league change. BATCHED into a single write.
   // We read the four relevant fields outside the effect so the dependency list
@@ -1893,6 +1968,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     // decide whether a legacy-array cleanup write is needed at all.
     rawTryoutSignupsRef,
     rawInterestSignupsRef,
+    rawPlayerInfoSubmissionsRef,
+    rawAvailabilitySubmissionsRef,
     updateTeam,
     updateTeamArrays,
     toast,
@@ -2046,10 +2123,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // not-yet-migrated legacy array entries, so cached portal clients still
   // appending to the legacy arrays surface without a reload.
   //
-  // Both collections are wired in ONE effect so their team-scoped state (docs,
-  // id sets, landed + server-confirmed flags) arms and tears down together — a
-  // half-reset pair is exactly what the migration write-effects below would
-  // misread as proof.
+  // All four collections are wired in ONE effect so their team-scoped state
+  // (docs, id sets, landed + server-confirmed flags) arms and tears down
+  // together — a half-reset set is exactly what the migration write-effects
+  // below would misread as proof.
   //
   // includeMetadataChanges is load-bearing, not a nicety: Firestore suppresses
   // the metadata-only cache→server transition, so on a device whose cached
@@ -2066,7 +2143,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     const subDocs = signupSubDocsRef.current;
     const subIds = signupSubIdsRef.current;
     const retryTimers = signupBackfillRetryTimersRef.current;
-    const keys: SignupCollectionKey[] = ["tryoutSignups", "interestSignups"];
+    const keys = SIGNUP_COLLECTION_KEYS;
     const unsubs = keys.map((key) =>
       onSnapshot(
         signupCollectionRef(db, appId, activeTeamId, key),
@@ -2178,7 +2255,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
     const landed = signupSubsLandedRef.current;
-    if (!landed.tryoutSignups || !landed.interestSignups) return;
+    if (SIGNUP_COLLECTION_KEYS.some((key) => !landed[key])) return;
     // And a CACHE-served id set is not proof of what exists. It under-reports
     // (empty for a collection this device never cached, stale otherwise), and
     // every id it fails to report is one this backfill would setDoc from its
@@ -2189,9 +2266,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     // reconnect, long after the once-guard below stopped anything from
     // re-running and repairing them.
     const serverConfirmed = signupSubsServerConfirmedRef.current;
-    if (!serverConfirmed.tryoutSignups || !serverConfirmed.interestSignups) {
-      return;
-    }
+    if (SIGNUP_COLLECTION_KEYS.some((key) => !serverConfirmed[key])) return;
     // Settled: either a clean pass, or the attempt budget is spent.
     if (signupsBackfilledTeamsRef.current.has(activeTeamId)) return;
     // A pass is already running for this team. Without this, the guard's
@@ -2203,20 +2278,19 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     const attempt = (signupBackfillAttemptsRef.current.get(teamId) || 0) + 1;
     signupBackfillAttemptsRef.current.set(teamId, attempt);
     signupBackfillInFlightRef.current.add(teamId);
-    const backfillKeys: SignupCollectionKey[] = [
-      "tryoutSignups",
-      "interestSignups",
-    ];
     void Promise.all(
-      backfillKeys.map((key) =>
+      SIGNUP_COLLECTION_KEYS.map((key) =>
         backfillSignupDocs(
           db,
           appId,
           teamId,
           key,
-          key === "tryoutSignups"
-            ? rawTryoutSignupsRef.current
-            : rawInterestSignupsRef.current,
+          {
+            tryoutSignups: rawTryoutSignupsRef,
+            interestSignups: rawInterestSignupsRef,
+            playerInfoSubmissions: rawPlayerInfoSubmissionsRef,
+            availabilitySubmissions: rawAvailabilitySubmissionsRef,
+          }[key].current,
           new Set([
             ...signupSubIdsRef.current[key],
             ...(signupBackfillMirroredRef.current.get(`${teamId}:${key}`) ||
@@ -2307,36 +2381,36 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     const legacy: Record<SignupCollectionKey, any[]> = {
       tryoutSignups: rawTryoutSignupsRef.current || [],
       interestSignups: rawInterestSignupsRef.current || [],
+      playerInfoSubmissions: rawPlayerInfoSubmissionsRef.current || [],
+      availabilitySubmissions: rawAvailabilitySubmissionsRef.current || [],
     };
     // Nothing real to delete — never spend the irreversible write. This is
-    // also what stops it re-firing after a successful drop: both refs then
-    // read empty.
-    if (
-      legacy.tryoutSignups.length === 0 &&
-      legacy.interestSignups.length === 0
-    ) {
+    // also what stops it re-firing after a successful drop: every ref then
+    // reads empty.
+    if (SIGNUP_COLLECTION_KEYS.every((key) => legacy[key].length === 0)) {
       return false;
     }
     // allLegacyMigrated is deliberately false-on-empty so a failed/empty read
-    // can never trigger a drop. But the write spans BOTH fields and one empty
-    // array must not strand the other — an empty array has nothing to lose. So
-    // the per-collection bar is "empty OR fully migrated", with at least one
-    // array non-empty overall (checked above).
+    // can never trigger a drop. But the write spans EVERY field and one empty
+    // array must not strand the others — an empty array has nothing to lose.
+    // So the per-collection bar is "empty OR fully migrated", with at least
+    // one array non-empty overall (checked above).
     const ids = signupSubIdsRef.current;
-    return (["tryoutSignups", "interestSignups"] as const).every(
+    return SIGNUP_COLLECTION_KEYS.every(
       (key) =>
         legacy[key].length === 0 || allLegacyMigrated(legacy[key], ids[key]),
     );
   }, []);
 
-  // Migration long tail (Phase 1) — the one irreversible step: delete BOTH
-  // legacy signup ARRAYS from the team doc once the subcollections provably
-  // hold every entry. Mirrors the evalRounds drop above. Guards, in order:
+  // Migration long tail (Phase 1 + 1b) — the one irreversible step: delete
+  // EVERY legacy signup/submission ARRAY from the team doc once the
+  // subcollections provably hold every entry. Mirrors the evalRounds drop
+  // above. Guards, in order:
   //   - HEAD ONLY: one designated dropper, matching the evalRounds precedent;
   //   - doc loaded: the raw refs and id sets must belong to THIS team;
-  //   - both subscriptions LANDED: an unlanded (possibly denied) subscription
+  //   - every subscription LANDED: an unlanded (possibly denied) subscription
   //     reads as an empty id set — never proof;
-  //   - both subscriptions SERVER-CONFIRMED: a cache-served id set
+  //   - every subscription SERVER-CONFIRMED: a cache-served id set
   //     under-reports, and under-reporting here deletes signups that only ever
   //     existed in the array;
   //   - coverage, via signupArraysFullyMigrated.
@@ -2348,7 +2422,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // between our final re-proof and the server applying our delete is still
   // destroyed. Only a server-side compare-and-set could close that; from the
   // client the window can only be narrowed, and it is narrowed here two ways.
-  // (1) The drop waits for BOTH signup lanes to go quiet for
+  // (1) The drop waits for ALL signup lanes to go quiet for
   // SIGNUP_ARRAY_DROP_SETTLE_MS: any snapshot on either lane re-runs this
   // effect, which cancels and restarts the timer. That is the practical form
   // of "stable across a server snapshot" — demanding a literal second server
@@ -2366,11 +2440,9 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     }
     if (droppedSignupArraysTeamsRef.current.has(activeTeamId)) return;
     const landed = signupSubsLandedRef.current;
-    if (!landed.tryoutSignups || !landed.interestSignups) return;
+    if (SIGNUP_COLLECTION_KEYS.some((key) => !landed[key])) return;
     const serverConfirmed = signupSubsServerConfirmedRef.current;
-    if (!serverConfirmed.tryoutSignups || !serverConfirmed.interestSignups) {
-      return;
-    }
+    if (SIGNUP_COLLECTION_KEYS.some((key) => !serverConfirmed[key])) return;
     if (!signupArraysFullyMigrated()) return;
     const teamId = activeTeamId;
     const timer = setTimeout(() => {
@@ -2404,6 +2476,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     signupSubsProgressTick,
     teamData.tryoutSignups,
     teamData.interestSignups,
+    teamData.playerInfoSubmissions,
+    teamData.availabilitySubmissions,
   ]);
 
   // Keep the team-switcher list's name in sync with the team doc. The doc is

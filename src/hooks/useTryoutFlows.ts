@@ -25,6 +25,7 @@ import {
 // length is exact (the old slice(2, N) could occasionally come up short).
 const SLUG_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
 import type {
+  AvailabilitySubmission,
   InterestSignup,
   Player,
   PlayerInfoSubmission,
@@ -39,13 +40,15 @@ import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 // evaluations, and accept-to-roster.
 //
 // SIGNUPS live per-entry in the tryoutSignups/interestSignups subcollections
-// (Phase 1 of docs/firestore-data-migration.md, mirroring evalRounds):
-// teamDataRef.current.<key> is the assembled UNION of subcollection docs and
-// any not-yet-migrated legacy team-doc array entries, and every signup
-// mutation here writes per-doc via utils/tryoutSignupDocs. Deletes must ALSO
-// clear a legacy-resident copy — the union re-admits any legacy entry whose id
-// has no subcollection doc, so removing only the subdoc would resurrect the
-// signup from its stale array twin.
+// (Phase 1 of docs/firestore-data-migration.md, mirroring evalRounds), and —
+// as of Phase 1b — so do the playerInfoSubmissions/availabilitySubmissions
+// portal lanes: teamDataRef.current.<key> is the assembled UNION of
+// subcollection docs and any not-yet-migrated legacy team-doc array entries,
+// and every signup/submission mutation here writes per-doc via
+// utils/tryoutSignupDocs. Deletes must ALSO clear a legacy-resident copy —
+// the union re-admits any legacy entry whose id has no subcollection doc, so
+// removing only the subdoc would resurrect the entry from its stale array
+// twin.
 //
 // That legacy cleanup deliberately does NOT go through updateTeamArrays. Both
 // of its shapes are wrong for a union-backed key: `removeById` resolves the
@@ -56,12 +59,9 @@ import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 // the RAW array refs and calls removeLegacySignupEntries, which arrayRemoves
 // the exact stored elements (tryoutSignupDocs.ts has the full reasoning).
 //
-// The remaining array mutations (players, tryoutSessions, submissions) go
-// through the injected updateTeamArrays — those arrays still take concurrent
-// appends from their own rules lanes, so a coach-side whole-array write here
-// would erase any parent submission that landed after the coach's snapshot.
-// Scalar/config writes (share links, open/close, roster cap) stay on
-// updateTeam. No engine or UI-bridge coupling.
+// The remaining array mutations (players, tryoutSessions) go through the
+// injected updateTeamArrays. Scalar/config writes (share links, open/close,
+// roster cap) stay on updateTeam. No engine or UI-bridge coupling.
 interface UseTryoutFlowsArgs {
   // Ref to the live team doc — callbacks read teamDataRef.current at call time
   // so they keep a stable identity across Firestore snapshots (same pattern as
@@ -75,6 +75,12 @@ interface UseTryoutFlowsArgs {
   >;
   rawInterestSignupsRef: React.MutableRefObject<
     InterestSignup[] | null | undefined
+  >;
+  rawPlayerInfoSubmissionsRef: React.MutableRefObject<
+    PlayerInfoSubmission[] | null | undefined
+  >;
+  rawAvailabilitySubmissionsRef: React.MutableRefObject<
+    AvailabilitySubmission[] | null | undefined
   >;
   updateTeam: (patch: Record<string, unknown>) => void;
   updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
@@ -137,6 +143,8 @@ export const useTryoutFlows = ({
   teamDataRef,
   rawTryoutSignupsRef,
   rawInterestSignupsRef,
+  rawPlayerInfoSubmissionsRef,
+  rawAvailabilitySubmissionsRef,
   updateTeam,
   updateTeamArrays,
   toast,
@@ -470,22 +478,39 @@ export const useTryoutFlows = ({
 
   // Drop a parent-submitted player-info entry. Coach-only; the two-tap
   // confirm lives in the PlayerInfoTab UI so there's no native prompt here.
+  // Same two-home delete as deleteTryoutSignup: the subcollection doc plus,
+  // when a legacy team-doc twin exists, an exact-entry arrayRemove — or the
+  // union resurrects the entry from its stale array copy.
   const deletePlayerInfoSubmission = useCallback(
     (id: any) => {
-      if (!id) return;
-      updateTeamArrays({ op: "removeById", key: "playerInfoSubmissions", id });
+      if (!id || !teamId) return;
+      deleteSignupDoc(db, appId, teamId, "playerInfoSubmissions", id).catch(
+        signupWriteFailed,
+      );
+      removeLegacySignupEntries(
+        db,
+        appId,
+        teamId,
+        "playerInfoSubmissions",
+        findLegacySignupEntries(rawPlayerInfoSubmissionsRef.current, [id]),
+      ).catch(signupWriteFailed);
     },
-    [updateTeamArrays],
+    [db, appId, teamId, rawPlayerInfoSubmissionsRef, signupWriteFailed],
   );
 
   // Apply a parent-submitted player-info entry onto a matching roster player.
   // Writes the sizing + school + emergency-contact fields onto the chosen
   // Player (only fields the parent actually filled in — never blanking
-  // existing roster data) and stamps the submission as handled in the same
-  // atomic write so the inbox can show it as applied.
+  // existing roster data) and stamps the submission as handled so the inbox
+  // can show it as applied. The player patch and the submission stamp used to
+  // ride ONE team-doc write; the submission now lives in its own subcollection
+  // doc, so they are separate writes only a server-side batch could make
+  // atomic. The player patch is issued FIRST, so the bad interleaving is a
+  // stamped-but-unapplied inbox row the coach can re-apply — never sizing
+  // silently lost (the acceptTryout trade, same reasoning).
   const applyPlayerInfoToPlayer = useCallback(
     (submissionId: any, playerId: any) => {
-      if (!submissionId || !playerId) return;
+      if (!submissionId || !playerId || !teamId) return;
       const teamData = teamDataRef.current;
       const sub = (teamData.playerInfoSubmissions || []).find(
         (s: any) => s.id === submissionId,
@@ -517,44 +542,41 @@ export const useTryoutFlows = ({
       put("parent2Email", sub.parent2Email);
 
       const now = new Date().toISOString();
-      updateTeamArrays([
-        {
-          op: "mapEntries",
-          key: "players",
-          map: (items: Player[]) =>
-            items.map((p) => {
-              if (p.id !== playerId) return p;
-              // DOB + parent/guardian 1 contact only fill gaps — evaluated
-              // against the LATEST roster record so this never clobbers what
-              // a coach curated after this screen rendered.
-              const gaps: Record<string, unknown> = {};
-              const fill = (key: string, value: unknown) => {
-                const v = String(value ?? "").trim();
-                if (v && !(p as any)[key]) gaps[key] = v;
-              };
-              fill("dob", sub.dob);
-              fill("parentName", sub.parentName);
-              fill("email", sub.email);
-              fill("phone", sub.phone);
-              return {
-                ...p,
-                ...patch,
-                ...gaps,
-                playerInfoSubmittedAt: sub.submittedAt || now,
-              };
-            }),
-        },
-        {
-          op: "mapEntries",
-          key: "playerInfoSubmissions",
-          map: (items: PlayerInfoSubmission[]) =>
-            items.map((s) =>
-              s.id === submissionId
-                ? { ...s, appliedToPlayerId: playerId, appliedAt: now }
-                : s,
-            ),
-        },
-      ]);
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: (items: Player[]) =>
+          items.map((p) => {
+            if (p.id !== playerId) return p;
+            // DOB + parent/guardian 1 contact only fill gaps — evaluated
+            // against the LATEST roster record so this never clobbers what
+            // a coach curated after this screen rendered.
+            const gaps: Record<string, unknown> = {};
+            const fill = (key: string, value: unknown) => {
+              const v = String(value ?? "").trim();
+              if (v && !(p as any)[key]) gaps[key] = v;
+            };
+            fill("dob", sub.dob);
+            fill("parentName", sub.parentName);
+            fill("email", sub.email);
+            fill("phone", sub.phone);
+            return {
+              ...p,
+              ...patch,
+              ...gaps,
+              playerInfoSubmittedAt: sub.submittedAt || now,
+            };
+          }),
+      });
+      // Full-entry upsert of the submission's own doc. `sub` comes from the
+      // assembled union, so a legacy-only entry gets its subdoc created here —
+      // the union dedups by id with the subcollection winning, making this a
+      // lazy per-entry migration too (the updateTryoutSignup pattern).
+      upsertSignupDoc(db, appId, teamId, "playerInfoSubmissions", {
+        ...sub,
+        appliedToPlayerId: playerId,
+        appliedAt: now,
+      }).catch(signupWriteFailed);
       toast.push({
         kind: "success",
         title: "Player info applied",
@@ -562,32 +584,41 @@ export const useTryoutFlows = ({
           `${sub.firstName || ""} ${sub.lastName || ""}`.trim() || player.name,
       });
     },
-    [teamDataRef, updateTeamArrays, toast],
+    [db, appId, teamId, teamDataRef, updateTeamArrays, toast, signupWriteFailed],
   );
 
   // Drop a parent-submitted availability entry. Coach-only; the two-tap confirm
-  // lives in the AvailabilityTab UI so there's no native prompt here.
+  // lives in the AvailabilityTab UI so there's no native prompt here. Same
+  // two-home delete as deletePlayerInfoSubmission.
   const deleteAvailabilitySubmission = useCallback(
     (id: any) => {
-      if (!id) return;
-      updateTeamArrays({
-        op: "removeById",
-        key: "availabilitySubmissions",
-        id,
-      });
+      if (!id || !teamId) return;
+      deleteSignupDoc(db, appId, teamId, "availabilitySubmissions", id).catch(
+        signupWriteFailed,
+      );
+      removeLegacySignupEntries(
+        db,
+        appId,
+        teamId,
+        "availabilitySubmissions",
+        findLegacySignupEntries(rawAvailabilitySubmissionsRef.current, [id]),
+      ).catch(signupWriteFailed);
     },
-    [updateTeamArrays],
+    [db, appId, teamId, rawAvailabilitySubmissionsRef, signupWriteFailed],
   );
 
   // Merge a parent-submitted availability entry onto a roster player: union the
   // submitted dates into player.absences (deduped + sorted), stamp the player's
   // availabilitySubmittedAt (drives the completion tracker), and mark the
-  // submission handled — all in one atomic write. Pure union over the LATEST
-  // roster record, so re-applying, a parent re-submitting more dates, or a
-  // concurrent absence edit is always additive.
+  // submission handled. Pure union over the LATEST roster record, so
+  // re-applying, a parent re-submitting more dates, or a concurrent absence
+  // edit is always additive. Player merge first, submission stamp second —
+  // the same shrunken-not-closed atomicity window as applyPlayerInfoToPlayer,
+  // with the same benign bad interleaving (an unstamped row re-applies as a
+  // pure re-union).
   const applyAvailabilityToPlayer = useCallback(
     (submissionId: any, playerId: any, opts?: { silent?: boolean }) => {
-      if (!submissionId || !playerId) return;
+      if (!submissionId || !playerId || !teamId) return;
       const teamData = teamDataRef.current;
       const sub = (teamData.availabilitySubmissions || []).find(
         (s: any) => s.id === submissionId,
@@ -600,33 +631,28 @@ export const useTryoutFlows = ({
       const dates = submissionDates(sub);
       const blocks = submissionBlocks(sub);
       const now = new Date().toISOString();
-      updateTeamArrays([
-        {
-          op: "mapEntries",
-          key: "players",
-          map: (items: Player[]) =>
-            items.map((p) =>
-              p.id === playerId
-                ? mergeAvailabilityIntoPlayer(
-                    p,
-                    dates,
-                    blocks,
-                    sub.submittedAt || now,
-                  )
-                : p,
-            ),
-        },
-        {
-          op: "mapEntries",
-          key: "availabilitySubmissions",
-          map: (items) =>
-            items.map((s) =>
-              s.id === submissionId
-                ? { ...s, appliedToPlayerId: playerId, appliedAt: now }
-                : s,
-            ),
-        },
-      ]);
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: (items: Player[]) =>
+          items.map((p) =>
+            p.id === playerId
+              ? mergeAvailabilityIntoPlayer(
+                  p,
+                  dates,
+                  blocks,
+                  sub.submittedAt || now,
+                )
+              : p,
+          ),
+      });
+      // Full-entry upsert doubling as lazy migration — see
+      // applyPlayerInfoToPlayer.
+      upsertSignupDoc(db, appId, teamId, "availabilitySubmissions", {
+        ...sub,
+        appliedToPlayerId: playerId,
+        appliedAt: now,
+      }).catch(signupWriteFailed);
       if (!opts?.silent) {
         toast.push({
           kind: "success",
@@ -637,7 +663,7 @@ export const useTryoutFlows = ({
         });
       }
     },
-    [teamDataRef, updateTeamArrays, toast],
+    [db, appId, teamId, teamDataRef, updateTeamArrays, toast, signupWriteFailed],
   );
 
   // Auto-apply every un-applied availability submission whose name + DOB
@@ -645,9 +671,12 @@ export const useTryoutFlows = ({
   // submissions are left for the coach to match by hand. Runs on the coach
   // client (only members can write players) — typically when the Availability
   // tab mounts. Matching runs on the call-time team snapshot (teamDataRef);
-  // the merges run over the LATEST arrays in one atomic write. Returns the
-  // number applied.
+  // the player merges run over the LATEST roster array in one write, and the
+  // submission stamps ride one batch of per-doc set()s (the
+  // applyAvailabilityToPlayer atomicity trade, in bulk). Returns the number
+  // applied.
   const autoApplyAvailability = useCallback(() => {
+    if (!teamId) return 0;
     const teamData = teamDataRef.current;
     const subs = teamData.availabilitySubmissions || [];
     const players = teamData.players || [];
@@ -695,43 +724,44 @@ export const useTryoutFlows = ({
     }
     if (appliedSubIds.size === 0) return 0;
 
-    updateTeamArrays([
-      {
-        op: "mapEntries",
-        key: "players",
-        map: (items: Player[]) =>
-          items.map((p) => {
-            const mySubs = appliesByPlayer.get(p.id);
-            if (!mySubs) return p;
-            let next = p;
-            for (const sub of mySubs) {
-              next = mergeAvailabilityIntoPlayer(
-                next,
-                submissionDates(sub),
-                submissionBlocks(sub),
-                sub.submittedAt || now,
-              );
-            }
-            return next;
-          }),
-      },
-      {
-        op: "mapEntries",
-        key: "availabilitySubmissions",
-        map: (items) =>
-          items.map((s) =>
-            appliedSubIds.has(s.id)
-              ? {
-                  ...s,
-                  appliedToPlayerId: appliedSubIds.get(s.id),
-                  appliedAt: now,
-                }
-              : s,
-          ),
-      },
-    ]);
+    updateTeamArrays({
+      op: "mapEntries",
+      key: "players",
+      map: (items: Player[]) =>
+        items.map((p) => {
+          const mySubs = appliesByPlayer.get(p.id);
+          if (!mySubs) return p;
+          let next = p;
+          for (const sub of mySubs) {
+            next = mergeAvailabilityIntoPlayer(
+              next,
+              submissionDates(sub),
+              submissionBlocks(sub),
+              sub.submittedAt || now,
+            );
+          }
+          return next;
+        }),
+    });
+    // Stamp every applied submission in ONE batch of full-entry set()s (the
+    // assignTryoutNumbers pattern — batches queue offline, transactions
+    // don't). Each set doubles as that entry's lazy migration.
+    const batch = writeBatch(db);
+    for (const sub of pending) {
+      const playerId = appliedSubIds.get(sub.id);
+      if (!playerId) continue;
+      batch.set(
+        signupDocRef(db, appId, teamId, "availabilitySubmissions", sub.id),
+        scrubUndefined({
+          ...sub,
+          appliedToPlayerId: playerId,
+          appliedAt: now,
+        }) as DocumentData,
+      );
+    }
+    batch.commit().catch(signupWriteFailed);
     return appliedSubIds.size;
-  }, [teamDataRef, updateTeamArrays]);
+  }, [db, appId, teamId, teamDataRef, updateTeamArrays, signupWriteFailed]);
 
   // Tryout grades live in date-grouped tryoutSessions, separate from the
   // roster evaluationEvents collection. Each date has one session; each

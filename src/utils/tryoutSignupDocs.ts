@@ -6,6 +6,12 @@
 // UNION of subcollection docs and any not-yet-migrated legacy array entries,
 // so cached portal clients still appending to the arrays keep working for one
 // release while the lazy backfill absorbs their stragglers.
+//
+// Phase 1b extends the same machinery — unchanged — to the two remaining
+// public portal lanes, `playerInfoSubmissions` and `availabilitySubmissions`.
+// "Signup" in the names below therefore covers all four portal-written
+// families; every helper is keyed by SignupCollectionKey and the behavior per
+// key is identical.
 
 import {
   arrayRemove,
@@ -23,13 +29,35 @@ import {
   type Firestore,
 } from "firebase/firestore";
 import { scrubUndefined } from "./helpers";
-import type { InterestSignup, TryoutSignup } from "../types";
+import type {
+  AvailabilitySubmission,
+  InterestSignup,
+  PlayerInfoSubmission,
+  TryoutSignup,
+} from "../types";
 
-// The two signup subcollections share every helper below — the key doubles as
+// The four portal subcollections share every helper below — the key doubles as
 // the subcollection name AND the legacy team-doc array field it replaces.
-export type SignupCollectionKey = "tryoutSignups" | "interestSignups";
+export type SignupCollectionKey =
+  | "tryoutSignups"
+  | "interestSignups"
+  | "playerInfoSubmissions"
+  | "availabilitySubmissions";
 
-type SignupEntry = TryoutSignup | InterestSignup;
+// Every migrating lane, for callers that iterate (TeamProvider's
+// subscriptions, backfill and drop effects). Order is presentational only.
+export const SIGNUP_COLLECTION_KEYS: readonly SignupCollectionKey[] = [
+  "tryoutSignups",
+  "interestSignups",
+  "playerInfoSubmissions",
+  "availabilitySubmissions",
+] as const;
+
+type SignupEntry =
+  | TryoutSignup
+  | InterestSignup
+  | PlayerInfoSubmission
+  | AvailabilitySubmission;
 
 export const signupCollectionRef = (
   db: Firestore,
@@ -331,19 +359,22 @@ export const allLegacyMigrated = (
   return legacy.every((e) => ids.has(e.id));
 };
 
-// Delete BOTH legacy signup arrays from the team doc in one write — the one
-// irreversible step. REJECTS on failure so the caller can clear its
+// Delete EVERY legacy signup/submission array from the team doc in one write —
+// the one irreversible step. REJECTS on failure so the caller can clear its
 // once-guard and retry next session. deleteField on an already-missing key is
-// a no-op, so one collection being long gone never blocks dropping the other.
+// a no-op, so one collection being long gone (or a team the two-key Phase 1
+// drop already reached) never blocks dropping the others.
 export const dropLegacySignupArrays = (
   db: Firestore,
   appId: string,
   teamId: string,
 ): Promise<void> =>
-  updateDoc(teamDocRef(db, appId, teamId), {
-    tryoutSignups: deleteField(),
-    interestSignups: deleteField(),
-  });
+  updateDoc(
+    teamDocRef(db, appId, teamId),
+    Object.fromEntries(
+      SIGNUP_COLLECTION_KEYS.map((key) => [key, deleteField()]),
+    ),
+  );
 
 // Delete ONE legacy signup array from the team doc. Same deleteField as the
 // two-key drop above and the same irreversibility, but scoped to the lane the

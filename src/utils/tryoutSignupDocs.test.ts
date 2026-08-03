@@ -410,7 +410,7 @@ describe("removeLegacySignupEntries", () => {
 describe("dropLegacySignupArrays", () => {
   // The one IRREVERSIBLE write in the migration — TeamProvider fires it only
   // once coverage is proven, so its payload and target have to be exact.
-  it("deletes BOTH legacy array fields from the team doc in ONE write", async () => {
+  it("deletes EVERY legacy array field from the team doc in ONE write", async () => {
     await dropLegacySignupArrays({} as never, "app", "team1");
     expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
     const [ref, payload] = mockUpdateDoc.mock.calls[0];
@@ -418,10 +418,13 @@ describe("dropLegacySignupArrays", () => {
     expect(payload).toEqual({
       tryoutSignups: { __deleteField: true },
       interestSignups: { __deleteField: true },
+      playerInfoSubmissions: { __deleteField: true },
+      availabilitySubmissions: { __deleteField: true },
     });
-    // Both keys in the SAME update: one collection being long gone must never
-    // block dropping the other, and two writes could half-apply.
-    expect(Object.keys(payload)).toHaveLength(2);
+    // Every key in the SAME update: one collection being long gone (or a team
+    // the two-key Phase 1 drop already reached) must never block dropping the
+    // others, and separate writes could half-apply.
+    expect(Object.keys(payload)).toHaveLength(4);
   });
 
   it("REJECTS on failure so the caller can clear its once-guard and retry", async () => {

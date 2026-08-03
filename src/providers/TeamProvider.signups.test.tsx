@@ -292,7 +292,16 @@ const mountProvider = async () => {
   await emitDoc(SETTINGS, { teams: [{ id: "t1", name: "T1" }] });
 };
 
-// Arm the signup-array drop: one legacy entry, mirrored, both lanes
+// Phase 1b: the migration write-effects gate on ALL FOUR portal lanes, not
+// just the tryout/interest pair most tests here exercise. This stands in for
+// the playerInfo/availability lanes being quiet — empty snapshots,
+// server-confirmed unless a test says otherwise.
+const emitSubmissionLanes = async (team = "t1", fromCache = false) => {
+  await emitCollection(subPath(team, "playerInfoSubmissions"), [], fromCache);
+  await emitCollection(subPath(team, "availabilitySubmissions"), [], fromCache);
+};
+
+// Arm the signup-array drop: one legacy entry, mirrored, every lane
 // server-confirmed. Everything the drop asks for is in place except the
 // settle window.
 const armDrop = async () => {
@@ -305,6 +314,7 @@ const armDrop = async () => {
     { id: "legacy-a", data: {} },
   ]);
   await emitCollection(subPath("t1", "interestSignups"), []);
+  await emitSubmissionLanes();
 };
 
 const tryoutIds = () => screen.getByTestId("tryout").textContent;
@@ -522,11 +532,16 @@ describe("TeamProvider signup subcollections — subscription options", () => {
   // for good. Assert the option structurally: no snapshot this harness can
   // deliver would reveal its absence, because the harness, not Firestore,
   // decides what gets delivered.
-  it("subscribes to both signup lanes with includeMetadataChanges", async () => {
+  it("subscribes to every portal lane with includeMetadataChanges", async () => {
     await mountProvider();
     await emitDoc(teamPath("t1"), teamDoc());
 
-    for (const key of ["tryoutSignups", "interestSignups"] as const) {
+    for (const key of [
+      "tryoutSignups",
+      "interestSignups",
+      "playerInfoSubmissions",
+      "availabilitySubmissions",
+    ] as const) {
       const options = subOptions(subPath("t1", key));
       expect(options).toHaveLength(1);
       expect(options[0]).toEqual(
@@ -551,6 +566,7 @@ describe("TeamProvider signup subcollections — subscription options", () => {
     for (let i = 0; i < 2; i += 1) {
       await emitCollection(subPath("t1", "tryoutSignups"), [], true);
       await emitCollection(subPath("t1", "interestSignups"), [], true);
+      await emitSubmissionLanes("t1", true);
     }
     await act(async () => {
       vi.advanceTimersByTime(SETTLE_MS * 4);
@@ -561,6 +577,7 @@ describe("TeamProvider signup subcollections — subscription options", () => {
     // The metadata-only transition the option buys us. It carries no document
     // change at all — only fromCache flipping to false — and it is what
     // releases the backfill.
+    await emitSubmissionLanes();
     await emitCollection(subPath("t1", "tryoutSignups"), []);
     await emitCollection(subPath("t1", "interestSignups"), []);
     expect(backfilled()).toHaveLength(1);
@@ -617,6 +634,7 @@ describe("TeamProvider signup subcollections — migration writes", () => {
     // window in which "loaded" must read false.
     await emitCollection(subPath("t1", "tryoutSignups"), []);
     await emitCollection(subPath("t1", "interestSignups"), []);
+    await emitSubmissionLanes();
     // Now the doc itself re-lands, carrying the entry to mirror.
     await emitDoc(
       teamPath("t1"),
@@ -631,6 +649,9 @@ describe("TeamProvider signup subcollections — migration writes", () => {
   it("holds the backfill until BOTH subscriptions are server-confirmed", async () => {
     await mountProvider();
     await emitDoc(teamPath("t1"), legacyOnly);
+    // The submission lanes are quiet and confirmed throughout — the pair
+    // under test is tryout/interest.
+    await emitSubmissionLanes();
     // Cache-served snapshots: the id sets under-report, and the backfill would
     // setDoc stale legacy copies over whatever the server actually holds.
     await emitCollection(subPath("t1", "tryoutSignups"), [], true);
@@ -680,6 +701,7 @@ describe("TeamProvider signup subcollections — migration writes", () => {
       { id: "legacy-a", data: {} },
     ]);
     await emitCollection(subPath("t1", "interestSignups"), []);
+    await emitSubmissionLanes();
     // Coverage is proven, but the write is not issued in the same tick — the
     // settle window gives an in-flight legacy-lane append time to arrive.
     expect(dropWrites()).toHaveLength(0);
@@ -767,6 +789,7 @@ describe("TeamProvider signup subcollections — migration writes", () => {
       { id: "legacy-a", data: {} },
     ]);
     await emitCollection(subPath("t1", "interestSignups"), []);
+    await emitSubmissionLanes();
     await act(async () => {
       vi.advanceTimersByTime(SETTLE_MS * 4);
     });
@@ -989,10 +1012,12 @@ describe("TeamProvider signup subcollections — denied subcollection read", () 
       teamPath("t1"),
       teamDoc({ tryoutSignups: [{ id: "legacy-a" }] }),
     );
-    // The tryout lane is fully mirrored and server-confirmed...
+    // The tryout lane is fully mirrored and server-confirmed (and the
+    // submission lanes are quiet)...
     await emitCollection(subPath("t1", "tryoutSignups"), [
       { id: "legacy-a", data: {} },
     ]);
+    await emitSubmissionLanes();
     // ...and the interest lane is DENIED. Its legacy array is empty, so the
     // coverage proof reads "nothing to migrate" for it and waves it through:
     // the landed/server-confirmed gates are the only thing between a read we
@@ -1025,6 +1050,7 @@ describe("TeamProvider signup subcollections — denied subcollection read", () 
     // setDoc-ing the stale legacy copy over the server's.
     await emitError(subPath("t1", "tryoutSignups"));
     await emitCollection(subPath("t1", "interestSignups"), []);
+    await emitSubmissionLanes();
     const written = () =>
       backfillWrites(subPath("t1", "tryoutSignups") + "/legacy-a");
     expect(written()).toHaveLength(0);
@@ -1113,6 +1139,7 @@ describe("TeamProvider signup subcollections — subscription teardown", () => {
       true,
     );
     await emitCollection(subPath("t2", "interestSignups"), [], true);
+    await emitSubmissionLanes("t2", true);
     await act(async () => {
       vi.advanceTimersByTime(SETTLE_MS * 4);
     });
@@ -1125,6 +1152,7 @@ describe("TeamProvider signup subcollections — subscription teardown", () => {
       { id: "legacy-b", data: {} },
     ]);
     await emitCollection(subPath("t2", "interestSignups"), []);
+    await emitSubmissionLanes("t2");
     await act(async () => {
       vi.advanceTimersByTime(SETTLE_MS);
     });
@@ -1154,12 +1182,14 @@ describe("TeamProvider signup subcollections — subscription teardown", () => {
     );
     await emitCollection(subPath("t2", "tryoutSignups"), [], true);
     await emitCollection(subPath("t2", "interestSignups"), [], true);
+    await emitSubmissionLanes("t2", true);
     const written = () =>
       backfillWrites(subPath("t2", "tryoutSignups") + "/legacy-b");
     expect(written()).toHaveLength(0);
 
     // The server's own word releases it — and the once-per-team guard was not
     // burned by the cache-only pass.
+    await emitSubmissionLanes("t2");
     await emitCollection(subPath("t2", "tryoutSignups"), []);
     await emitCollection(subPath("t2", "interestSignups"), []);
     expect(written()).toHaveLength(1);
@@ -1205,13 +1235,14 @@ describe("TeamProvider signup backfill — failure, retry and the retry bound", 
   const settle = () => act(async () => {});
 
   // Everything the backfill needs: one legacy entry with no subcollection
-  // twin, both lanes landed and server-confirmed.
+  // twin, every lane landed and server-confirmed.
   const armBackfill = async () => {
     await mountProvider();
     await emitDoc(
       teamPath("t1"),
       teamDoc({ tryoutSignups: [{ id: "legacy-a", playerName: "Alpha" }] }),
     );
+    await emitSubmissionLanes();
     await emitCollection(subPath("t1", "tryoutSignups"), []);
     await emitCollection(subPath("t1", "interestSignups"), []);
     await settle();
@@ -1275,6 +1306,7 @@ describe("TeamProvider signup backfill — failure, retry and the retry bound", 
       teamPath("t1"),
       teamDoc({ tryoutSignups: [{ id: "legacy-a", playerName: "Alpha" }] }),
     );
+    await emitSubmissionLanes();
     await emitCollection(subPath("t1", "tryoutSignups"), []);
     await emitCollection(subPath("t1", "interestSignups"), []);
     await settle();
@@ -1350,6 +1382,7 @@ describe("TeamProvider signup backfill — failure, retry and the retry bound", 
       teamPath("t1"),
       teamDoc({ tryoutSignups: [{ id: "legacy-a", playerName: "Alpha" }] }),
     );
+    await emitSubmissionLanes();
     await emitCollection(subPath("t1", "tryoutSignups"), []);
     await emitCollection(subPath("t1", "interestSignups"), []);
     await settle();
@@ -1373,6 +1406,7 @@ describe("TeamProvider signup backfill — failure, retry and the retry bound", 
       teamPath("t1"),
       teamDoc({ tryoutSignups: [{ id: "legacy-a" }, { id: "legacy-b" }] }),
     );
+    await emitSubmissionLanes();
     await emitCollection(subPath("t1", "tryoutSignups"), []);
     await emitCollection(subPath("t1", "interestSignups"), []);
     await settle();
