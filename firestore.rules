@@ -172,7 +172,15 @@ service cloud.firestore {
                     && (!('playerInfoSubmissions' in request.resource.data)
                         || ('playerInfoSubmissions' in resource.data))
                     && (!('availabilitySubmissions' in request.resource.data)
-                        || ('availabilitySubmissions' in resource.data));
+                        || ('availabilitySubmissions' in resource.data))
+                    // games is the first COACH-written array on the ladder
+                    // (Phase 3a — per-doc in the games subcollection below).
+                    // No public lane ever existed for it, so this ratchet is
+                    // total from day one: pre-drop member writes that carry
+                    // the array keep working, and once a team's array is
+                    // dropped no write may recreate it.
+                    && (!('games' in request.resource.data)
+                        || ('games' in resource.data));
 
       // Only the current owner can delete the team document.
       allow delete: if isCurrentOwner();
@@ -191,7 +199,8 @@ service cloud.firestore {
                     && !('tryoutSignups' in request.resource.data)
                     && !('interestSignups' in request.resource.data)
                     && !('playerInfoSubmissions' in request.resource.data)
-                    && !('availabilitySubmissions' in request.resource.data);
+                    && !('availabilitySubmissions' in request.resource.data)
+                    && !('games' in request.resource.data);
 
       // NOTE: there is deliberately NO "read if a join code exists" rule here.
       // The old `allow read: if isSignedIn() && resource.data.joinCode != null;`
@@ -486,6 +495,17 @@ service cloud.firestore {
                           && portalKeysOnly()
                           && playerInfoCapsOk());
         allow update, delete: if isTeamMember();
+      }
+
+      // ----- Per-entry games (Phase 3a of docs/firestore-data-migration.md
+      // — the first coach-written array off the 1 MiB team doc). No public
+      // lane ever existed for games, so the block reduces to member-only
+      // everything. Member create is deliberately unconstrained: the lazy
+      // backfill copies legacy array entries VERBATIM, including their short
+      // genId ids ("g-xxxxxxxx") — do not add an id-length floor here, that
+      // guard exists on the PUBLIC portal lanes only.
+      match /games/{gameId} {
+        allow read, create, update, delete: if isTeamMember();
       }
 
       match /availabilitySubmissions/{subId} {

@@ -944,10 +944,14 @@ export const DEFAULT_TEAM_DATA = Object.freeze({
 });
 
 // The shape createTeam writes to a NEW team doc: DEFAULT_TEAM_DATA minus the
-// legacy `evaluationEvents` array. Rounds live in the evalRounds subcollection
-// (finding 3.1) and the rules reject any team-doc write that would (re)create
-// the dropped field — seeding it at create would plant a member-writable
-// leftover on every new team.
+// retired legacy arrays. Rounds live in the evalRounds subcollection (finding
+// 3.1) and games live per-doc in the games subcollection (Phase 3a of
+// docs/firestore-data-migration.md); the rules reject any team-doc write that
+// would (re)create a dropped field — seeding one at create would plant a
+// legacy leftover on every new team, restarting its backfill/drop cycle.
+// DEFAULT_TEAM_DATA keeps both keys so local reads stay safe pre-snapshot.
 export const NEW_TEAM_DOC = Object.freeze(
-  (({ evaluationEvents: _legacy, ...rest }) => rest)(DEFAULT_TEAM_DATA),
+  (({ evaluationEvents: _legacy, games: _games, ...rest }) => rest)(
+    DEFAULT_TEAM_DATA,
+  ),
 );

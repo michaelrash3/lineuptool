@@ -420,11 +420,12 @@ describe("dropLegacySignupArrays", () => {
       interestSignups: { __deleteField: true },
       playerInfoSubmissions: { __deleteField: true },
       availabilitySubmissions: { __deleteField: true },
+      games: { __deleteField: true },
     });
     // Every key in the SAME update: one collection being long gone (or a team
-    // the two-key Phase 1 drop already reached) must never block dropping the
+    // an earlier phase's drop already reached) must never block dropping the
     // others, and separate writes could half-apply.
-    expect(Object.keys(payload)).toHaveLength(4);
+    expect(Object.keys(payload)).toHaveLength(5);
   });
 
   it("REJECTS on failure so the caller can clear its once-guard and retry", async () => {

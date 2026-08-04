@@ -109,6 +109,17 @@ const availabilitySubPath = (teamId: string, subId: string) =>
     "availabilitySubmissions",
     subId,
   ] as const;
+const gameDocPath = (teamId: string, gameId: string) =>
+  [
+    "artifacts",
+    APP_ID,
+    "public",
+    "data",
+    "teams",
+    teamId,
+    "games",
+    gameId,
+  ] as const;
 const mirrorPath = (teamId: string) =>
   ["artifacts", APP_ID, "public", "data", "teamPublic", teamId] as const;
 const invitePath = (code: string) =>
@@ -149,11 +160,14 @@ beforeEach(async () => {
       tryoutShareId: "share-1",
       tryoutSignups: [{ id: "s1", firstName: "Existing" }],
       interestSignups: [{ id: "i1", firstName: "Lead" }],
-      // Legacy Phase 1b arrays, still on the doc: the deprecated public
-      // append lanes and the member cleanup shapes are exercised against
-      // these, and the ratchet tests drop them.
+      // Legacy Phase 1b arrays, still on the doc: the member cleanup shapes
+      // are exercised against these, and the ratchet tests drop them.
       playerInfoSubmissions: [{ id: "pi0", firstName: "Old" }],
       availabilitySubmissions: [{ id: "av0", firstName: "Old" }],
+      // Legacy Phase 3a array — the games ratchet only admits writes carrying
+      // the key while the doc still has it, so the pre-drop member shapes
+      // below need it seeded.
+      games: [{ id: "g1", date: "2026-06-01", opponent: "Sharks" }],
       // A head-coach eval round, so finding-3.1 tests can target the head's
       // private grades from an assistant context.
       evaluationEvents: [
@@ -865,6 +879,124 @@ describe("submission-array legacy-field ratchet (Phase 1b)", () => {
         members: [OWNER],
         availabilitySubmissions: [],
       }),
+    );
+  });
+});
+
+// Phase 3a: the games array joins the ladder — the first COACH-written lane,
+// with no public append lane, so its ratchet is total from day one.
+describe("games legacy-field ratchet + subcollection (Phase 3a)", () => {
+  it("member shapes still work while the doc carries the games array", async () => {
+    // Exact-entry arrayRemove (the deleted-game legacy-twin cleanup).
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        games: arrayRemove({
+          id: "g1",
+          date: "2026-06-01",
+          opponent: "Sharks",
+        }),
+      }),
+    );
+    // A whole-array rewrite (a stale pre-migration coach bundle's mapEntries).
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        games: [{ id: "g1", date: "2026-06-01", opponent: "Sharks" }],
+      }),
+    );
+  });
+
+  it("the head can drop the games array, and NOBODY can recreate it after", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        games: deleteField(),
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), { games: [] }),
+    );
+    await assertFails(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        games: arrayUnion({ id: "g-sneak", opponent: "Nope" }),
+      }),
+    );
+  });
+
+  it("a new team doc cannot be born with the games array — and the REAL createTeam payload passes", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), ...teamPath("team-fresh")), {
+        name: "Fresh",
+        ownerId: OWNER,
+        members: [OWNER],
+        games: [],
+      }),
+    );
+    // NEW_TEAM_DOC stopped seeding games in the same change that added the
+    // create ratchet — the real payload must keep passing.
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER), ...teamPath("team-fresh")), {
+        ...NEW_TEAM_DOC,
+        name: "Fresh",
+        ownerId: OWNER,
+        members: [OWNER],
+      }),
+    );
+  });
+
+  it("scopes the games subcollection to members (read + write)", async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(ASSISTANT), ...gameDocPath("team-1", "g-doc-1")), {
+        id: "g-doc-1",
+        date: "2026-06-08",
+        opponent: "Comets",
+        status: "scheduled",
+      }),
+    );
+    await assertSucceeds(
+      getDoc(doc(dbFor(OWNER), ...gameDocPath("team-1", "g-doc-1"))),
+    );
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...gameDocPath("team-1", "g-doc-1")), {
+        status: "final",
+        teamScore: 5,
+        opponentScore: 3,
+      }),
+    );
+    await assertSucceeds(
+      deleteDoc(doc(dbFor(ASSISTANT), ...gameDocPath("team-1", "g-doc-1"))),
+    );
+    // The lazy backfill copies legacy entries VERBATIM at their short genId
+    // ids — a member create at "g-xxxxxxxx" must work (no id-length floor on
+    // this member-only lane).
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER), ...gameDocPath("team-1", "g-legacy1")), {
+        id: "g-legacy1",
+        date: "2026-05-01",
+        opponent: "Legacy",
+        someLegacyKey: "kept-verbatim",
+      }),
+    );
+  });
+
+  it("denies outsiders and anonymous callers everything on the games subcollection", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), ...gameDocPath("team-1", "g-priv")), {
+        id: "g-priv",
+        date: "2026-06-15",
+        opponent: "Private",
+      });
+    });
+    await assertFails(
+      getDoc(doc(dbFor(OUTSIDER), ...gameDocPath("team-1", "g-priv"))),
+    );
+    await assertFails(getDoc(doc(dbFor(), ...gameDocPath("team-1", "g-priv"))));
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...gameDocPath("team-1", "g-evil")), {
+        id: "g-evil",
+        opponent: "Planted",
+      }),
+    );
+    await assertFails(
+      deleteDoc(doc(dbFor(OUTSIDER), ...gameDocPath("team-1", "g-priv"))),
     );
   });
 });

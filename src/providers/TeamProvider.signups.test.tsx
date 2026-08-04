@@ -136,6 +136,13 @@ const setDocMock = firestore.setDoc as unknown as ReturnType<typeof vi.fn>;
 const updateDocMock = firestore.updateDoc as unknown as ReturnType<
   typeof vi.fn
 >;
+const writeBatchMock = firestore.writeBatch as unknown as ReturnType<
+  typeof vi.fn
+>;
+// The most recent writeBatch the provider minted — Phase 3a routes games ops
+// through batches so multi-shape cascades stay atomic.
+const lastBatch = () =>
+  writeBatchMock.mock.results[writeBatchMock.mock.results.length - 1]?.value;
 
 const SETTINGS = "artifacts/test-app/users/u1/settings/teams";
 const teamPath = (id: string) => `artifacts/test-app/public/data/teams/${id}`;
@@ -292,13 +299,15 @@ const mountProvider = async () => {
   await emitDoc(SETTINGS, { teams: [{ id: "t1", name: "T1" }] });
 };
 
-// Phase 1b: the migration write-effects gate on ALL FOUR portal lanes, not
-// just the tryout/interest pair most tests here exercise. This stands in for
-// the playerInfo/availability lanes being quiet — empty snapshots,
-// server-confirmed unless a test says otherwise.
+// The migration write-effects gate on EVERY migrating lane (the four portal
+// lanes of Phases 1/1b plus the Phase 3a games lane), not just the
+// tryout/interest pair most tests here exercise. This stands in for the
+// other lanes being quiet — empty snapshots, server-confirmed unless a test
+// says otherwise.
 const emitSubmissionLanes = async (team = "t1", fromCache = false) => {
   await emitCollection(subPath(team, "playerInfoSubmissions"), [], fromCache);
   await emitCollection(subPath(team, "availabilitySubmissions"), [], fromCache);
+  await emitCollection(subPath(team, "games"), [], fromCache);
 };
 
 // Arm the signup-array drop: one legacy entry, mirrored, every lane
@@ -1427,5 +1436,228 @@ describe("TeamProvider signup backfill — failure, retry and the retry bound", 
     // re-sends the STALE legacy copy over a doc the coach may have edited in
     // between — the exact clobber this function's contract promises to avoid.
     expect(attemptsFor("legacy-a")).toBe(1);
+  });
+});
+
+// Phase 3a: games ops entering updateTeamArrays are translated into per-doc
+// subcollection writes — the caller still expresses "the next array", the
+// provider diffs it against the assembled union and writes only what changed,
+// on ONE batch so cascades stay atomic. These tests drive the real provider
+// with real ops and assert the batch shapes.
+describe("TeamProvider games translation (Phase 3a)", () => {
+  const g1 = {
+    id: "g1",
+    date: "2026-06-01",
+    opponent: "Sharks",
+    status: "scheduled",
+  };
+  const g2 = {
+    id: "g2",
+    date: "2026-06-08",
+    opponent: "Comets",
+    status: "scheduled",
+  };
+
+  const mountWithGames = async () => {
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc({ games: [g1, g2] }));
+    // The games LANE must land before an edit is safe — until it does, the
+    // union is the legacy array alone (empty on an already-dropped team).
+    await emitCollection(subPath("t1", "games"), []);
+  };
+
+  it("BLOCKS an edit until the games lane has landed (a silent no-op would eat it)", async () => {
+    await mountProvider();
+    // Team doc loaded — the old teamLoaded gate is satisfied — but the games
+    // subscription has delivered nothing. On a team whose legacy array was
+    // already dropped this reads as "no games at all", so a mapEntries edit
+    // would diff to nothing and the coach's save would vanish silently.
+    await emitDoc(teamPath("t1"), teamDoc({ games: [] }));
+    await act(async () => {
+      teamApi.updateTeamArrays({
+        op: "mapEntries",
+        key: "games",
+        map: (items: any[]) =>
+          items.map((g) => ({ ...g, teamScore: 9 })) as any[],
+      });
+    });
+    expect(writeBatchMock).not.toHaveBeenCalled();
+    expect(updateDocMock).not.toHaveBeenCalled();
+    // ...and the coach is TOLD, rather than left believing it saved.
+    expect(
+      screen.getByText(/schedule hasn't finished loading/i),
+    ).toBeInTheDocument();
+
+    // Once the lane lands, the same op writes.
+    await emitCollection(subPath("t1", "games"), [
+      { id: "g9", data: { id: "g9", date: "2026-06-01", opponent: "Jets" } },
+    ]);
+    await act(async () => {
+      teamApi.updateTeamArrays({
+        op: "mapEntries",
+        key: "games",
+        map: (items: any[]) =>
+          items.map((g) => ({ ...g, teamScore: 9 })) as any[],
+      });
+    });
+    expect(lastBatch().set).toHaveBeenCalledTimes(1);
+  });
+
+  it("still allows an APPEND before the lane lands — it can only add", async () => {
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc({ games: [] }));
+    await act(async () => {
+      teamApi.updateTeamArrays({
+        op: "append",
+        key: "games",
+        entries: [{ id: "g-new", date: "2026-07-01", opponent: "Early" }],
+      });
+    });
+    expect(lastBatch().set).toHaveBeenCalledTimes(1);
+    expect(lastBatch().set.mock.calls[0][0].__path).toBe(
+      subPath("t1", "games") + "/g-new",
+    );
+  });
+
+  it("chunks a bulk write past Firestore's 500-op batch cap", async () => {
+    await mountProvider();
+    const many = Array.from({ length: 450 }, (_, i) => ({
+      id: `g${i}`,
+      date: "2026-06-01",
+      opponent: `Team ${i}`,
+    }));
+    await emitDoc(teamPath("t1"), teamDoc({ games: [] }));
+    await emitCollection(subPath("t1", "games"), []);
+    await act(async () => {
+      teamApi.updateTeamArrays({
+        op: "append",
+        key: "games",
+        entries: many,
+      });
+    });
+    await act(async () => {});
+    // 450 sets → two commits (400 + 50); one batch would be REJECTED whole.
+    expect(writeBatchMock).toHaveBeenCalledTimes(2);
+    const batches = writeBatchMock.mock.results.map((r) => r.value);
+    expect(batches[0].set).toHaveBeenCalledTimes(400);
+    expect(batches[1].set).toHaveBeenCalledTimes(50);
+    expect(batches[0].commit).toHaveBeenCalledTimes(1);
+    expect(batches[1].commit).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes a single-game edit to ONE full-entry doc set — untouched games write nothing", async () => {
+    await mountWithGames();
+    await act(async () => {
+      teamApi.updateTeamArrays({
+        op: "mapEntries",
+        key: "games",
+        map: (items: any[]) =>
+          items.map((g) =>
+            g.id === "g1" ? { ...g, teamScore: 5, status: "final" } : g,
+          ),
+      });
+    });
+    const batch = lastBatch();
+    expect(batch.set).toHaveBeenCalledTimes(1);
+    const [ref, entry] = batch.set.mock.calls[0];
+    expect(ref.__path).toBe(subPath("t1", "games") + "/g1");
+    // FULL entry, not a merge patch — clears-by-omission must round-trip.
+    expect(entry).toMatchObject({
+      id: "g1",
+      opponent: "Sharks",
+      teamScore: 5,
+      status: "final",
+    });
+    expect(batch.delete).not.toHaveBeenCalled();
+    // No legacy cleanup needed on an edit — the subdoc simply wins the union.
+    expect(batch.update).not.toHaveBeenCalled();
+    expect(batch.commit).toHaveBeenCalledTimes(1);
+    // Optimistic union carries the edit.
+    expect(
+      (teamApi.team.games as any[]).find((g) => g.id === "g1").teamScore,
+    ).toBe(5);
+  });
+
+  it("a game delete clears BOTH homes in one atomic batch", async () => {
+    await mountWithGames();
+    await act(async () => {
+      teamApi.updateTeamArrays({ op: "removeById", key: "games", id: "g2" });
+    });
+    const batch = lastBatch();
+    expect(batch.delete).toHaveBeenCalledTimes(1);
+    expect(batch.delete.mock.calls[0][0].__path).toBe(
+      subPath("t1", "games") + "/g2",
+    );
+    // The legacy twin leaves the team-doc array via exact-entry arrayRemove
+    // in the SAME batch — or the union would resurrect the deleted game.
+    expect(batch.update).toHaveBeenCalledTimes(1);
+    const [teamRef, payload] = batch.update.mock.calls[0];
+    expect(teamRef.__path).toBe(teamPath("t1"));
+    expect(payload.games.__arrayRemove).toEqual(g2);
+    expect(batch.set).not.toHaveBeenCalled();
+    expect((teamApi.team.games as any[]).map((g) => g.id)).toEqual(["g1"]);
+  });
+
+  it("an append creates the game's own doc and nothing else", async () => {
+    await mountWithGames();
+    const g3 = {
+      id: "g3",
+      date: "2026-06-15",
+      opponent: "Hawks",
+      status: "scheduled",
+    };
+    await act(async () => {
+      teamApi.updateTeamArrays({ op: "append", key: "games", entries: [g3] });
+    });
+    const batch = lastBatch();
+    expect(batch.set).toHaveBeenCalledTimes(1);
+    expect(batch.set.mock.calls[0][0].__path).toBe(
+      subPath("t1", "games") + "/g3",
+    );
+    expect(batch.set.mock.calls[0][1]).toMatchObject({ id: "g3" });
+    expect(batch.update).not.toHaveBeenCalled();
+    expect(batch.delete).not.toHaveBeenCalled();
+    expect((teamApi.team.games as any[]).map((g) => g.id)).toContain("g3");
+  });
+
+  it("a mixed cascade (games + another array) rides ONE batch with the team-doc payload", async () => {
+    await mountWithGames();
+    await act(async () => {
+      teamApi.updateTeamArrays([
+        { op: "removeById", key: "games", id: "g1" },
+        {
+          op: "mapEntries",
+          key: "tournaments",
+          map: () => [{ id: "t-1", name: "Kept" }] as any[],
+        },
+      ]);
+    });
+    const batch = lastBatch();
+    expect(batch.delete).toHaveBeenCalledTimes(1);
+    // ONE team-doc update carrying BOTH the tournaments rewrite and the
+    // legacy-twin arrayRemove — atomic with the doc delete.
+    expect(batch.update).toHaveBeenCalledTimes(1);
+    const payload = batch.update.mock.calls[0][1];
+    expect(payload.tournaments).toEqual([{ id: "t-1", name: "Kept" }]);
+    expect(payload.games.__arrayRemove).toEqual(g1);
+    expect(batch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it("reverts the optimistic union when the batch commit fails", async () => {
+    await mountWithGames();
+    writeBatchMock.mockImplementationOnce(() => ({
+      set: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      commit: vi.fn(() => Promise.reject(new Error("permission-denied"))),
+    }));
+    await act(async () => {
+      teamApi.updateTeamArrays({ op: "removeById", key: "games", id: "g1" });
+    });
+    await act(async () => {});
+    expect((teamApi.team.games as any[]).map((g) => g.id).sort()).toEqual([
+      "g1",
+      "g2",
+    ]);
   });
 });

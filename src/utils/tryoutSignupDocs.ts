@@ -33,21 +33,25 @@ import {
 import { scrubUndefined } from "./helpers";
 import type {
   AvailabilitySubmission,
+  Game,
   InterestSignup,
   PlayerInfoSubmission,
   TryoutSignup,
 } from "../types";
 
-// The four portal subcollections share every helper below — the key doubles as
-// the subcollection name AND the legacy team-doc array field it replaces.
+// The subcollections share every helper below — the key doubles as the
+// subcollection name AND the legacy team-doc array field it replaces. Phase 3
+// (docs/firestore-data-migration.md) widens this union with the coach-written
+// `games` lane (and later `players`): same union-read + lazy-backfill +
+// head-only-drop machinery, no public write lane, member-only rules.
 export type SignupCollectionKey =
   | "tryoutSignups"
   | "interestSignups"
   | "playerInfoSubmissions"
-  | "availabilitySubmissions";
+  | "availabilitySubmissions"
+  | "games";
 
-// Every migrating lane, for callers that iterate (TeamProvider's
-// subscriptions, backfill and drop effects). Order is presentational only.
+// The four portal-written lanes (Phases 1 + 1b).
 export const SIGNUP_COLLECTION_KEYS: readonly SignupCollectionKey[] = [
   "tryoutSignups",
   "interestSignups",
@@ -55,11 +59,19 @@ export const SIGNUP_COLLECTION_KEYS: readonly SignupCollectionKey[] = [
   "availabilitySubmissions",
 ] as const;
 
+// Every migrating team-doc array lane, portal- and coach-written alike — the
+// list TeamProvider's subscriptions, backfill and drop effects iterate.
+export const ALL_LEGACY_ARRAY_KEYS: readonly SignupCollectionKey[] = [
+  ...SIGNUP_COLLECTION_KEYS,
+  "games",
+] as const;
+
 type SignupEntry =
   | TryoutSignup
   | InterestSignup
   | PlayerInfoSubmission
-  | AvailabilitySubmission;
+  | AvailabilitySubmission
+  | Game;
 
 export const signupCollectionRef = (
   db: Firestore,
@@ -374,7 +386,7 @@ export const dropLegacySignupArrays = (
   updateDoc(
     teamDocRef(db, appId, teamId),
     Object.fromEntries(
-      SIGNUP_COLLECTION_KEYS.map((key) => [key, deleteField()]),
+      ALL_LEGACY_ARRAY_KEYS.map((key) => [key, deleteField()]),
     ),
   );
 

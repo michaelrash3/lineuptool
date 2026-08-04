@@ -572,7 +572,12 @@ export const useTeamLifecycle = ({
             ? {}
             : { pitchingFormat: allowedNextFormats[0] }),
           players: [...updatedPlayers, ...promotedPlayers],
-          games: [],
+          // `games` is deliberately NOT here. Games live in the games
+          // SUBCOLLECTION (Phase 3a) and the legacy array is being retired by
+          // a deleteField drop; writing `games: []` would recreate the very
+          // field the migration removes. Both homes are cleared after this
+          // patch instead (query-based sweep + deleteField), exactly like
+          // tryoutSignups below.
           // Tournaments reference games by id; with games cleared they'd be
           // zombie entries (dangling gameIds + pitch plans), so they reset
           // with the schedule they described.
@@ -689,6 +694,25 @@ export const useTeamLifecycle = ({
             message: `Signups from ${archivedSeason} couldn't all be deleted. Check the Tryouts tab and remove any that are left.`,
           });
         }
+
+        // Season reset of GAMES — the Phase 3a twin of the signup sweep
+        // above, clearing both homes: the games subcollection (query-based
+        // sweep — the client's assembled union only holds what its
+        // subscription delivered, so a diff-based wipe would quietly miss
+        // undelivered docs) and the legacy team-doc array (deleteField,
+        // never `[]`). The head-to-head history survives as the
+        // opponentArchive aggregates written in the season patch.
+        const gamesFailed = await failuresWithinReportWindow([
+          deleteAllSignupDocs(db, appId, activeTeamId, "games"),
+          dropLegacySignupArray(db, appId, activeTeamId, "games"),
+        ]);
+        if (gamesFailed > 0) {
+          toast.push({
+            kind: "warn",
+            title: "Some old games are still there",
+            message: `Games from ${archivedSeason} couldn't all be deleted. Check the Schedule tab and remove any that are left.`,
+          });
+        }
       }
 
       // The local team is already advanced (updateTeam patches optimistically),
@@ -729,8 +753,21 @@ export const useTeamLifecycle = ({
           // team doc is already near the cap. This should essentially never
           // fire now, but warn rather than let the write silently fail.
           const HARD_LIMIT = 900_000; // leave headroom for Firestore overhead
+          // Migrated lanes are excluded from the estimate: teamData carries
+          // the assembled UNION for games/signups/submissions, but those live
+          // in subcollections and occupy no team-doc bytes (Phases 1/1b/3a).
+          // Counting them would falsely block a logo on a team with a long
+          // schedule — precisely after the migration relieved the pressure.
+          const {
+            games: _g,
+            tryoutSignups: _ts,
+            interestSignups: _is,
+            playerInfoSubmissions: _pi,
+            availabilitySubmissions: _as,
+            ...docResident
+          } = teamData as Record<string, unknown>;
           const approxSize = JSON.stringify({
-            ...teamData,
+            ...docResident,
             logoUrl: dataUrl,
           }).length;
           if (approxSize > HARD_LIMIT) {
@@ -800,6 +837,7 @@ export const useTeamLifecycle = ({
           activeTeamId!,
           "availabilitySubmissions",
         ),
+        deleteAllSignupDocs(db, appId, activeTeamId!, "games"),
       ]);
       await deleteDoc(
         doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId!),

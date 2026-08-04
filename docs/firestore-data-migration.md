@@ -55,14 +55,14 @@ roster/schedule/evals in the app), so the lost-update risk is low and the
 churn/risk of converting them is high. Documented here so the trade-off is
 explicit rather than accidental:
 
-| Field                                               | Writer(s)                                        | Why left as a whole-array write                                                                                                               |
-| --------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `players`                                           | `usePlayerCrud`, `acceptTryout`, `advanceSeason` | Edited only by signed-in staff; many ops are inherently multi-element (reorder, bulk import, season advance).                                 |
-| `games`                                             | `useGameCrud`, lineup/finalize flows             | Same; games are also slimmed (`slimGame`) on write, which assumes a full array.                                                               |
-| `evaluationEvents`                                  | _(since moved)_                                  | **No longer a team array** — eval rounds live per-doc in the `evalRounds` subcollection (Phase 2 below).                                      |
-| `coachRoles` (head-initiated `setCoachRole`)        | `useTeamMembership`                              | Owner-only; the **self-join** path already uses the atomic dotted write.                                                                      |
-| `tryoutSignups` / `interestSignups`                 | _(since moved)_                                  | **No longer team arrays** — per-entry docs in the signup subcollections (Phase 1 below); legacy arrays union-read + backfilled until dropped. |
-| `playerInfoSubmissions` / `availabilitySubmissions` | _(since moved)_                                  | **No longer team arrays** — per-entry docs in the submission subcollections (Phase 1b below); same union-read + backfill + drop machinery.    |
+| Field                                               | Writer(s)                                        | Why left as a whole-array write                                                                                                                |
+| --------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `players`                                           | `usePlayerCrud`, `acceptTryout`, `advanceSeason` | Edited only by signed-in staff; many ops are inherently multi-element (reorder, bulk import, season advance).                                  |
+| `games`                                             | _(since moved)_                                  | **No longer a team array** — per-entry docs in the games subcollection (Phase 3a below); writers diff-translated at the provider choke points. |
+| `evaluationEvents`                                  | _(since moved)_                                  | **No longer a team array** — eval rounds live per-doc in the `evalRounds` subcollection (Phase 2 below).                                       |
+| `coachRoles` (head-initiated `setCoachRole`)        | `useTeamMembership`                              | Owner-only; the **self-join** path already uses the atomic dotted write.                                                                       |
+| `tryoutSignups` / `interestSignups`                 | _(since moved)_                                  | **No longer team arrays** — per-entry docs in the signup subcollections (Phase 1 below); legacy arrays union-read + backfilled until dropped.  |
+| `playerInfoSubmissions` / `availabilitySubmissions` | _(since moved)_                                  | **No longer team arrays** — per-entry docs in the submission subcollections (Phase 1b below); same union-read + backfill + drop machinery.     |
 
 If/when these become contended (e.g. multiple assistants entering evals
 simultaneously), prefer per-entry subcollection docs (below) over array
@@ -73,8 +73,8 @@ transactions.
 Full subcollection migration was deliberately not attempted in one shot: the
 signup arrays are read across many coach-side surfaces (TryoutsTab, InterestTab,
 tryout evaluations keyed by `tryoutSignupId`, accept-to-roster, CSV export), so
-the plan lands one family at a time behind union reads. Phases 1 and 2 have
-shipped; Phase 3 remains deferred.
+the plan lands one family at a time behind union reads. Phases 1, 1b, 2 and
+3a have shipped; Phase 3b (players) is the one remaining family.
 
 ### Phase 1 — public signups → subcollections (SHIPPED)
 
@@ -229,11 +229,67 @@ above. Tryout grades (those carrying `tryoutSignupId`) did not move alongside
 roster rounds — the v11 `migrateLegacyTryoutGrades` step folded them into
 `tryoutSessions` instead.
 
-### Phase 3 — games, then players → subcollections
+### Phase 3a — games → subcollection (SHIPPED)
 
-Largest blast radius (lineup engine, stats aggregation, season advance, CSV
-import/export all read the full arrays). Migrate last, behind a read-compat
-shim that prefers the subcollection and falls back to the root array.
+```
+artifacts/{appId}/public/data/teams/{teamId}/games/{gameId}
+```
+
+The first COACH-written array off the team doc. Readers are untouched — the
+provider publishes the assembled union under `teamData.games`, so the lineup
+engine, stats aggregation, schedule surfaces and exports keep consuming the
+same key. Writers are converted at the two choke points instead of per
+caller:
+
+- **Translation layer** (`updateTeamArrays` + `persistTeam` in
+  `TeamProvider`): a games op still computes "the next array" against the
+  union — through the same `applyTeamArrayUpdate`, so the `slimGame` +
+  `scrubUndefined` gates keep applying — and `diffEntityArrays`
+  (`src/utils/teamEntityDocs.ts`, id-keyed + value-based via a
+  key-order-insensitive stableStringify) turns it into full-entry `set()`s
+  for added/changed entries and `delete()`s for removed ones. Full-entry
+  set, never a merge: several writers clear game fields by omission. All ops
+  in a call ride ONE `writeBatch` together with the team-doc payload, so
+  multi-shape cascades (remove player → strip from games; delete game →
+  unlink tournaments) keep their atomicity. A deleted game's legacy twin
+  leaves the team-doc array via exact-entry `arrayRemove` in the same batch.
+- **Ordering:** subcollection docs are unordered; the union sorts by
+  `(date, startUtc, id)` (`gameUnionOrder`) — deterministic across devices
+  (a seeded-lineup engine input) and preserving same-date doubleheader
+  order by scheduled time. Stored array order is no longer authoritative.
+- **Rules:** member-only read/create/update/delete (no public lane ever
+  existed); member create deliberately unconstrained so the lazy backfill
+  copies legacy entries verbatim at their short genId ids. The `games` key
+  joins the update-rule ratchet AND the create-rule deny — total from day
+  one, since there is no public lane to except — and `NEW_TEAM_DOC` stopped
+  seeding `games: []` in the same change (`DEFAULT_TEAM_DATA` keeps it for
+  local placeholder reads).
+- **Read machinery:** the games lane rides the same subscription + lazy
+  backfill + head-only, settle-windowed, server-confirmed drop as the
+  portal lanes (`ALL_LEGACY_ARRAY_KEYS`); the drop now deletes all five
+  legacy fields in one write.
+- **Lifecycle:** `advanceSeason` no longer writes `games: []` — it clears
+  both homes after the season patch (query-based `deleteAllSignupDocs`
+  sweep + `dropLegacySignupArray` deleteField), mirroring the tryout lane;
+  head-to-head history survives as the `opponentArchive` aggregates.
+  `deleteTeamCmd` sweeps the games subcollection before the team doc goes.
+  Backup restore routes the file's games through the persistTeam diff (its
+  deletes are bounded by what the union has seen — the same best-effort
+  boundary as every client-side sweep). The doc-size warning estimates
+  games via the RAW doc-resident array, never the union, so per-doc games
+  can't fire false 1 MiB warnings.
+
+### Phase 3b — players → subcollection
+
+The last array, sharing Phase 3a's entire mechanism (the translation layer
+is key-generic). Its extra work items, mapped by the Phase 3 write-path
+inventory: a deterministic union order for players (display always sorts;
+the engine needs any stable order), moving the roster-wipe guard's server
+confirmation onto the players lane snapshot, converting the photo-strip
+effect and CSV roster import off whole-array `updateTeam` writes (both
+already flow through persistTeam's routing), RosterRecoveryCard/rebuild, and
+`NEW_TEAM_DOC` + rules ratchet for `players`. Deliberately sequenced AFTER
+games soaks, per the original plan.
 
 ### Cross-cutting constraints
 

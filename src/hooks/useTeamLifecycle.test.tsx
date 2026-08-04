@@ -277,6 +277,7 @@ describe("deleteTeamCmd", () => {
       ["test-app", "t1", "interestSignups"],
       ["test-app", "t1", "playerInfoSubmissions"],
       ["test-app", "t1", "availabilitySubmissions"],
+      ["test-app", "t1", "games"],
     ]);
     expect(Math.max(...mockSweepSignups.mock.invocationCallOrder)).toBeLessThan(
       mockDeleteDoc.mock.invocationCallOrder[0],
@@ -483,7 +484,6 @@ describe("advanceSeason", () => {
     expect(patch).toMatchObject({
       currentSeason: "Spring 2026", // Fall → Spring: same season YEAR
       teamAge: "10U", // no age bump on the mid-year advance
-      games: [],
       tournaments: [],
       practices: [],
       tryoutSessions: [],
@@ -498,6 +498,22 @@ describe("advanceSeason", () => {
     expect("finances" in patch).toBe(false);
     // The legacy evaluationEvents array key must NEVER reappear in a write.
     expect("evaluationEvents" in patch).toBe(false);
+    // Nor the legacy games array (Phase 3a): games are cleared from BOTH
+    // homes after the patch (query-based sweep + deleteField) — writing
+    // `games: []` here would recreate the field the migration removes.
+    expect("games" in patch).toBe(false);
+    expect(mockSweepSignups).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-app",
+      "t1",
+      "games",
+    );
+    expect(mockDropLegacyArray).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-app",
+      "t1",
+      "games",
+    );
 
     // Roster: the non-returner is dropped; the returner survives with
     // blanked stats, reset status/pitching, and no stale injury status.
@@ -617,15 +633,22 @@ describe("advanceSeason", () => {
     });
     // Home 1: the subcollection, swept whole (deleteTeamCmd's precedent) —
     // NOT walked from teamData's ids, which only hold what this client's
-    // subscription happened to deliver. Tryouts only: interest leads survive.
+    // subscription happened to deliver. Tryouts (and the season's games —
+    // Phase 3a) only: interest leads survive.
     expect(
       mockSweepSignups.mock.calls.map((c: unknown[]) => c.slice(1)),
-    ).toEqual([["test-app", "t1", "tryoutSignups"]]);
-    // Home 2: the legacy team-doc array, removed with deleteField — again
-    // tryouts only.
+    ).toEqual([
+      ["test-app", "t1", "tryoutSignups"],
+      ["test-app", "t1", "games"],
+    ]);
+    // Home 2: the legacy team-doc arrays, removed with deleteField — same
+    // two lanes.
     expect(
       mockDropLegacyArray.mock.calls.map((c: unknown[]) => c.slice(1)),
-    ).toEqual([["test-app", "t1", "tryoutSignups"]]);
+    ).toEqual([
+      ["test-app", "t1", "tryoutSignups"],
+      ["test-app", "t1", "games"],
+    ]);
     // Same ordering contract as the eval-rounds reset: a rejected season
     // patch must not find the signups already destroyed.
     expect(updateTeam.mock.invocationCallOrder[0]).toBeLessThan(
@@ -744,8 +767,11 @@ describe("advanceSeason", () => {
     await act(async () => {
       await result.current.advanceSeason();
     });
-    expect(mockSweepSignups).toHaveBeenCalledTimes(1);
-    expect(mockDropLegacyArray).toHaveBeenCalledTimes(1);
+    // One unconditional sweep+drop per reset lane (tryoutSignups + games).
+    expect(mockSweepSignups).toHaveBeenCalledTimes(2);
+    expect(mockDropLegacyArray).toHaveBeenCalledTimes(2);
+    expect(mockSweepSignups.mock.calls[0][3]).toBe("tryoutSignups");
+    expect(mockSweepSignups.mock.calls[1][3]).toBe("games");
     // Nothing failed, so nothing is reported failed.
     const kinds = (toast.push as jest.Mock).mock.calls.map((c) => c[0].kind);
     expect(kinds).not.toContain("warn");
