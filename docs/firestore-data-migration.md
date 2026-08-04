@@ -35,12 +35,10 @@ Two sanitized sibling docs already exist and are **not** affected by this plan:
   `firestore.rules` requires each anonymous write to grow the array by exactly
   one entry **and** preserve every prior entry (`toSet().hasAll(prev)`), so a
   public user can no longer remove, replace, or multi-add signups. Validated by
-  the emulator tests in `firestore-tests/rules.test.ts`. _(The signup array
-  lanes have since been REMOVED — portal clients write per-entry subcollection
-  docs; see Phase 1 below. `appendsExactlyOne` still guards the
-  `playerInfoSubmissions` / `availabilitySubmissions` lanes, now DEPRECATED —
-  Phase 1b moved those portals to subcollection writes too, and the lanes get
-  the same one-release retirement.)_
+  the emulator tests in `firestore-tests/rules.test.ts`. _(All four array
+  lanes — and `appendsExactlyOne` itself — have since been REMOVED from the
+  rules: every portal writes per-entry subcollection docs now; see Phases 1
+  and 1b below.)_
 - **Join-code privacy.** Join resolution goes through the sanitized
   `teamInvites` doc; the full-team join-code read rule was removed.
 - **Atomic membership writes.** The join flow (`useInviteFlows.joinTeamByCode`)
@@ -187,23 +185,32 @@ check, the drop) iterates `SIGNUP_COLLECTION_KEYS`:
   roster-side merge still riding `updateTeamArrays`. The player-info
   replace-on-resubmit reconcile now deletes superseded duplicates per-doc
   instead of rewriting the array.
-- **Ratchet (partial, by design):** the base update rule ratchets both new
-  keys and team CREATE can't seed them, but the DEPRECATED public
-  append-exactly-one lanes stay open exactly one release for cached portal
-  clients (the Phase 1 courtesy). While they're open, a single-entry append
-  can recreate a dropped field — self-healing: the union surfaces it, the
-  backfill mirrors it, the head's client re-drops. Removing the lanes next
-  release makes the drop genuinely irreversible, mirroring Phase 1's exit.
+- **Ratchet (now total):** the base update rule ratchets both new keys and
+  team CREATE can't seed them. The DEPRECATED public append-exactly-one
+  lanes were kept exactly one release for cached portal clients (the Phase 1
+  courtesy) and have since been REMOVED — while they were open, a
+  single-entry append could recreate a dropped field (self-healing: the
+  union surfaced it, the backfill mirrored it, the head's client
+  re-dropped); with them gone the per-team `deleteField` drop is genuinely
+  irreversible for every one of the four fields, and `appendsExactlyOne` +
+  its helper functions left `firestore.rules` with them (no remaining
+  callers).
 - **Lifecycle:** `deleteTeamCmd` sweeps all four subcollections before the
   team doc goes; backup restore strips the two new keys like the other
   retired arrays (`backupSanitizer`). Season advance touches NEITHER new
   lane — sizing and standing availability survive the rollover, exactly as
   the arrays did.
 
-**Phase 1b exit checklist (next release):** delete the two deprecated
-append lanes from `firestore.rules`, flip their emulator tests to DENIED
-probes (see the flipped Phase 1 tests for the shape), and confirm the
-network-first service worker has kept portal bundles fresh.
+**Phase 1b exit status: COMPLETE.** The two deprecated append lanes are
+deleted from `firestore.rules`, their emulator tests are flipped to DENIED
+probes (mirroring the Phase 1 flip), and the network-first service worker
+(in place since the Phase 1 releases) keeps portal bundles fresh, so no
+supported client appends to the arrays. A straggler's array append now
+fails LOUDLY with `permission-denied` and the portal's submit catch shows
+its retry-or-contact-the-coach error. As with Phase 1, the coach client's
+union read + lazy backfill deliberately stays until every team's per-team
+array drop has drained; removing that client code is the last, separate
+step for both phases together.
 
 ### Phase 2 — evaluations → subcollection (SHIPPED)
 

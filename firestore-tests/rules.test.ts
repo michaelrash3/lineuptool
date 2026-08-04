@@ -773,11 +773,10 @@ describe("signup-array legacy-field ratchet (Phase 1 drop irreversibility)", () 
 });
 
 // Phase 1b: the same ratchet, extended to the last two portal-written arrays.
-// Unlike Phase 1 the deprecated PUBLIC append lanes are still open this
-// release, so the ratchet's job here is narrower: member writes may never
-// recreate a dropped array, while a cached portal client's append still lands
-// (self-healing — the coach client's backfill mirrors it and the head's
-// client re-drops the array).
+// With the deprecated PUBLIC append lanes now REMOVED (the Phase 1b exit,
+// after their one compatibility release), the ratchet is total: member
+// cleanup shapes still work while a doc carries an array, and once dropped
+// NOBODY — member, head, or cached portal client — can recreate it.
 describe("submission-array legacy-field ratchet (Phase 1b)", () => {
   it("member cleanup shapes still work while the doc carries the arrays", async () => {
     // Exact-entry arrayRemove (removeLegacySignupEntries shape).
@@ -815,36 +814,35 @@ describe("submission-array legacy-field ratchet (Phase 1b)", () => {
         availabilitySubmissions: [{ id: "av-sneak" }, { id: "av-sneak-2" }],
       }),
     );
-    // A single-entry write is the ONE shape that still lands post-drop —
-    // from any signed-in caller, member or not — because the deprecated
-    // public append lane is an OR'd rule the base ratchet cannot veto, and
-    // on a dropped field any one-entry array IS a first append. This is the
-    // self-healing window, closed for everyone when the lane is removed next
-    // release.
-    await assertSucceeds(
+    // Under the deprecated lane a single-entry append could still recreate a
+    // dropped field (any one-entry array IS a first append on an absent key).
+    // With the lane REMOVED, even that shape is denied — the drop is
+    // genuinely irreversible from every caller.
+    await assertFails(
       updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
         availabilitySubmissions: arrayUnion({ id: "av-lane" }),
       }),
     );
   });
 
-  it("the DEPRECATED public append lane still lands post-drop (the self-healing window)", async () => {
-    // Kept exactly one release for cached portal clients: an anonymous
-    // arrayUnion recreates the field with one entry, the union read surfaces
-    // it, the backfill mirrors it, and the head's client drops the array
-    // again. Removing the lane next release flips this expectation to DENIED.
+  it("DENIES a cached portal client's append post-drop — the self-healing window is closed", async () => {
+    // During the lanes' one compatibility release an anonymous arrayUnion
+    // could recreate a dropped field (self-healing: union surfaces it,
+    // backfill mirrors it, head re-drops). The lanes are now gone, so the
+    // former allow expectations flip to DENIED — the straggler's submit
+    // catch shows its retry-or-contact-the-coach error instead.
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
         playerInfoSubmissions: deleteField(),
         availabilitySubmissions: deleteField(),
       });
     });
-    await assertSucceeds(
+    await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         playerInfoSubmissions: arrayUnion({ id: "pi-cached", firstName: "N" }),
       }),
     );
-    await assertSucceeds(
+    await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         availabilitySubmissions: arrayUnion({ id: "av-cached", dates: [] }),
       }),
@@ -1651,14 +1649,12 @@ describe("sanitized invite lookup + self-join", () => {
   });
 });
 
-// The deprecated tryoutSignups / interestSignups array-append lanes are
-// REMOVED (Phase 1 exit): a cached pre-#582 portal client's arrayUnion is
-// now DENIED even in the friendliest possible state — tryouts open / share
-// link standing, array still on the doc, perfectly-shaped single append.
-// The playerInfoSubmissions / availabilitySubmissions lanes below are now
-// DEPRECATED (Phase 1b — the portals write per-entry subcollection docs) but
-// still accept append-exactly-one for one release; removing them flips these
-// allow expectations to DENIED probes, exactly as happened above.
+// EVERY deprecated array-append lane is now REMOVED — tryoutSignups /
+// interestSignups at the Phase 1 exit, playerInfoSubmissions /
+// availabilitySubmissions at the Phase 1b exit, each after its one
+// compatibility release. A cached portal client's arrayUnion is DENIED even
+// in the friendliest possible state — tryouts open / share link standing,
+// array still on the doc, perfectly-shaped single append.
 describe("public signup append constraints", () => {
   it("DENIES the removed tryout array lane — a well-formed single append while tryouts are open", async () => {
     // Exactly the write the old lane allowed; the flip of the former
@@ -1678,20 +1674,9 @@ describe("public signup append constraints", () => {
     );
   });
 
-  it("allows appending exactly one player-info submission", async () => {
-    await assertSucceeds(
-      updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
-        playerInfoSubmissions: arrayUnion({ id: "pi1", firstName: "New" }),
-      }),
-    );
-  });
-
-  it("denies player-info writes when no share link exists", async () => {
-    await testEnv.withSecurityRulesDisabled(async (ctx) => {
-      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
-        tryoutShareId: null,
-      });
-    });
+  it("DENIES the removed player-info array lane — a well-formed single append with a standing share link", async () => {
+    // The flip of the former "allows appending exactly one player-info
+    // submission" expectation (the Phase 1b exit).
     await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         playerInfoSubmissions: arrayUnion({ id: "pi1", firstName: "New" }),
@@ -1699,20 +1684,7 @@ describe("public signup append constraints", () => {
     );
   });
 
-  it("allows appending exactly one availability submission", async () => {
-    await assertSucceeds(
-      updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
-        availabilitySubmissions: arrayUnion({ id: "av1", firstName: "New" }),
-      }),
-    );
-  });
-
-  it("denies availability writes when no share link exists", async () => {
-    await testEnv.withSecurityRulesDisabled(async (ctx) => {
-      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
-        tryoutShareId: null,
-      });
-    });
+  it("DENIES the removed availability array lane — a well-formed single append with a standing share link", async () => {
     await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         availabilitySubmissions: arrayUnion({ id: "av1", firstName: "New" }),

@@ -413,9 +413,11 @@ describe("TeamProvider signup subcollections — read assembly", () => {
     await emitCollection(subPath("t1", "interestSignups"), []);
     expect(tryoutIds()).toBe("sub-1");
 
-    // A cached portal client appends to the deprecated ARRAY lane. Nothing
-    // re-runs the subcollection listener, so only the team-doc snapshot can
-    // surface it — that visibility is the whole reason the lane was kept.
+    // The legacy ARRAY changes on the team doc (historically a cached portal
+    // client's append via the now-removed deprecated lane; today a member
+    // cleanup shape or another device's write). Nothing re-runs the
+    // subcollection listener, so only the team-doc snapshot can surface it —
+    // assembly must react to EITHER input moving.
     await emitDoc(
       teamPath("t1"),
       teamDoc({
@@ -986,9 +988,9 @@ describe("TeamProvider signup subcollections — denied subcollection read", () 
     // an empty doc set) would show up here as a blank or a re-sort.
     expect(tryoutIds()).toBe("legacy-a,legacy-b");
 
-    // And the lane the coach still has stays LIVE — a portal append arriving
-    // on the deprecated array lane must keep surfacing while the read is
-    // denied, which is the only reason that lane is still open.
+    // And the input the coach still has stays LIVE — a legacy-array change
+    // arriving on the team doc (a member cleanup shape, another device's
+    // write) must keep surfacing while the subcollection read is denied.
     await emitDoc(
       teamPath("t1"),
       teamDoc({

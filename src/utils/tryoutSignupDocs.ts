@@ -3,9 +3,11 @@
 // the 1 MiB root team doc into per-entry docs at
 // `teams/{teamId}/{tryoutSignups|interestSignups}/{signupId}`, mirroring the
 // shipped evalRounds migration (./evalRounds.ts). Coach reads assemble the
-// UNION of subcollection docs and any not-yet-migrated legacy array entries,
-// so cached portal clients still appending to the arrays keep working for one
-// release while the lazy backfill absorbs their stragglers.
+// UNION of subcollection docs and any not-yet-migrated legacy array entries;
+// the deprecated array-append rules lanes (each kept one release for cached
+// portal clients) are all REMOVED now, so the union + lazy backfill exist to
+// drain teams whose legacy arrays haven't been dropped yet, not to absorb new
+// array appends.
 //
 // Phase 1b extends the same machinery — unchanged — to the two remaining
 // public portal lanes, `playerInfoSubmissions` and `availabilitySubmissions`.
