@@ -47,37 +47,6 @@ service cloud.firestore {
         return !changedKeys().hasAny([key]);
       }
 
-      // Hard ceiling on public signup arrays — bounds the cost/DoS surface of
-      // the anonymous tryout/interest write paths below.
-      function MAX_SIGNUPS() {
-        return 2000;
-      }
-
-      // Size of an existing signup array, or 0 when the field is absent (so the
-      // very first append is permitted).
-      function prevSignupCount(key) {
-        return key in resource.data ? resource.data[key].size() : 0;
-      }
-
-      // The existing signup array (or an empty list when the field is absent).
-      function prevSignups(key) {
-        return key in resource.data ? resource.data[key] : [];
-      }
-
-      // True when the write appends EXACTLY ONE entry to `key` and leaves every
-      // prior entry in place:
-      //   - size grows by exactly one (no multi-add, no shrink), and
-      //   - every previous element is still present (no remove/replace), and
-      //   - the array never exceeds the DoS ceiling.
-      // toSet().hasAll(prev) is the documented append-only pattern: a public
-      // caller can arrayUnion a single new signup but can't drop or rewrite the
-      // other families' entries already on the doc.
-      function appendsExactlyOne(key) {
-        return request.resource.data[key].size() == prevSignupCount(key) + 1
-          && request.resource.data[key].size() <= MAX_SIGNUPS()
-          && request.resource.data[key].toSet().hasAll(prevSignups(key).toSet());
-      }
-
       function ownerIdUnchanged() {
         return !changedKeys().hasAny(['ownerId']);
       }
@@ -196,14 +165,10 @@ service cloud.firestore {
                         || ('interestSignups' in resource.data))
                     // playerInfoSubmissions / availabilitySubmissions are the
                     // last two fields on the ladder (Phase 1b — submissions
-                    // live in the per-entry subcollections below). Same
-                    // ratchet, added in the SAME release as their drop
-                    // machinery: once a team's array is dropped, no member
-                    // write may recreate it. The deprecated public append
-                    // lanes below are separate allow rules and unaffected —
-                    // a cached portal client can still append for this one
-                    // release (self-healing: the backfill mirrors the entry
-                    // and the head's client re-drops the array).
+                    // live in the per-entry subcollections below). With their
+                    // deprecated public append lanes now REMOVED (the Phase 1b
+                    // exit), this ratchet is the whole story: once a team's
+                    // array is dropped, NO write from anyone may recreate it.
                     && (!('playerInfoSubmissions' in request.resource.data)
                         || ('playerInfoSubmissions' in resource.data))
                     && (!('availabilitySubmissions' in request.resource.data)
@@ -255,67 +220,27 @@ service cloud.firestore {
                     && request.auth.uid in nextMembers()
                     && coachRolesSelfJoinValid();
 
-      // Public portal write paths (anonymous auth included).
-      // NOTE: there is deliberately NO public *read* of the full team doc.
-      // The Tryouts Portal reads branding + tryout config from the sanitized
-      // teamPublic mirror (below) instead, so anonymous parents never see
-      // evaluations, other families' signups, member UIDs, or the join code.
-      // These writes don't require read access — rules evaluate resource.data
-      // server-side — so submissions continue to work.
-      //
-      // Growth + integrity caps: a `hasOnly()` + size bound alone would still
-      // let an anonymous caller REPLACE the array with a same-or-smaller payload
-      // (dropping or rewriting other families' entries). appendsExactlyOne()
-      // requires the size to grow by exactly one AND every prior entry to
-      // survive (toSet().hasAll(prev)), so a public write can only ever tack on
-      // a single new signup — never remove, replace, or multi-add. The empty
-      // prev set (first-ever signup) trivially satisfies hasAll, so the first
-      // append is allowed.
-      //
-      // REMOVED (Phase 1 exit, docs/firestore-data-migration.md): the two
-      // deprecated tryoutSignups / interestSignups array-append lanes are
-      // gone. Portal clients have written per-entry docs to the
-      // tryoutSignups / interestSignups SUBCOLLECTIONS below since #582; the
-      // lanes were kept exactly one release for cached portal clients, and
-      // the network-first service worker shipped in the same release, so no
+      // Public portal write paths: ALL REMOVED. Every portal-written family
+      // — tryout signups, interest leads (Phase 1 exit, #582+), player-info
+      // and availability submissions (Phase 1b exit) — now lands as per-entry
+      // docs in the subcollections below; there is no public write to the
+      // team doc at all, and deliberately NO public *read* of it either (the
+      // portals read branding + tryout config from the sanitized teamPublic
+      // mirror). Each deprecated append-exactly-one array lane was kept
+      // exactly one release for cached portal clients and then deleted; the
+      // network-first service worker keeps portal bundles fresh, so no
       // supported client appends to the arrays anymore. A straggler's
       // arrayUnion now fails LOUDLY with permission-denied (the portal's
       // submit catch shows its retry-or-contact-the-coach error instead of
-      // silently succeeding into a doomed array). The ratchet in the base
-      // update rule stays: a team doc that still carries an array may
+      // silently succeeding into a doomed array). The ratchets in the base
+      // update rule stay: a team doc that still carries a legacy array may
       // rewrite/clean/drop it (coach-side shapes), but once dropped nothing
-      // recreates it. (The playerInfoSubmissions / availabilitySubmissions
-      // lanes below are now on the same path — DEPRECATED as of Phase 1b,
-      // kept one release, then removed like these were.)
-
-      // DEPRECATED public player-info array lane (Phase 1b of
-      // docs/firestore-data-migration.md): the portal writes per-entry docs
-      // to the playerInfoSubmissions SUBCOLLECTION below as of this release.
-      // This append-exactly-one lane is retained exactly one release for
-      // cached portal clients still running the arrayUnion code (the same
-      // one-release courtesy the tryout/interest lanes got); the coach
-      // client's union read + lazy backfill absorbs anything that lands
-      // here. Remove next release, flipping the emulator tests to DENIED
-      // probes — after that a straggler fails loudly with permission-denied.
-      allow update: if isSignedIn()
-                    && resource.data.tryoutShareId != null
-                    && request.resource.data.diff(resource.data)
-                         .affectedKeys()
-                         .hasOnly(['playerInfoSubmissions'])
-                    && appendsExactlyOne('playerInfoSubmissions');
-
-      // DEPRECATED public availability array lane — same one-release
-      // retention as the player-info lane above; the subcollection below is
-      // the write path.
-      allow update: if isSignedIn()
-                    && resource.data.tryoutShareId != null
-                    && request.resource.data.diff(resource.data)
-                         .affectedKeys()
-                         .hasOnly(['availabilitySubmissions'])
-                    && appendsExactlyOne('availabilitySubmissions');
+      // recreates it — with the lanes gone, the per-team deleteField drop is
+      // genuinely irreversible for every one of the four fields.
 
       // ----- Shared helpers for the subcollections below (evalRounds,
-      // tryoutSignups, interestSignups). A subcollection rule can't see the
+      // tryoutSignups, interestSignups, playerInfoSubmissions,
+      // availabilitySubmissions). A subcollection rule can't see the
       // parent team doc as `resource`, so membership is evaluated via a
       // get() on it (one billed read per request — Firestore caches repeat
       // get()s of the same doc within a single evaluation).

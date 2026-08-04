@@ -358,10 +358,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // Assemble ONE signup collection from BOTH of its inputs and return the
   // array to publish. Called from the team-doc snapshot handler (the legacy
   // array moved) AND from the subscription callbacks (the docs moved), because
-  // assembly has to react to either: the deprecated public array lanes stay
-  // open for one release, so a cached portal client appending to the ARRAY
-  // after the subscription landed must still become visible — that visibility
-  // is the entire reason those lanes were kept.
+  // assembly has to react to either: the legacy ARRAY still changes on
+  // undropped teams — member cleanup shapes (exact-entry arrayRemove, the
+  // deleteField drop) rewrite it, and every change must re-assemble. (The
+  // deprecated public append lanes that once fed it are all REMOVED.)
   const assembledSignups = useCallback((key: SignupCollectionKey): any[] => {
     const legacy = {
       tryoutSignups: rawTryoutSignupsRef,
@@ -2120,8 +2120,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // above. Unlike evalRounds there is no role scoping — the rules grant every
   // team member the full read — so no query filter and no roleResolved gate.
   // The published value is the UNION of subcollection docs and
-  // not-yet-migrated legacy array entries, so cached portal clients still
-  // appending to the legacy arrays surface without a reload.
+  // not-yet-migrated legacy array entries, so a team whose per-team array
+  // drop hasn't happened yet still shows every family. (The deprecated
+  // public append lanes are all REMOVED now — the union exists to drain
+  // legacy arrays, not to absorb new appends.)
   //
   // All four collections are wired in ONE effect so their team-scoped state
   // (docs, id sets, landed + server-confirmed flags) arms and tears down
@@ -2416,12 +2418,14 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   //   - coverage, via signupArraysFullyMigrated.
   // Then a settle window, and the coverage proof is taken AGAIN at write time.
   //
-  // Be honest about what that buys. The deprecated public array lane is still
-  // open for this release, the proof is a point-in-time read, and the write is
-  // an unconditional deleteField — so a legacy-lane append that commits
+  // Be honest about what that buys. The proof is a point-in-time read and the
+  // write is an unconditional deleteField — so an array write that commits
   // between our final re-proof and the server applying our delete is still
-  // destroyed. Only a server-side compare-and-set could close that; from the
-  // client the window can only be narrowed, and it is narrowed here two ways.
+  // destroyed. With the deprecated public append lanes REMOVED, the only
+  // writers left on the arrays are member cleanup shapes (our own arrayRemove
+  // and stale coach bundles), which shrinks the exposure to near zero — but
+  // only a server-side compare-and-set could close it; from the client the
+  // window can only be narrowed, and it is narrowed here two ways.
   // (1) The drop waits for ALL signup lanes to go quiet for
   // SIGNUP_ARRAY_DROP_SETTLE_MS: any snapshot on either lane re-runs this
   // effect, which cancels and restarts the timer. That is the practical form
