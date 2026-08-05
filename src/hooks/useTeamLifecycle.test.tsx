@@ -277,7 +277,55 @@ describe("deleteTeamCmd", () => {
       ["test-app", "t1", "interestSignups"],
       ["test-app", "t1", "playerInfoSubmissions"],
       ["test-app", "t1", "availabilitySubmissions"],
+      ["test-app", "t1", "games"],
     ]);
+    expect(Math.max(...mockSweepSignups.mock.invocationCallOrder)).toBeLessThan(
+      mockDeleteDoc.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("AWAITS every sweep to completion before deleting the parent doc", async () => {
+    // The subcollection delete rules resolve membership with get() on the
+    // team doc, so a delete that reaches the server AFTER the parent is gone
+    // evaluates get() -> null and is denied permanently — the docs become
+    // unreadable and undeletable by any client, with no Admin-SDK path in
+    // this app. deleteAllSignupDocs opens with an await getDocs(), so under a
+    // 4s report window a still-in-flight read meant ZERO deletes had been
+    // enqueued when deleteDoc(team) went out. This must never race again:
+    // the parent delete has to wait for all five sweeps.
+    let resolveGamesSweep: (() => void) | null = null;
+    const gamesSweep = new Promise<number>((res) => {
+      resolveGamesSweep = () => res(0);
+    });
+    mockSweepSignups.mockImplementation(
+      (_db: unknown, _a: string, _t: string, key: string) =>
+        key === "games" ? gamesSweep : Promise.resolve(0),
+    );
+    const { result } = setup();
+    let done = false;
+    // Real macrotask yields, not a couple of microtask ticks: deleteTeamCmd
+    // awaits the confirm dialog and the backup before it ever reaches the
+    // sweeps, so a microtask-only flush would assert "not yet deleted"
+    // trivially and pass even against the buggy version.
+    const flush = async () => {
+      for (let i = 0; i < 5; i += 1) {
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    };
+    await act(async () => {
+      const p = result.current.deleteTeamCmd().then(() => {
+        done = true;
+      });
+      await flush();
+      // The games sweep is still outstanding -> the team doc MUST NOT be gone.
+      expect(mockDeleteDoc).not.toHaveBeenCalled();
+      expect(done).toBe(false);
+      resolveGamesSweep!();
+      await p;
+    });
+    expect(done).toBe(true);
+    expect(mockDeleteDoc).toHaveBeenCalledTimes(1);
+    // ...and the sweeps all landed before it.
     expect(Math.max(...mockSweepSignups.mock.invocationCallOrder)).toBeLessThan(
       mockDeleteDoc.mock.invocationCallOrder[0],
     );
@@ -296,7 +344,7 @@ describe("deleteTeamCmd", () => {
     expect(toast.push).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "warn",
-        title: "Some signup records couldn't be deleted",
+        title: "Some team records couldn't be deleted",
       }),
     );
     expect(toast.push).toHaveBeenCalledWith({
@@ -483,7 +531,6 @@ describe("advanceSeason", () => {
     expect(patch).toMatchObject({
       currentSeason: "Spring 2026", // Fall → Spring: same season YEAR
       teamAge: "10U", // no age bump on the mid-year advance
-      games: [],
       tournaments: [],
       practices: [],
       tryoutSessions: [],
@@ -498,6 +545,25 @@ describe("advanceSeason", () => {
     expect("finances" in patch).toBe(false);
     // The legacy evaluationEvents array key must NEVER reappear in a write.
     expect("evaluationEvents" in patch).toBe(false);
+    // games: [] STAYS in the patch (Phase 3a). persistTeam routes the key
+    // into per-doc deletes rather than writing the array, so the ratchet is
+    // safe — and the optimistic clear is what stops the pitching-format
+    // auto-heal (which triggers on the teamAge bump) from finding the
+    // outgoing season's games in teamDataRef and writing them all back as
+    // subdocs, racing the sweep below.
+    expect(patch.games).toEqual([]);
+    expect(mockSweepSignups).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-app",
+      "t1",
+      "games",
+    );
+    expect(mockDropLegacyArray).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-app",
+      "t1",
+      "games",
+    );
 
     // Roster: the non-returner is dropped; the returner survives with
     // blanked stats, reset status/pitching, and no stale injury status.
@@ -617,15 +683,22 @@ describe("advanceSeason", () => {
     });
     // Home 1: the subcollection, swept whole (deleteTeamCmd's precedent) —
     // NOT walked from teamData's ids, which only hold what this client's
-    // subscription happened to deliver. Tryouts only: interest leads survive.
+    // subscription happened to deliver. Tryouts (and the season's games —
+    // Phase 3a) only: interest leads survive.
     expect(
       mockSweepSignups.mock.calls.map((c: unknown[]) => c.slice(1)),
-    ).toEqual([["test-app", "t1", "tryoutSignups"]]);
-    // Home 2: the legacy team-doc array, removed with deleteField — again
-    // tryouts only.
+    ).toEqual([
+      ["test-app", "t1", "tryoutSignups"],
+      ["test-app", "t1", "games"],
+    ]);
+    // Home 2: the legacy team-doc arrays, removed with deleteField — same
+    // two lanes.
     expect(
       mockDropLegacyArray.mock.calls.map((c: unknown[]) => c.slice(1)),
-    ).toEqual([["test-app", "t1", "tryoutSignups"]]);
+    ).toEqual([
+      ["test-app", "t1", "tryoutSignups"],
+      ["test-app", "t1", "games"],
+    ]);
     // Same ordering contract as the eval-rounds reset: a rejected season
     // patch must not find the signups already destroyed.
     expect(updateTeam.mock.invocationCallOrder[0]).toBeLessThan(
@@ -744,8 +817,11 @@ describe("advanceSeason", () => {
     await act(async () => {
       await result.current.advanceSeason();
     });
-    expect(mockSweepSignups).toHaveBeenCalledTimes(1);
-    expect(mockDropLegacyArray).toHaveBeenCalledTimes(1);
+    // One unconditional sweep+drop per reset lane (tryoutSignups + games).
+    expect(mockSweepSignups).toHaveBeenCalledTimes(2);
+    expect(mockDropLegacyArray).toHaveBeenCalledTimes(2);
+    expect(mockSweepSignups.mock.calls[0][3]).toBe("tryoutSignups");
+    expect(mockSweepSignups.mock.calls[1][3]).toBe("games");
     // Nothing failed, so nothing is reported failed.
     const kinds = (toast.push as jest.Mock).mock.calls.map((c) => c[0].kind);
     expect(kinds).not.toContain("warn");

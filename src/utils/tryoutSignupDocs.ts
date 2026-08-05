@@ -33,21 +33,25 @@ import {
 import { scrubUndefined } from "./helpers";
 import type {
   AvailabilitySubmission,
+  Game,
   InterestSignup,
   PlayerInfoSubmission,
   TryoutSignup,
 } from "../types";
 
-// The four portal subcollections share every helper below — the key doubles as
-// the subcollection name AND the legacy team-doc array field it replaces.
+// The subcollections share every helper below — the key doubles as the
+// subcollection name AND the legacy team-doc array field it replaces. Phase 3
+// (docs/firestore-data-migration.md) widens this union with the coach-written
+// `games` lane (and later `players`): same union-read + lazy-backfill +
+// head-only-drop machinery, no public write lane, member-only rules.
 export type SignupCollectionKey =
   | "tryoutSignups"
   | "interestSignups"
   | "playerInfoSubmissions"
-  | "availabilitySubmissions";
+  | "availabilitySubmissions"
+  | "games";
 
-// Every migrating lane, for callers that iterate (TeamProvider's
-// subscriptions, backfill and drop effects). Order is presentational only.
+// The four portal-written lanes (Phases 1 + 1b).
 export const SIGNUP_COLLECTION_KEYS: readonly SignupCollectionKey[] = [
   "tryoutSignups",
   "interestSignups",
@@ -55,11 +59,37 @@ export const SIGNUP_COLLECTION_KEYS: readonly SignupCollectionKey[] = [
   "availabilitySubmissions",
 ] as const;
 
+// Every migrating team-doc array lane, portal- and coach-written alike. Used
+// for the SUBSCRIPTIONS (the union has to read both homes for every lane) and
+// for the landed/server-confirmed gates.
+export const ALL_LEGACY_ARRAY_KEYS: readonly SignupCollectionKey[] = [
+  ...SIGNUP_COLLECTION_KEYS,
+  "games",
+] as const;
+
+// The lanes whose legacy array this release is allowed to MIRROR and then
+// DELETE. `games` is deliberately absent for its first release
+// (docs/firestore-data-migration.md, "Phase 3a soak").
+//
+// Those two operations are the only irreversible things in the migration, and
+// they are what a mixed-version fleet turns dangerous: the mass backfill
+// mirrors every existing game into a subdoc, the union then prefers that
+// subdoc forever, and the drop deletes the array a still-running old client is
+// writing to — so that client's edits become invisible and are finally
+// destroyed. Withholding both makes the games lane purely ADDITIVE for one
+// release: new and edited games become subdocs, reads union both homes, and
+// nothing is ever mirrored en masse or deleted, so the change is revertible
+// and a stale client's writes stay authoritative for any game an upgraded
+// client hasn't touched. Add "games" here once the fleet has aged over.
+export const DRAINABLE_LEGACY_ARRAY_KEYS: readonly SignupCollectionKey[] =
+  SIGNUP_COLLECTION_KEYS;
+
 type SignupEntry =
   | TryoutSignup
   | InterestSignup
   | PlayerInfoSubmission
-  | AvailabilitySubmission;
+  | AvailabilitySubmission
+  | Game;
 
 export const signupCollectionRef = (
   db: Firestore,
@@ -374,7 +404,7 @@ export const dropLegacySignupArrays = (
   updateDoc(
     teamDocRef(db, appId, teamId),
     Object.fromEntries(
-      SIGNUP_COLLECTION_KEYS.map((key) => [key, deleteField()]),
+      DRAINABLE_LEGACY_ARRAY_KEYS.map((key) => [key, deleteField()]),
     ),
   );
 
