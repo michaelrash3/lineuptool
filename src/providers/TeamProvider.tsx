@@ -61,6 +61,7 @@ import {
   removeLegacySignupEntries,
   signupDocRef,
   ALL_LEGACY_ARRAY_KEYS,
+  DRAINABLE_LEGACY_ARRAY_KEYS,
   type SignupCollectionKey,
 } from "../utils/tryoutSignupDocs";
 import { assembleGames, diffEntityArrays } from "../utils/teamEntityDocs";
@@ -2470,7 +2471,9 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     signupBackfillAttemptsRef.current.set(teamId, attempt);
     signupBackfillInFlightRef.current.add(teamId);
     void Promise.all(
-      ALL_LEGACY_ARRAY_KEYS.map((key) =>
+      // Drainable lanes only: `games` is deliberately not mirrored during its
+      // soak release (see DRAINABLE_LEGACY_ARRAY_KEYS).
+      DRAINABLE_LEGACY_ARRAY_KEYS.map((key) =>
         backfillSignupDocs(
           db,
           appId,
@@ -2580,7 +2583,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     // Nothing real to delete — never spend the irreversible write. This is
     // also what stops it re-firing after a successful drop: every ref then
     // reads empty.
-    if (ALL_LEGACY_ARRAY_KEYS.every((key) => legacy[key].length === 0)) {
+    if (DRAINABLE_LEGACY_ARRAY_KEYS.every((key) => legacy[key].length === 0)) {
       return false;
     }
     // allLegacyMigrated is deliberately false-on-empty so a failed/empty read
@@ -2589,7 +2592,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     // So the per-collection bar is "empty OR fully migrated", with at least
     // one array non-empty overall (checked above).
     const ids = signupSubIdsRef.current;
-    return ALL_LEGACY_ARRAY_KEYS.every(
+    // Only the drainable lanes gate the drop. Including `games` here during
+    // its soak would be an all-or-nothing check no team could ever satisfy
+    // (nothing mirrors games), stalling the portal lanes' drop too.
+    return DRAINABLE_LEGACY_ARRAY_KEYS.every(
       (key) =>
         legacy[key].length === 0 || allLegacyMigrated(legacy[key], ids[key]),
     );
