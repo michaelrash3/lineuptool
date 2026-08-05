@@ -2471,8 +2471,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     signupBackfillAttemptsRef.current.set(teamId, attempt);
     signupBackfillInFlightRef.current.add(teamId);
     void Promise.all(
-      // Drainable lanes only: `games` is deliberately not mirrored during its
-      // soak release (see DRAINABLE_LEGACY_ARRAY_KEYS).
+      // Drainable lanes only — every lane today, but a lane staged behind a
+      // soak release is withheld here (see DRAINABLE_LEGACY_ARRAY_KEYS).
       DRAINABLE_LEGACY_ARRAY_KEYS.map((key) =>
         backfillSignupDocs(
           db,
@@ -2592,9 +2592,9 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     // So the per-collection bar is "empty OR fully migrated", with at least
     // one array non-empty overall (checked above).
     const ids = signupSubIdsRef.current;
-    // Only the drainable lanes gate the drop. Including `games` here during
-    // its soak would be an all-or-nothing check no team could ever satisfy
-    // (nothing mirrors games), stalling the portal lanes' drop too.
+    // Only the drainable lanes gate the drop — this check is ALL-OR-NOTHING,
+    // so a lane held back for a soak (nothing mirrors it, so it can never
+    // report covered) would stall every other lane's drop along with its own.
     return DRAINABLE_LEGACY_ARRAY_KEYS.every(
       (key) =>
         legacy[key].length === 0 || allLegacyMigrated(legacy[key], ids[key]),

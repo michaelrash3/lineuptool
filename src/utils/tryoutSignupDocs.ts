@@ -67,22 +67,24 @@ export const ALL_LEGACY_ARRAY_KEYS: readonly SignupCollectionKey[] = [
   "games",
 ] as const;
 
-// The lanes whose legacy array this release is allowed to MIRROR and then
-// DELETE. `games` is deliberately absent for its first release
-// (docs/firestore-data-migration.md, "Phase 3a soak").
+// The lanes whose legacy array a release is allowed to MIRROR and then DELETE.
+// Currently ALL of them — nothing is being withheld.
 //
-// Those two operations are the only irreversible things in the migration, and
-// they are what a mixed-version fleet turns dangerous: the mass backfill
-// mirrors every existing game into a subdoc, the union then prefers that
-// subdoc forever, and the drop deletes the array a still-running old client is
-// writing to — so that client's edits become invisible and are finally
-// destroyed. Withholding both makes the games lane purely ADDITIVE for one
-// release: new and edited games become subdocs, reads union both homes, and
-// nothing is ever mirrored en masse or deleted, so the change is revertible
-// and a stale client's writes stay authoritative for any game an upgraded
-// client hasn't touched. Add "games" here once the fleet has aged over.
+// This constant is the soak lever, kept separate from ALL_LEGACY_ARRAY_KEYS
+// even while the two agree, because those two operations are the only
+// irreversible things in the migration and a future lane will want the same
+// staging. Withholding a key makes its lane purely ADDITIVE: new and edited
+// entries become subdocs, reads union both homes, nothing is mass-mirrored or
+// deleted, so the release is revertible and a stale client's writes stay
+// authoritative for any entry an upgraded client hasn't touched. `games` shipped
+// that way for one release (Phase 3a) and has since been drained.
+//
+// Note the drop's coverage proof is ALL-OR-NOTHING across this set, which is
+// why a soaking lane must be withheld HERE rather than merely skipped in the
+// backfill — leaving it in the set while nothing mirrors it stalls every other
+// lane's drop forever.
 export const DRAINABLE_LEGACY_ARRAY_KEYS: readonly SignupCollectionKey[] =
-  SIGNUP_COLLECTION_KEYS;
+  ALL_LEGACY_ARRAY_KEYS;
 
 type SignupEntry =
   | TryoutSignup

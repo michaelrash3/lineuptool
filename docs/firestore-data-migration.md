@@ -267,26 +267,26 @@ caller:
 - **Read machinery:** the games lane rides the same subscription as the
   portal lanes (`ALL_LEGACY_ARRAY_KEYS`) and the same landed /
   server-confirmed gates.
-- **SOAK — the games lane is additive-only for its first release.** The
-  lazy backfill and the head-only drop are the migration's two irreversible
-  operations, and they are what a mixed-version fleet turns dangerous: the
-  backfill mirrors every existing game into a subdoc, the union then prefers
-  that subdoc forever, and the drop deletes the array a still-running old
-  client is writing to — so that client's edits go invisible and are then
-  destroyed. `games` is therefore absent from
-  `DRAINABLE_LEGACY_ARRAY_KEYS`, which is what the backfill iterates, what
-  the drop's coverage proof checks, and what `dropLegacySignupArrays`
-  deletes. For this release games are never mass-mirrored and the array is
-  never dropped: new and edited games become subdocs, reads union both
-  homes, the change is revertible, and a stale client's writes stay
-  authoritative for any game an upgraded client hasn't touched. **Exit:**
-  once the fleet has aged over, add `"games"` to
-  `DRAINABLE_LEGACY_ARRAY_KEYS` (one line) and flip the two
-  `dropLegacySignupArrays` assertions in
-  `src/utils/tryoutSignupDocs.test.ts`. Note the coverage proof is
-  all-or-nothing across the drainable set, which is why `games` must be
-  excluded from it rather than merely skipped in the backfill — leaving it
-  in would stall the portal lanes' drops forever.
+- **SOAK (shipped one release, now COMPLETE).** The lazy backfill and the
+  head-only drop are the migration's two irreversible operations, and they
+  are what a mixed-version fleet turns dangerous: the backfill mirrors every
+  existing game into a subdoc, the union then prefers that subdoc forever,
+  and the drop deletes the array a still-running old client is writing to —
+  so that client's edits go invisible and are then destroyed. `games` was
+  therefore held out of `DRAINABLE_LEGACY_ARRAY_KEYS` (what the backfill
+  iterates, what the drop's coverage proof checks, and what
+  `dropLegacySignupArrays` deletes) for exactly one release, making the lane
+  purely additive and the change revertible.
+  **Exit: DONE** — `DRAINABLE_LEGACY_ARRAY_KEYS` is now the full
+  `ALL_LEGACY_ARRAY_KEYS`, so games mirror and drop like every other lane and
+  the 1 MiB relief actually lands. The residual exposure this accepts is the
+  window between an upgraded head's backfill and its drop (seconds to
+  minutes, inside one session): an old client editing a game in exactly that
+  window loses the edit. AFTER the drop the ratchet takes over and a stale
+  client's team-doc write is refused outright — loud, not silent. Note the
+  coverage proof is all-or-nothing across the drainable set, which is why a
+  soaking lane must be excluded from it rather than merely skipped in the
+  backfill — leaving it in would stall every other lane's drop forever.
 - **Lifecycle:** `advanceSeason` no longer writes `games: []` — it clears
   both homes after the season patch (query-based `deleteAllSignupDocs`
   sweep + `dropLegacySignupArray` deleteField), mirroring the tryout lane;

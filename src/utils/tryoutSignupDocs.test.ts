@@ -9,6 +9,7 @@ import {
   dropLegacySignupArrays,
   findLegacySignupEntries,
   removeLegacySignupEntries,
+  DRAINABLE_LEGACY_ARRAY_KEYS,
 } from "./tryoutSignupDocs";
 import type { TryoutSignup } from "../types";
 
@@ -410,7 +411,7 @@ describe("removeLegacySignupEntries", () => {
 describe("dropLegacySignupArrays", () => {
   // The one IRREVERSIBLE write in the migration — TeamProvider fires it only
   // once coverage is proven, so its payload and target have to be exact.
-  it("deletes every DRAINABLE legacy array field in ONE write — and never games", async () => {
+  it("deletes every DRAINABLE legacy array field in ONE write — games included", async () => {
     await dropLegacySignupArrays({} as never, "app", "team1");
     expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
     const [ref, payload] = mockUpdateDoc.mock.calls[0];
@@ -420,15 +421,26 @@ describe("dropLegacySignupArrays", () => {
       interestSignups: { __deleteField: true },
       playerInfoSubmissions: { __deleteField: true },
       availabilitySubmissions: { __deleteField: true },
+      games: { __deleteField: true },
     });
     // Every drainable key in the SAME update: one collection being long gone
     // (or a team an earlier phase's drop already reached) must never block
     // dropping the others, and separate writes could half-apply.
-    expect(Object.keys(payload)).toHaveLength(4);
-    // `games` is withheld for its soak release — this drop is the
-    // irreversible step, and the games lane must stay purely additive until
-    // the fleet has aged over (DRAINABLE_LEGACY_ARRAY_KEYS).
-    expect(Object.keys(payload)).not.toContain("games");
+    expect(Object.keys(payload)).toHaveLength(5);
+    // The Phase 3a soak is OVER: `games` now mirrors and drops like every
+    // other lane, which is what actually reclaims the team doc's bytes.
+    expect(Object.keys(payload)).toContain("games");
+  });
+
+  it("drops exactly the drainable set, so a withheld lane can be spotted", async () => {
+    // Guards the all-or-nothing coverage proof: if a future soak withholds a
+    // key, this is the assertion that says so out loud rather than letting the
+    // drop quietly stall every other lane.
+    await dropLegacySignupArrays({} as never, "app", "team1");
+    const [, payload] = mockUpdateDoc.mock.calls[0];
+    expect(Object.keys(payload).sort()).toEqual(
+      [...DRAINABLE_LEGACY_ARRAY_KEYS].sort(),
+    );
   });
 
   it("REJECTS on failure so the caller can clear its once-guard and retry", async () => {
