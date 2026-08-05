@@ -36,6 +36,11 @@ on:
     types: [completed]
   workflow_dispatch:
 
+env:
+  # Pinned deploy toolchain — see the install step below for why, and keep
+  # this in lockstep with ci.yml's FIREBASE_TOOLS_VERSION.
+  FIREBASE_TOOLS_VERSION: "15.26.0"
+
 jobs:
   validate-and-deploy:
     runs-on: ubuntu-latest
@@ -85,9 +90,32 @@ jobs:
         with:
           node-version: "24"
 
+      # PINNED + retried, deliberately not @latest. This step is the single
+      # point of failure for getting rules into PRODUCTION, and on 2026-08-05
+      # it took the deploy down: npm tagged firebase-tools 15.26.0 `latest`
+      # while its tarball still 404'd, so both deploy runs for the just-merged
+      # Phase 3b rules failed and the new players-subcollection rules stayed
+      # undeployed until a manual re-run. An unpinned install makes every
+      # production rules deploy hostage to whatever was published upstream in
+      # the last few minutes.
+      #
+      # The pin removes the "latest moved under us" failure; the retry covers
+      # the residual case of a transient registry blip on the pinned tarball.
+      # Keep the version in lockstep with ci.yml's FIREBASE_TOOLS_VERSION, so
+      # the binary that VALIDATES the rules is the one that DEPLOYS them, and
+      # bump both together.
       - name: Install firebase-tools
         if: steps.detect.outputs.should_deploy == 'true'
-        run: npm install -g firebase-tools@latest
+        run: |
+          for attempt in 1 2 3; do
+            if npm install -g "firebase-tools@${FIREBASE_TOOLS_VERSION}"; then
+              exit 0
+            fi
+            echo "firebase-tools install failed (attempt ${attempt}/3); retrying in $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
+          echo "::error::Could not install firebase-tools@${FIREBASE_TOOLS_VERSION} after 3 attempts — rules NOT deployed."
+          exit 1
 
       - name: Set up Java (Firestore emulator runtime)
         if: steps.detect.outputs.should_deploy == 'true'
