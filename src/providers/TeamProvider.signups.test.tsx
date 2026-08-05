@@ -118,6 +118,7 @@ import { ToastProvider } from "./ToastProvider";
 import { TeamProvider } from "./TeamProvider";
 import { ConfirmProvider } from "../components/ConfirmDialog";
 import { useTeam } from "../contexts";
+import { ALL_LEGACY_ARRAY_KEYS } from "../utils/tryoutSignupDocs";
 
 const listeners = (
   firestore as unknown as {
@@ -299,15 +300,22 @@ const mountProvider = async () => {
   await emitDoc(SETTINGS, { teams: [{ id: "t1", name: "T1" }] });
 };
 
-// The migration write-effects gate on EVERY migrating lane (the four portal
-// lanes of Phases 1/1b plus the Phase 3a games lane), not just the
-// tryout/interest pair most tests here exercise. This stands in for the
-// other lanes being quiet — empty snapshots, server-confirmed unless a test
-// says otherwise.
+// The migration write-effects gate on EVERY migrating lane — the four portal
+// lanes of Phases 1/1b plus the two coach-written lanes, games (3a) and
+// players (3b) — not just the tryout/interest pair most tests here exercise.
+// This stands in for the other lanes being quiet: empty snapshots,
+// server-confirmed unless a test says otherwise.
+//
+// Derived from ALL_LEGACY_ARRAY_KEYS rather than listed by hand, so adding a
+// lane to the migration doesn't silently strand every gated assertion in this
+// file behind a lane nobody remembered to emit.
+const QUIET_LANES = ALL_LEGACY_ARRAY_KEYS.filter(
+  (k) => k !== "tryoutSignups" && k !== "interestSignups",
+);
 const emitSubmissionLanes = async (team = "t1", fromCache = false) => {
-  await emitCollection(subPath(team, "playerInfoSubmissions"), [], fromCache);
-  await emitCollection(subPath(team, "availabilitySubmissions"), [], fromCache);
-  await emitCollection(subPath(team, "games"), [], fromCache);
+  for (const key of QUIET_LANES) {
+    await emitCollection(subPath(team, key), [], fromCache);
+  }
 };
 
 // Arm the signup-array drop: one legacy entry, mirrored, every lane
@@ -1753,5 +1761,273 @@ describe("TeamProvider gamesServerConfirmed (Phase 3a)", () => {
     // t2 must prove itself — otherwise a sync on t2 could run against t1's
     // confirmation and duplicate t2's schedule.
     expect(teamApi.gamesServerConfirmed).toBe(false);
+  });
+});
+
+// Phase 3b — the roster is the last array off the team doc, and the one whose
+// loss hurts most, so these lean on the failure modes rather than the happy
+// path: a silent no-op eating an edit, and an empty roster reaching the server.
+describe("TeamProvider players translation (Phase 3b)", () => {
+  const p1 = { id: "p1", name: "Ada", number: "7" };
+  const p2 = { id: "p2", name: "Bo", number: "9" };
+
+  const mountWithPlayers = async () => {
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc({ players: [p1, p2] }));
+    await emitCollection(subPath("t1", "players"), []);
+  };
+
+  it("BLOCKS a roster edit until the players lane has landed", async () => {
+    await mountProvider();
+    // Team doc loaded, players lane silent. On an already-dropped team the
+    // union reads EMPTY here, so a mapEntries edit would diff to nothing and
+    // the coach's profile save would vanish with no error at all.
+    await emitDoc(teamPath("t1"), teamDoc({ players: [] }));
+    await act(async () => {
+      teamApi.updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: (items: any[]) => items.map((p) => ({ ...p, number: "99" })),
+      });
+    });
+    expect(writeBatchMock).not.toHaveBeenCalled();
+    expect(updateDocMock).not.toHaveBeenCalled();
+    // ...and the coach is told, in roster language rather than schedule's.
+    expect(
+      screen.getByText(/roster hasn't finished loading/i),
+    ).toBeInTheDocument();
+
+    await emitCollection(subPath("t1", "players"), [
+      { id: "p9", data: { id: "p9", name: "Cy", number: "3" } },
+    ]);
+    await act(async () => {
+      teamApi.updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: (items: any[]) => items.map((p) => ({ ...p, number: "99" })),
+      });
+    });
+    expect(lastBatch().set).toHaveBeenCalledTimes(1);
+  });
+
+  it("still allows an APPEND before the lane lands — RosterRecoveryCard depends on it", async () => {
+    // The rebuild card exists for exactly the state where the roster reads
+    // empty. If the pre-landing block caught appends too, the one repair path
+    // would be disabled precisely when it is needed.
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc({ players: [] }));
+    await act(async () => {
+      teamApi.updateTeamArrays({
+        op: "append",
+        key: "players",
+        entries: [{ id: "p-rebuilt", name: "Recovered player" }],
+      });
+    });
+    expect(lastBatch().set).toHaveBeenCalledTimes(1);
+    expect(lastBatch().set.mock.calls[0][0].__path).toBe(
+      subPath("t1", "players") + "/p-rebuilt",
+    );
+  });
+
+  it("routes a single-player edit to ONE full-entry doc set", async () => {
+    await mountWithPlayers();
+    await act(async () => {
+      teamApi.updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: (items: any[]) =>
+          items.map((p) => (p.id === "p1" ? { ...p, number: "21" } : p)),
+      });
+    });
+    const batch = lastBatch();
+    expect(batch.set).toHaveBeenCalledTimes(1);
+    const [ref, entry] = batch.set.mock.calls[0];
+    expect(ref.__path).toBe(subPath("t1", "players") + "/p1");
+    expect(entry).toMatchObject({ id: "p1", name: "Ada", number: "21" });
+    expect(batch.delete).not.toHaveBeenCalled();
+    expect(batch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it("a player delete clears BOTH homes in one atomic batch", async () => {
+    await mountWithPlayers();
+    await act(async () => {
+      teamApi.updateTeamArrays({ op: "removeById", key: "players", id: "p2" });
+    });
+    const batch = lastBatch();
+    expect(batch.delete).toHaveBeenCalledTimes(1);
+    expect(batch.delete.mock.calls[0][0].__path).toBe(
+      subPath("t1", "players") + "/p2",
+    );
+    // The legacy twin must leave the array in the SAME commit, or the union
+    // resurrects the player on the next snapshot.
+    expect(batch.update).toHaveBeenCalledTimes(1);
+    const [, payload] = batch.update.mock.calls[0];
+    // The mock records arrayRemove's first arg; the point is that it is the
+    // EXACT stored element, not the assembled union's copy — a value-based
+    // arrayRemove matches nothing if the shapes have drifted.
+    expect(payload.players).toEqual({ __arrayRemove: p2 });
+  });
+
+  it("carries a remove-player cascade across BOTH lanes on one batch", async () => {
+    // "Remove a player and strip them from every game" is one atomic promise
+    // the array API made; two routed lanes must not split it into two commits.
+    await mountProvider();
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({
+        players: [p1, p2],
+        games: [{ id: "g1", date: "2026-06-01", lineup: { p2: "SS" } }],
+      }),
+    );
+    await emitCollection(subPath("t1", "players"), []);
+    await emitCollection(subPath("t1", "games"), []);
+    await act(async () => {
+      teamApi.updateTeamArrays([
+        { op: "removeById", key: "players", id: "p2" },
+        {
+          op: "mapEntries",
+          key: "games",
+          map: (items: any[]) => items.map((g) => ({ ...g, lineup: {} })),
+        },
+      ]);
+    });
+    expect(writeBatchMock).toHaveBeenCalledTimes(1);
+    const batch = lastBatch();
+    expect(batch.delete).toHaveBeenCalledTimes(1);
+    expect(batch.set).toHaveBeenCalledTimes(1);
+    expect(batch.set.mock.calls[0][0].__path).toBe(
+      subPath("t1", "games") + "/g1",
+    );
+    expect(batch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the roster-wipe guard armed once the roster lives in subdocs", async () => {
+    // The guard's old server-confirmation came from the TEAM DOC. Post-3b the
+    // roster is in the subcollection, so a server-confirmed team doc proves
+    // nothing about the roster — and an unconfirmed players lane reading empty
+    // is exactly the stale-cache wipe vector.
+    await mountProvider();
+    // Team doc server-confirmed, players lane cache-only and EMPTY.
+    await emitDoc(teamPath("t1"), teamDoc({ players: [] }));
+    await emitCollection(subPath("t1", "players"), [], true);
+    await act(async () => {
+      teamApi.updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: () => [],
+      });
+    });
+    expect(writeBatchMock).not.toHaveBeenCalled();
+    expect(updateDocMock).not.toHaveBeenCalled();
+    expect(screen.getByText(/Refused to save an empty roster/i)).toBeTruthy();
+  });
+
+  it("lets a genuinely-empty roster through once BOTH homes are server-confirmed", async () => {
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc({ players: [] }));
+    await emitCollection(subPath("t1", "players"), []);
+    await act(async () => {
+      teamApi.updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: () => [],
+      });
+    });
+    // Nothing to write (empty → empty diffs to nothing), and critically no
+    // "Save blocked" toast: the guard must not cry wolf on a real new team.
+    expect(screen.queryByText(/Refused to save an empty roster/i)).toBeNull();
+  });
+
+  it("never lets a whole-roster write ride the team-doc merge", async () => {
+    // Post-drop the rules ratchet rejects a team-doc write carrying `players`,
+    // which would fail the ENTIRE merge — so the key must be lifted out and
+    // routed even when it arrives via updateTeam (backup restore, photo strip).
+    await mountWithPlayers();
+    await act(async () => {
+      teamApi.updateTeam({
+        players: [{ ...p1, number: "1" }, p2],
+        teamAge: "10U",
+      });
+    });
+    await act(async () => {});
+    const batch = lastBatch();
+    // The team-doc payload rides the batch WITHOUT a players array.
+    const docWrite = batch.set.mock.calls.find(
+      (c: any[]) => c[0].__path === teamPath("t1"),
+    );
+    expect(docWrite).toBeTruthy();
+    expect(docWrite[1]).toMatchObject({ teamAge: "10U" });
+    expect(Array.isArray(docWrite[1].players)).toBe(false);
+    // ...and the changed player went to its own doc.
+    const playerWrite = batch.set.mock.calls.find(
+      (c: any[]) => c[0].__path === subPath("t1", "players") + "/p1",
+    );
+    expect(playerWrite[1]).toMatchObject({ id: "p1", number: "1" });
+  });
+});
+
+describe("TeamProvider schema ladder ↔ players lane (Phase 3b)", () => {
+  it("defers the ladder when the roster is invisible, instead of banking a false migration", async () => {
+    // A fully-drained team: no legacy players array on the doc. If the ladder
+    // ran here before the players lane landed it would migrate an EMPTY
+    // roster, still write evalSchemaVersion, and every later pass would
+    // short-circuit on the version check — stranding the real roster at the
+    // old shape permanently.
+    await mountProvider();
+    const dropped = teamDoc({ evalSchemaVersion: 3 });
+    delete (dropped as Record<string, unknown>).players;
+    await emitDoc(teamPath("t1"), dropped);
+
+    // No schema write went out.
+    const wroteVersion = setDocMock.mock.calls.some(
+      (c: any[]) =>
+        c[0]?.__path === teamPath("t1") && c[1]?.evalSchemaVersion != null,
+    );
+    expect(wroteVersion).toBe(false);
+  });
+
+  it("runs the ladder once the players lane lands, against the union", async () => {
+    await mountProvider();
+    const dropped = teamDoc({ evalSchemaVersion: 3 });
+    delete (dropped as Record<string, unknown>).players;
+    await emitDoc(teamPath("t1"), dropped);
+    // The roster arrives from the subcollection, in the pre-v4 shape.
+    await emitCollection(subPath("t1", "players"), [
+      { id: "p1", data: { id: "p1", name: "Ada", restrictions: ["P"] } },
+    ]);
+    // A later doc snapshot retries the deferred pass.
+    await emitDoc(teamPath("t1"), dropped);
+
+    // The migrated player rode the routed lane into its own doc — never the
+    // team-doc merge, which the ratchet would reject on a dropped team.
+    const batch = lastBatch();
+    const playerWrite = batch?.set.mock.calls.find(
+      (c: any[]) => c[0].__path === subPath("t1", "players") + "/p1",
+    );
+    expect(playerWrite).toBeTruthy();
+    // v3 → v4 turned the negative `restrictions` model into positive
+    // comfortablePositions, which is proof the ladder saw a REAL roster.
+    expect(playerWrite[1].comfortablePositions).toBeDefined();
+    expect(playerWrite[1].comfortablePositions).not.toContain("P");
+  });
+
+  it("still runs the ladder pre-migration, where the doc itself carries the roster", async () => {
+    // The path that predates the subcollection must be unchanged: a legacy
+    // array on the doc is all the visibility the ladder needs.
+    await mountProvider();
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({
+        evalSchemaVersion: 3,
+        players: [{ id: "p1", name: "Ada", restrictions: ["P"] }],
+      }),
+    );
+    await act(async () => {});
+    const batch = lastBatch();
+    const playerWrite = batch?.set.mock.calls.find(
+      (c: any[]) => c[0].__path === subPath("t1", "players") + "/p1",
+    );
+    expect(playerWrite).toBeTruthy();
+    expect(playerWrite[1].comfortablePositions).not.toContain("P");
   });
 });

@@ -1,5 +1,7 @@
 // Phase 3 of docs/firestore-data-migration.md — the coach-written team-doc
-// arrays (`games` now; `players` next) move to per-entry subcollection docs.
+// arrays (`games`, Phase 3a; `players`, Phase 3b) move to per-entry
+// subcollection docs. Both lanes share every helper here; the diff is
+// key-generic and only the union's sort order differs per lane.
 //
 // Unlike the portal lanes, these arrays are written by DOZENS of coach flows
 // through two provider choke points (updateTeamArrays, persistTeam), almost
@@ -72,6 +74,26 @@ export const diffEntityArrays = (
   return { sets, deletes };
 };
 
+// Assemble a union from streamed subcollection docs + the legacy team-doc
+// array, ordered by `cmp`. The subcollection doc WINS an id conflict — a coach
+// edit is a subdoc-only write, so the legacy twin goes stale the moment one
+// lands — and the doc id is authoritative over any stale `id` in the doc data.
+const assembleEntities = <T extends { id?: string }>(
+  docs: Array<{ id: string; data: DocumentData }> | null | undefined,
+  legacyEntries: T[] | null | undefined,
+  cmp: (a: T, b: T) => number,
+): T[] => {
+  const subDocs = Array.isArray(docs) ? docs : [];
+  const subIds = new Set(subDocs.map((d) => d.id));
+  const unmigrated = (Array.isArray(legacyEntries) ? legacyEntries : []).filter(
+    (e) => e && !(e.id && subIds.has(e.id)),
+  );
+  return [
+    ...subDocs.map((d) => ({ ...(d.data as object), id: d.id }) as T),
+    ...unmigrated,
+  ].sort(cmp);
+};
+
 // Deterministic union order for games. Stored array order used to define
 // same-date doubleheader order (every display sort is a stable date-only
 // comparator); subcollection docs are unordered, so the union pins intra-day
@@ -99,21 +121,52 @@ export const gameUnionOrder = (
   return ai < bi ? -1 : ai > bi ? 1 : 0;
 };
 
-// Assemble the games union from streamed subcollection docs + the legacy
-// team-doc array: doc wins id conflicts (a coach edit is a subdoc-only write,
-// so the legacy twin goes stale the moment one lands), doc id authoritative
-// over stale in-data ids, result sorted by gameUnionOrder.
+// Assemble the games union, sorted by gameUnionOrder.
 export const assembleGames = <T extends { id?: string }>(
   docs: Array<{ id: string; data: DocumentData }> | null | undefined,
   legacyEntries: T[] | null | undefined,
-): T[] => {
-  const subDocs = Array.isArray(docs) ? docs : [];
-  const subIds = new Set(subDocs.map((d) => d.id));
-  const unmigrated = (Array.isArray(legacyEntries) ? legacyEntries : []).filter(
-    (e) => e && !(e.id && subIds.has(e.id)),
-  );
-  return [
-    ...subDocs.map((d) => ({ ...(d.data as object), id: d.id }) as T),
-    ...unmigrated,
-  ].sort(gameUnionOrder);
+): T[] => assembleEntities(docs, legacyEntries, gameUnionOrder);
+
+// Deterministic union order for players (Phase 3b). Stored roster order was
+// never user-controlled — there is no roster reorder UI, batting order is
+// GENERATED (lineupEngine/battingOrder) and the depth chart keeps its own
+// per-position lists — so nothing semantic is lost by pinning an order here.
+// What IS needed is (a) determinism across devices, because the union feeds
+// the seeded lineup engine, and (b) an order that doesn't visibly reshuffle
+// rosters, because a few surfaces render the array as-is.
+//
+// So this mirrors the Roster tab's own comparator — jersey number ascending,
+// un-numbered players last, then name — which is the order coaches already
+// see. Two deliberate divergences make it total and device-independent where
+// the display comparator only had to be reasonable:
+//   - plain < / > on name, never localeCompare: collation is locale- and
+//     ICU-version-dependent, so two coaches' devices could disagree on the
+//     order and seed the engine differently for the same roster;
+//   - an id tie-break, so same-number same-name players never compare 0 (an
+//     unstable order between snapshots would reshuffle the roster mid-session
+//     and re-seed the engine).
+// `number` is `string | number` on Player; String() before parseInt keeps
+// both shapes on the same path.
+export const playerUnionOrder = (
+  a: { number?: string | number; name?: string; id?: string },
+  b: { number?: string | number; name?: string; id?: string },
+): number => {
+  const an = parseInt(String(a?.number ?? ""), 10);
+  const bn = parseInt(String(b?.number ?? ""), 10);
+  const aHas = !Number.isNaN(an);
+  const bHas = !Number.isNaN(bn);
+  if (aHas !== bHas) return aHas ? -1 : 1;
+  if (aHas && bHas && an !== bn) return an - bn;
+  const anm = String(a?.name || "");
+  const bnm = String(b?.name || "");
+  if (anm !== bnm) return anm < bnm ? -1 : 1;
+  const ai = String(a?.id || "");
+  const bi = String(b?.id || "");
+  return ai < bi ? -1 : ai > bi ? 1 : 0;
 };
+
+// Assemble the players union, sorted by playerUnionOrder.
+export const assemblePlayers = <T extends { id?: string }>(
+  docs: Array<{ id: string; data: DocumentData }> | null | undefined,
+  legacyEntries: T[] | null | undefined,
+): T[] => assembleEntities(docs, legacyEntries, playerUnionOrder);

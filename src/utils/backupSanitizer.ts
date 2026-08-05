@@ -23,6 +23,14 @@ const ACL_KEYS = ["ownerId", "members", "coachRoles", "joinCode"] as const;
 // subcollections are the source of truth and a team-doc merge does not touch
 // them, so writing the stale team-doc copy could only mislead (or, pre-drop,
 // resurrect deleted entries through the union read).
+//
+// `games` and `players` are DELIBERATELY absent despite having moved to
+// subcollections in the same migration (Phases 3a/3b). They are the two lanes
+// persistTeam ROUTES: an array on either key is lifted out of the team-doc
+// merge and diffed into per-doc writes, so a restore neither trips the ratchet
+// nor writes a stale copy — it actually restores the schedule and the roster,
+// which is most of what a backup is FOR. Stripping them here would silently
+// turn "restore my team" into "restore everything except my team".
 const RETIRED_ARRAY_KEYS = [
   "tryoutSignups",
   "interestSignups",

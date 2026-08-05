@@ -13,9 +13,11 @@ The entire team lives in one Firestore document:
 artifacts/{appId}/public/data/teams/{teamId}
 ```
 
-It holds branding, roster (`players`), schedule (`games`), evaluations
+It held branding, roster (`players`), schedule (`games`), evaluations
 (`evaluationEvents`), staff (`members`, `coachRoles`, `coaches`), and the
-public-write signup arrays (`tryoutSignups`, `interestSignups`). Firestore caps
+public-write signup arrays (`tryoutSignups`, `interestSignups`) — every one of
+those arrays has since moved to a subcollection (Phases 1–3b below); what
+remains on the doc is branding, settings, staff and finances. Firestore caps
 a single document at **1 MiB**. As a season accrues games, evals, and signups,
 a busy team creeps toward that ceiling, at which point a write silently fails.
 `estimateDocSizeBytes` + the one-shot "team data is getting large" toast
@@ -55,14 +57,14 @@ roster/schedule/evals in the app), so the lost-update risk is low and the
 churn/risk of converting them is high. Documented here so the trade-off is
 explicit rather than accidental:
 
-| Field                                               | Writer(s)                                        | Why left as a whole-array write                                                                                                                |
-| --------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `players`                                           | `usePlayerCrud`, `acceptTryout`, `advanceSeason` | Edited only by signed-in staff; many ops are inherently multi-element (reorder, bulk import, season advance).                                  |
-| `games`                                             | _(since moved)_                                  | **No longer a team array** — per-entry docs in the games subcollection (Phase 3a below); writers diff-translated at the provider choke points. |
-| `evaluationEvents`                                  | _(since moved)_                                  | **No longer a team array** — eval rounds live per-doc in the `evalRounds` subcollection (Phase 2 below).                                       |
-| `coachRoles` (head-initiated `setCoachRole`)        | `useTeamMembership`                              | Owner-only; the **self-join** path already uses the atomic dotted write.                                                                       |
-| `tryoutSignups` / `interestSignups`                 | _(since moved)_                                  | **No longer team arrays** — per-entry docs in the signup subcollections (Phase 1 below); legacy arrays union-read + backfilled until dropped.  |
-| `playerInfoSubmissions` / `availabilitySubmissions` | _(since moved)_                                  | **No longer team arrays** — per-entry docs in the submission subcollections (Phase 1b below); same union-read + backfill + drop machinery.     |
+| Field                                               | Writer(s)           | Why left as a whole-array write                                                                                                                                |
+| --------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `players`                                           | _(since moved)_     | **No longer a team array** — per-entry docs in the players subcollection (Phase 3b below); writers diff-translated at the same provider choke points as games. |
+| `games`                                             | _(since moved)_     | **No longer a team array** — per-entry docs in the games subcollection (Phase 3a below); writers diff-translated at the provider choke points.                 |
+| `evaluationEvents`                                  | _(since moved)_     | **No longer a team array** — eval rounds live per-doc in the `evalRounds` subcollection (Phase 2 below).                                                       |
+| `coachRoles` (head-initiated `setCoachRole`)        | `useTeamMembership` | Owner-only; the **self-join** path already uses the atomic dotted write.                                                                                       |
+| `tryoutSignups` / `interestSignups`                 | _(since moved)_     | **No longer team arrays** — per-entry docs in the signup subcollections (Phase 1 below); legacy arrays union-read + backfilled until dropped.                  |
+| `playerInfoSubmissions` / `availabilitySubmissions` | _(since moved)_     | **No longer team arrays** — per-entry docs in the submission subcollections (Phase 1b below); same union-read + backfill + drop machinery.                     |
 
 If/when these become contended (e.g. multiple assistants entering evals
 simultaneously), prefer per-entry subcollection docs (below) over array
@@ -73,8 +75,10 @@ transactions.
 Full subcollection migration was deliberately not attempted in one shot: the
 signup arrays are read across many coach-side surfaces (TryoutsTab, InterestTab,
 tryout evaluations keyed by `tryoutSignupId`, accept-to-roster, CSV export), so
-the plan lands one family at a time behind union reads. Phases 1, 1b, 2 and
-3a have shipped; Phase 3b (players) is the one remaining family.
+the plan lands one family at a time behind union reads. **All phases (1, 1b, 2,
+3a and 3b) have shipped**, and every lane is now drained — see
+`DRAINABLE_LEGACY_ARRAY_KEYS`, the soak lever, which currently withholds
+nothing.
 
 ### Phase 1 — public signups → subcollections (SHIPPED)
 
@@ -267,26 +271,26 @@ caller:
 - **Read machinery:** the games lane rides the same subscription as the
   portal lanes (`ALL_LEGACY_ARRAY_KEYS`) and the same landed /
   server-confirmed gates.
-- **SOAK — the games lane is additive-only for its first release.** The
-  lazy backfill and the head-only drop are the migration's two irreversible
-  operations, and they are what a mixed-version fleet turns dangerous: the
-  backfill mirrors every existing game into a subdoc, the union then prefers
-  that subdoc forever, and the drop deletes the array a still-running old
-  client is writing to — so that client's edits go invisible and are then
-  destroyed. `games` is therefore absent from
-  `DRAINABLE_LEGACY_ARRAY_KEYS`, which is what the backfill iterates, what
-  the drop's coverage proof checks, and what `dropLegacySignupArrays`
-  deletes. For this release games are never mass-mirrored and the array is
-  never dropped: new and edited games become subdocs, reads union both
-  homes, the change is revertible, and a stale client's writes stay
-  authoritative for any game an upgraded client hasn't touched. **Exit:**
-  once the fleet has aged over, add `"games"` to
-  `DRAINABLE_LEGACY_ARRAY_KEYS` (one line) and flip the two
-  `dropLegacySignupArrays` assertions in
-  `src/utils/tryoutSignupDocs.test.ts`. Note the coverage proof is
-  all-or-nothing across the drainable set, which is why `games` must be
-  excluded from it rather than merely skipped in the backfill — leaving it
-  in would stall the portal lanes' drops forever.
+- **SOAK (shipped one release, now COMPLETE).** The lazy backfill and the
+  head-only drop are the migration's two irreversible operations, and they
+  are what a mixed-version fleet turns dangerous: the backfill mirrors every
+  existing game into a subdoc, the union then prefers that subdoc forever,
+  and the drop deletes the array a still-running old client is writing to —
+  so that client's edits go invisible and are then destroyed. `games` was
+  therefore held out of `DRAINABLE_LEGACY_ARRAY_KEYS` (what the backfill
+  iterates, what the drop's coverage proof checks, and what
+  `dropLegacySignupArrays` deletes) for exactly one release, making the lane
+  purely additive and the change revertible.
+  **Exit: DONE** — `DRAINABLE_LEGACY_ARRAY_KEYS` is now the full
+  `ALL_LEGACY_ARRAY_KEYS`, so games mirror and drop like every other lane and
+  the 1 MiB relief actually lands. The residual exposure this accepts is the
+  window between an upgraded head's backfill and its drop (seconds to
+  minutes, inside one session): an old client editing a game in exactly that
+  window loses the edit. AFTER the drop the ratchet takes over and a stale
+  client's team-doc write is refused outright — loud, not silent. Note the
+  coverage proof is all-or-nothing across the drainable set, which is why a
+  soaking lane must be excluded from it rather than merely skipped in the
+  backfill — leaving it in would stall every other lane's drop forever.
 - **Lifecycle:** `advanceSeason` no longer writes `games: []` — it clears
   both homes after the season patch (query-based `deleteAllSignupDocs`
   sweep + `dropLegacySignupArray` deleteField), mirroring the tryout lane;
@@ -298,17 +302,74 @@ caller:
   games via the RAW doc-resident array, never the union, so per-doc games
   can't fire false 1 MiB warnings.
 
-### Phase 3b — players → subcollection
+### Phase 3b — players → subcollection (SHIPPED)
 
-The last array, sharing Phase 3a's entire mechanism (the translation layer
-is key-generic). Its extra work items, mapped by the Phase 3 write-path
-inventory: a deterministic union order for players (display always sorts;
-the engine needs any stable order), moving the roster-wipe guard's server
-confirmation onto the players lane snapshot, converting the photo-strip
-effect and CSV roster import off whole-array `updateTeam` writes (both
-already flow through persistTeam's routing), RosterRecoveryCard/rebuild, and
-`NEW_TEAM_DOC` + rules ratchet for `players`. Deliberately sequenced AFTER
-games soaks, per the original plan.
+```
+artifacts/{appId}/public/data/teams/{teamId}/players/{playerId}
+```
+
+The last array, sharing Phase 3a's entire mechanism — the translation layer
+is key-generic, so both coach-written lanes are now driven off one
+`ROUTED_ENTITY_KEYS` list rather than a hard-coded `games` branch. Readers
+are untouched: the provider still publishes the assembled union under
+`teamData.players`, so the lineup engine, stats, depth chart and every roster
+surface keep consuming the same key. What was specific to this lane:
+
+- **Union order.** Stored roster order was never user-controlled (there is
+  no roster reorder UI, batting order is GENERATED, the depth chart keeps its
+  own per-position lists), so nothing semantic is lost by pinning one.
+  `playerUnionOrder` mirrors the Roster tab's own comparator — jersey number
+  ascending, un-numbered last, then name — so rosters don't visibly reshuffle
+  on the surfaces that render the array as-is. Two divergences make it total
+  and device-independent, which the display comparator never had to be: plain
+  `<`/`>` on name instead of `localeCompare` (collation varies by locale and
+  ICU version, and two coaches' devices disagreeing would seed the lineup
+  engine differently for the same roster), and an id tie-break so the order
+  can't shift between snapshots.
+- **Roster-wipe guard, re-homed.** `blockedRosterWipeReason`'s
+  server-confirmation input used to come from the TEAM DOC. Post-migration a
+  server-confirmed team doc proves nothing about the roster, so the guard now
+  requires the team doc AND the players lane to be server-confirmed. Strictly
+  more conservative than the old rule — it can only ever refuse more
+  empty-roster writes — and what it costs is an empty write onto an
+  already-empty roster, which is a no-op.
+- **Pre-landing block.** A non-append op on a routed lane is diffed against
+  the union, so it is refused (loudly) until that lane has landed; on an
+  already-dropped team the union would otherwise read empty and a `mapEntries`
+  edit would diff to nothing, eating the save silently. `append` is
+  deliberately exempt, which is what keeps **RosterRecoveryCard**'s rebuild
+  working in precisely the state it exists for — a roster that reads empty.
+- **Schema ladder.** The `evalSchemaVersion` ladder rewrites player SHAPES,
+  and it now reads the assembled UNION rather than `raw.players`. Without
+  that, a future ladder step on a team whose array was already dropped would
+  migrate an empty roster and publish it (blanking the roster on screen), and
+  a half-drained team's subdocs would never be reached by any step at all.
+  The raw array is still captured BEFORE the ladder runs, so the backfill and
+  the drop's coverage proof compare stored shapes against stored shapes.
+- **Rules:** member-only read/create/update/delete, member create
+  deliberately unconstrained so the backfill copies legacy entries verbatim at
+  their short genId ids. `players` joins the update-rule ratchet and the
+  create-rule deny (total from day one — no public lane has ever existed), and
+  `NEW_TEAM_DOC` stopped seeding `players`, so a team born now never has a
+  legacy array to drain.
+- **Lifecycle:** `deleteTeamCmd` sweeps the players subcollection with the
+  others before the team doc goes — its test now asserts the sweep covers
+  every lane in `ALL_LEGACY_ARRAY_KEYS`, so a lane added and forgotten fails
+  rather than silently orphaning docs. `advanceSeason` deliberately does NOT
+  sweep players (the roster survives a rollover; tryouts are promoted into
+  it). Backup restore keeps writing `players` — it is routed through the
+  persistTeam diff, not stripped, because restoring the roster is most of what
+  a backup is for.
+- **No soak.** Unlike 3a, this lane ships drainable immediately. The residual
+  exposure is the window between an upgraded head's backfill and its drop
+  (seconds to minutes, inside one session), during which a still-running old
+  client's roster edit can be lost. After the drop the ratchet refuses that
+  client's team-doc write outright, so the failure is loud rather than silent.
+
+**Phase 3b exit status: COMPLETE.** With both coach lanes drained, the team
+document holds branding, settings, staff, practices, tournaments, finances and
+the roster-adjacent scalars — the 1 MiB ceiling is no longer a function of how
+long a season runs.
 
 ### Cross-cutting constraints
 

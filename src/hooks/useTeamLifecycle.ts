@@ -865,6 +865,7 @@ export const useTeamLifecycle = ({
           "availabilitySubmissions",
         ),
         deleteAllSignupDocs(db, appId, activeTeamId!, "games"),
+        deleteAllSignupDocs(db, appId, activeTeamId!, "players"),
       ]);
       const sweepFailures = sweepResults.filter(
         (r) => r.status === "rejected",

@@ -7,9 +7,14 @@ import { planRosterRebuild } from "../utils/rosterRebuild";
 // season's other data (games, practices, depth chart, eval rounds, applied
 // availability / player-info submissions) still references player ids, the
 // roster can be rebuilt from those references — history is keyed by player id
-// and reattaches the moment the ids come back. This exists because the roster
-// is one array field on the team doc: lose that one field and every other
-// trace of the season survives around it.
+// and reattaches the moment the ids come back.
+//
+// This exists because the roster is a single addressable thing that the rest
+// of the season only points AT. That was true when it was one array field on
+// the team doc (lose that field, everything else survives around it) and it
+// stays true now that players are per-entry docs (Phase 3b) — a failed sweep
+// or a partial write can empty the roster while every reference to it lives
+// on.
 export const RosterRecoveryCard = () => {
   const { team, updateTeamArrays } = useTeam();
   const toast = useToast();
@@ -31,8 +36,13 @@ export const RosterRecoveryCard = () => {
       return;
     }
     setRestoring(true);
-    // Append (arrayUnion), never a whole-array write: additive, concurrency-
-    // safe, and it passes the roster-wipe guard trivially.
+    // Append, never a whole-array write: additive, concurrency-safe, and it
+    // passes the roster-wipe guard trivially. Post-Phase-3b the append lands
+    // as one full-entry doc set per player rather than an arrayUnion, which
+    // keeps both of those properties AND makes this usable in the one state
+    // that matters — `append` is deliberately exempt from the provider's
+    // "lane hasn't landed yet" block, so a rebuild still works on a device
+    // whose players subscription is exactly what came back empty.
     updateTeamArrays({ op: "append", key: "players", entries: plan.players });
     toast.push({
       kind: "success",

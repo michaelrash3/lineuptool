@@ -945,13 +945,15 @@ export const DEFAULT_TEAM_DATA = Object.freeze({
 
 // The shape createTeam writes to a NEW team doc: DEFAULT_TEAM_DATA minus the
 // retired legacy arrays. Rounds live in the evalRounds subcollection (finding
-// 3.1) and games live per-doc in the games subcollection (Phase 3a of
+// 3.1), games per-doc in the games subcollection (Phase 3a) and players
+// per-doc in the players subcollection (Phase 3b of
 // docs/firestore-data-migration.md); the rules reject any team-doc write that
 // would (re)create a dropped field — seeding one at create would plant a
 // legacy leftover on every new team, restarting its backfill/drop cycle.
-// DEFAULT_TEAM_DATA keeps both keys so local reads stay safe pre-snapshot.
+// A team born without these keys therefore never has a legacy array to drain:
+// its very first roster and schedule writes go straight to the subcollections.
+// DEFAULT_TEAM_DATA keeps all three keys so local reads stay safe pre-snapshot.
 export const NEW_TEAM_DOC = Object.freeze(
-  (({ evaluationEvents: _legacy, games: _games, ...rest }) => rest)(
-    DEFAULT_TEAM_DATA,
-  ),
+  (({ evaluationEvents: _legacy, games: _games, players: _players, ...rest }) =>
+    rest)(DEFAULT_TEAM_DATA),
 );
