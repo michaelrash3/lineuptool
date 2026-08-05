@@ -1661,3 +1661,97 @@ describe("TeamProvider games translation (Phase 3a)", () => {
     ]);
   });
 });
+
+// Regression for the advanceSeason ↔ pitching-format auto-heal race (Phase
+// 3a). The auto-heal effect triggers on teamAge — which an advance bumps —
+// and rewrites every non-finalized game whose format is now illegal, reading
+// games from teamDataRef (assigned during render, so it sees the patch). If
+// the advance stops clearing teamData.games optimistically, the effect finds
+// the OUTGOING season's games and writes them all back as subdocs, racing
+// (and outliving) the season sweep. Verified to FAIL without the optimistic
+// clear: the auto-heal writes the outgoing game's doc.
+describe("TeamProvider games ↔ season-advance auto-heal race (Phase 3a)", () => {
+  const outgoing = [
+    // Non-finalized + a format 9U+ can't play: exactly what the auto-heal
+    // rewrites.
+    {
+      id: "old-1",
+      date: "2026-04-01",
+      opponent: "Last season",
+      pitchingFormat: "Machine Pitch",
+      status: "scheduled",
+    },
+  ];
+
+  it("does NOT resurrect the outgoing season's games when the advance clears them", async () => {
+    await mountProvider();
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({
+        teamAge: "8U",
+        leagueRuleSet: "USSSA",
+        pitchingFormat: "Machine Pitch",
+        games: outgoing,
+      }),
+    );
+    await emitCollection(subPath("t1", "games"), []);
+    writeBatchMock.mockClear();
+
+    // The advance's patch shape: bump the age (which makes Machine Pitch
+    // illegal and fires the auto-heal) AND clear games optimistically.
+    await act(async () => {
+      teamApi.updateTeam({
+        teamAge: "10U",
+        pitchingFormat: "Kid Pitch",
+        games: [],
+      });
+    });
+    await act(async () => {});
+
+    // The auto-heal must find NO games to heal — so it never writes the
+    // outgoing schedule back into the subcollection.
+    const setPaths = writeBatchMock.mock.results
+      .flatMap((r) => r.value.set.mock.calls)
+      .map((c: any[]) => c[0].__path);
+    expect(setPaths.filter((p: string) => p.includes("/games/"))).toEqual([]);
+    expect(teamApi.team.games).toEqual([]);
+  });
+});
+
+// The GameChanger duplicate-schedule hazard (Phase 3a). The pre-landing guard
+// keys on `landed`, which the FIRST snapshot satisfies even though it is
+// cache-served — and empty on a device that never cached the collection. On a
+// migrated team that empty union makes every feed event look new, so the sync
+// mints a duplicate of the whole schedule. The provider therefore publishes
+// gamesServerConfirmed, a strictly stronger bar, for that one writer.
+describe("TeamProvider gamesServerConfirmed (Phase 3a)", () => {
+  it("stays false for a cache-served games snapshot and flips on server confirmation", async () => {
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc({ games: [] }));
+
+    // Cache-served + empty: `landed` is satisfied (ordinary edits must work
+    // offline) but this is NOT evidence of what the server holds.
+    await emitCollection(subPath("t1", "games"), [], /* fromCache */ true);
+    expect(teamApi.gamesServerConfirmed).toBe(false);
+
+    // The server's own word.
+    await emitCollection(subPath("t1", "games"), [
+      { id: "g1", data: { id: "g1", date: "2026-06-01", opponent: "Sharks" } },
+    ]);
+    expect(teamApi.gamesServerConfirmed).toBe(true);
+  });
+
+  it("does not carry the previous team's confirmation into the next team", async () => {
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc({ games: [] }));
+    await emitCollection(subPath("t1", "games"), []);
+    expect(teamApi.gamesServerConfirmed).toBe(true);
+
+    await act(async () => {
+      await teamApi.switchTeam("t2");
+    });
+    // t2 must prove itself — otherwise a sync on t2 could run against t1's
+    // confirmation and duplicate t2's schedule.
+    expect(teamApi.gamesServerConfirmed).toBe(false);
+  });
+});

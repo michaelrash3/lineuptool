@@ -572,12 +572,22 @@ export const useTeamLifecycle = ({
             ? {}
             : { pitchingFormat: allowedNextFormats[0] }),
           players: [...updatedPlayers, ...promotedPlayers],
-          // `games` is deliberately NOT here. Games live in the games
-          // SUBCOLLECTION (Phase 3a) and the legacy array is being retired by
-          // a deleteField drop; writing `games: []` would recreate the very
-          // field the migration removes. Both homes are cleared after this
-          // patch instead (query-based sweep + deleteField), exactly like
-          // tryoutSignups below.
+          // `games: []` stays, and is NOT the field-recreating hazard the
+          // tryoutSignups note below describes: persistTeam ROUTES a games
+          // key (Phase 3a) — it strips it from the team-doc merge and turns
+          // it into per-doc deletes — so the array never lands on the doc and
+          // the ratchet is never tripped.
+          //
+          // Keeping it is load-bearing for a reason that has nothing to do
+          // with persistence: it clears teamData.games OPTIMISTICALLY. The
+          // pitching-format auto-heal effect in TeamProvider triggers on
+          // teamAge (which this patch bumps) and rewrites every non-finalized
+          // game whose format is now illegal, reading games from teamDataRef
+          // — which is assigned during render, so it sees this patch. Without
+          // the optimistic clear it would find the OUTGOING season's games
+          // still there and write them all back as subdocs, racing the sweep
+          // below and resurrecting last season's schedule.
+          games: [],
           // Tournaments reference games by id; with games cleared they'd be
           // zombie entries (dangling gameIds + pitch plans), so they reset
           // with the schedule they described.
@@ -827,7 +837,24 @@ export const useTeamLifecycle = ({
       // sweep leaves orphaned PII behind, and we say so below instead of
       // reporting a clean delete. We still proceed with the team deletion the
       // coach asked for — refusing would leave both the team AND the orphans.
-      const sweepFailures = await failuresWithinReportWindow([
+      //
+      // Awaited to COMPLETION, deliberately NOT through
+      // failuresWithinReportWindow. This is the one caller that destroys the
+      // parent doc the sweep's own delete rule depends on: every
+      // subcollection rule resolves membership via get() on the team doc, so
+      // a delete enqueued after the parent is gone evaluates get() -> null
+      // and is denied PERMANENTLY — unreadable and undeletable by any client,
+      // with no Admin-SDK path in this app. deleteAllSignupDocs opens with an
+      // await getDocs(), so under the report window a still-in-flight read at
+      // T+4s meant ZERO delete mutations were enqueued before deleteDoc(team)
+      // went out (same for chunks past the first, which enqueue only after
+      // the previous commit acks). The window also bought this flow nothing:
+      // the deleteDoc and settings setDoc immediately below already block
+      // unboundedly offline, so it shed no user-visible wait — it only gave
+      // up the ordering guarantee the sweep is built on. advanceSeason keeps
+      // the window: it never deletes the team doc, so abandoning there is
+      // harmless.
+      const sweepResults = await Promise.allSettled([
         deleteAllSignupDocs(db, appId, activeTeamId!, "tryoutSignups"),
         deleteAllSignupDocs(db, appId, activeTeamId!, "interestSignups"),
         deleteAllSignupDocs(db, appId, activeTeamId!, "playerInfoSubmissions"),
@@ -839,6 +866,9 @@ export const useTeamLifecycle = ({
         ),
         deleteAllSignupDocs(db, appId, activeTeamId!, "games"),
       ]);
+      const sweepFailures = sweepResults.filter(
+        (r) => r.status === "rejected",
+      ).length;
       await deleteDoc(
         doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId!),
       );
@@ -867,9 +897,9 @@ export const useTeamLifecycle = ({
       if (sweepFailures > 0) {
         toast.push({
           kind: "warn",
-          title: "Some signup records couldn't be deleted",
+          title: "Some team records couldn't be deleted",
           message:
-            "The team is gone, but some tryout or interest signups stayed behind and can no longer be reached from the app. Contact support if you need them purged.",
+            "The team is gone, but some of its records (signups, submissions, or games) stayed behind and can no longer be reached from the app. Contact support if you need them purged.",
         });
       }
       toast.push({ kind: "success", title: "Team deleted" });

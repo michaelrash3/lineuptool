@@ -364,6 +364,16 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const signupsDenied =
     signupSubsDeniedRef.current.tryoutSignups ||
     signupSubsDeniedRef.current.interestSignups;
+  // Whether the games lane has delivered a SERVER-confirmed snapshot — a
+  // strictly stronger bar than `landed`, which the first (cache-served)
+  // snapshot satisfies even when it is EMPTY on a device that never cached
+  // the collection. Ordinary edits only need `landed` (and must keep working
+  // offline), but the GameChanger sync decides what to CREATE from "what
+  // isn't already there": handed an empty cache-only union on a migrated
+  // team, it would mint a duplicate of the entire schedule. It is the one
+  // writer that needs proof of what the server holds. Re-derives on
+  // signupSubsProgressTick, which is bumped the moment confirmation lands.
+  const gamesServerConfirmed = signupSubsServerConfirmedRef.current.games;
 
   // Assemble ONE signup collection from BOTH of its inputs and return the
   // array to publish. Called from the team-doc snapshot handler (the legacy
@@ -1283,18 +1293,32 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           activeTeamId,
         );
         if (gamesDiff && (gamesDiff.sets.length || gamesDiff.deletes.length)) {
-          const batch = writeBatch(db);
-          batch.set(ref, toPersist, { merge: true });
-          for (const entry of gamesDiff.sets) {
-            batch.set(
-              signupDocRef(db, appId, activeTeamId, "games", entry.id),
-              entry as Record<string, unknown>,
-            );
+          // Chunked like updateTeamArrays: Firestore rejects a batch past 500
+          // operations WHOLE, and this path now carries one op per game in
+          // the union (a season advance clears them all, a backup restore
+          // rewrites them all), so a long-running team could otherwise have
+          // its entire season patch rejected. The doc merge rides the first
+          // chunk so the team-doc write still lands first.
+          const gameOps: Array<(b: ReturnType<typeof writeBatch>) => void> = [
+            ...gamesDiff.deletes.map(
+              (id: string) => (b: ReturnType<typeof writeBatch>) =>
+                b.delete(signupDocRef(db, appId, activeTeamId, "games", id)),
+            ),
+            ...gamesDiff.sets.map(
+              (entry: { id: string }) => (b: ReturnType<typeof writeBatch>) =>
+                b.set(
+                  signupDocRef(db, appId, activeTeamId, "games", entry.id),
+                  entry as Record<string, unknown>,
+                ),
+            ),
+          ];
+          const CHUNK = 400;
+          for (let i = 0; i < gameOps.length; i += CHUNK) {
+            const batch = writeBatch(db);
+            if (i === 0) batch.set(ref, toPersist, { merge: true });
+            for (const apply of gameOps.slice(i, i + CHUNK)) apply(batch);
+            await batch.commit();
           }
-          for (const id of gamesDiff.deletes) {
-            batch.delete(signupDocRef(db, appId, activeTeamId, "games", id));
-          }
-          await batch.commit();
         } else {
           await setDoc(ref, toPersist, { merge: true });
         }
@@ -3069,6 +3093,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // deep link bounces the coach out of the page they opened.
       signupsReady,
       signupsDenied,
+      gamesServerConfirmed,
     }),
     [
       teamData,
@@ -3091,6 +3116,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       resyncPublicMirror,
       signupsReady,
       signupsDenied,
+      gamesServerConfirmed,
       dismissLineupUndoToast,
     ],
   );

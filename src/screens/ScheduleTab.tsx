@@ -211,6 +211,7 @@ export const ScheduleTab = memo(() => {
     deleteLineupTemplate,
     currentRole,
     uploadScheduleCsv,
+    gamesServerConfirmed,
   } = useTeam();
   const canEdit = currentRole !== "assistant";
   const {
@@ -277,7 +278,16 @@ export const ScheduleTab = memo(() => {
   // the manual "Import from GameChanger" button still surfaces problems.
   const gcFeedUrl = team?.gcCalendarUrl;
   useEffect(() => {
-    if (!canEdit || !gcFeedUrl || !activeTeamId) return;
+    // gamesServerConfirmed, not merely "the lane landed": this sync creates
+    // games from what it does NOT find in the union, and the first games
+    // snapshot is cache-served — EMPTY on a device that never cached the
+    // collection. On a migrated team that empty view would make every feed
+    // event look new and duplicate the whole schedule. Checked BEFORE the
+    // throttle stamp below, so a pre-confirmation pass doesn't burn the
+    // 5-minute window; the effect re-runs and syncs for real once
+    // confirmation lands (it is in the deps).
+    if (!canEdit || !gcFeedUrl || !activeTeamId || !gamesServerConfirmed)
+      return;
     const now = Date.now();
     if (now - (gcAutoSyncedAt.get(activeTeamId) || 0) < GC_AUTOSYNC_INTERVAL_MS)
       return;
@@ -328,7 +338,7 @@ export const ScheduleTab = memo(() => {
     // Intentionally keyed on team/feed identity, not the whole team object, so
     // the post-sync games write doesn't re-trigger this effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTeamId, canEdit, gcFeedUrl]);
+  }, [activeTeamId, canEdit, gcFeedUrl, gamesServerConfirmed]);
 
   // Sort games by ISO date string once per games-array change instead of on
   // every keystroke into newGameForm (which triggers a ScheduleTab re-render).

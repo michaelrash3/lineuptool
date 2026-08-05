@@ -28,7 +28,13 @@ interface Candidate {
 }
 
 export const GameChangerImportPage = memo(() => {
-  const { team, currentRole, updateTeam, updateTeamArrays } = useTeam();
+  const {
+    team,
+    currentRole,
+    updateTeam,
+    updateTeamArrays,
+    gamesServerConfirmed,
+  } = useTeam();
   const toast = useToast();
   const back = useBackOrFallback("/schedule");
 
@@ -50,6 +56,17 @@ export const GameChangerImportPage = memo(() => {
   if (currentRole === "assistant") return <Navigate to="/schedule" replace />;
 
   const preview = async () => {
+    // Same guard as the auto-sync in ScheduleTab: the candidate list is built
+    // by diffing the feed against the existing games union, and the first
+    // games snapshot is cache-served (EMPTY on a device that never cached the
+    // collection). Previewing off that view would label every game "new" and
+    // let the coach import a duplicate schedule by hand.
+    if (!gamesServerConfirmed) {
+      setError(
+        "Still loading this team's schedule — try again in a moment so we can tell which games you already have.",
+      );
+      return;
+    }
     setLoading(true);
     setError(null);
     setCandidates(null);

@@ -284,6 +284,53 @@ describe("deleteTeamCmd", () => {
     );
   });
 
+  it("AWAITS every sweep to completion before deleting the parent doc", async () => {
+    // The subcollection delete rules resolve membership with get() on the
+    // team doc, so a delete that reaches the server AFTER the parent is gone
+    // evaluates get() -> null and is denied permanently — the docs become
+    // unreadable and undeletable by any client, with no Admin-SDK path in
+    // this app. deleteAllSignupDocs opens with an await getDocs(), so under a
+    // 4s report window a still-in-flight read meant ZERO deletes had been
+    // enqueued when deleteDoc(team) went out. This must never race again:
+    // the parent delete has to wait for all five sweeps.
+    let resolveGamesSweep: (() => void) | null = null;
+    const gamesSweep = new Promise<number>((res) => {
+      resolveGamesSweep = () => res(0);
+    });
+    mockSweepSignups.mockImplementation(
+      (_db: unknown, _a: string, _t: string, key: string) =>
+        key === "games" ? gamesSweep : Promise.resolve(0),
+    );
+    const { result } = setup();
+    let done = false;
+    // Real macrotask yields, not a couple of microtask ticks: deleteTeamCmd
+    // awaits the confirm dialog and the backup before it ever reaches the
+    // sweeps, so a microtask-only flush would assert "not yet deleted"
+    // trivially and pass even against the buggy version.
+    const flush = async () => {
+      for (let i = 0; i < 5; i += 1) {
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    };
+    await act(async () => {
+      const p = result.current.deleteTeamCmd().then(() => {
+        done = true;
+      });
+      await flush();
+      // The games sweep is still outstanding -> the team doc MUST NOT be gone.
+      expect(mockDeleteDoc).not.toHaveBeenCalled();
+      expect(done).toBe(false);
+      resolveGamesSweep!();
+      await p;
+    });
+    expect(done).toBe(true);
+    expect(mockDeleteDoc).toHaveBeenCalledTimes(1);
+    // ...and the sweeps all landed before it.
+    expect(Math.max(...mockSweepSignups.mock.invocationCallOrder)).toBeLessThan(
+      mockDeleteDoc.mock.invocationCallOrder[0],
+    );
+  });
+
   it("still deletes the team when the sweep fails, and says the records were orphaned", async () => {
     // A client-side sweep is best-effort (no recursive delete without the
     // Admin SDK). Refusing to delete would leave the coach with both the team
@@ -297,7 +344,7 @@ describe("deleteTeamCmd", () => {
     expect(toast.push).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "warn",
-        title: "Some signup records couldn't be deleted",
+        title: "Some team records couldn't be deleted",
       }),
     );
     expect(toast.push).toHaveBeenCalledWith({
@@ -498,10 +545,13 @@ describe("advanceSeason", () => {
     expect("finances" in patch).toBe(false);
     // The legacy evaluationEvents array key must NEVER reappear in a write.
     expect("evaluationEvents" in patch).toBe(false);
-    // Nor the legacy games array (Phase 3a): games are cleared from BOTH
-    // homes after the patch (query-based sweep + deleteField) — writing
-    // `games: []` here would recreate the field the migration removes.
-    expect("games" in patch).toBe(false);
+    // games: [] STAYS in the patch (Phase 3a). persistTeam routes the key
+    // into per-doc deletes rather than writing the array, so the ratchet is
+    // safe — and the optimistic clear is what stops the pitching-format
+    // auto-heal (which triggers on the teamAge bump) from finding the
+    // outgoing season's games in teamDataRef and writing them all back as
+    // subdocs, racing the sweep below.
+    expect(patch.games).toEqual([]);
     expect(mockSweepSignups).toHaveBeenCalledWith(
       expect.anything(),
       "test-app",
