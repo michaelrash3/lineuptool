@@ -180,7 +180,16 @@ service cloud.firestore {
                     // the array keep working, and once a team's array is
                     // dropped no write may recreate it.
                     && (!('games' in request.resource.data)
-                        || ('games' in resource.data));
+                        || ('games' in resource.data))
+                    // players is the LAST array on the ladder (Phase 3b —
+                    // per-doc in the players subcollection below). Same total
+                    // ratchet as games, and the same reason it is safe: no
+                    // public lane ever existed, so once a team's array is
+                    // dropped the only writers that could recreate it are
+                    // stale coach clients, which now fail LOUDLY here instead
+                    // of silently writing a roster the union no longer reads.
+                    && (!('players' in request.resource.data)
+                        || ('players' in resource.data));
 
       // Only the current owner can delete the team document.
       allow delete: if isCurrentOwner();
@@ -200,7 +209,8 @@ service cloud.firestore {
                     && !('interestSignups' in request.resource.data)
                     && !('playerInfoSubmissions' in request.resource.data)
                     && !('availabilitySubmissions' in request.resource.data)
-                    && !('games' in request.resource.data);
+                    && !('games' in request.resource.data)
+                    && !('players' in request.resource.data);
 
       // NOTE: there is deliberately NO "read if a join code exists" rule here.
       // The old `allow read: if isSignedIn() && resource.data.joinCode != null;`
@@ -505,6 +515,21 @@ service cloud.firestore {
       // genId ids ("g-xxxxxxxx") — do not add an id-length floor here, that
       // guard exists on the PUBLIC portal lanes only.
       match /games/{gameId} {
+        allow read, create, update, delete: if isTeamMember();
+      }
+
+      // ----- Per-entry players (Phase 3b of docs/firestore-data-migration.md
+      // — the LAST array off the 1 MiB team doc). Same shape as games: no
+      // public lane ever existed for the roster, so member-only everything,
+      // and member create stays unconstrained so the lazy backfill copies
+      // legacy array entries VERBATIM at their short genId ids. Do not add an
+      // id-length floor here — that guard belongs to the PUBLIC portal lanes.
+      //
+      // Note this is a stricter home than the roster had before: the team doc
+      // is readable by every member, and so is this, but a roster entry can no
+      // longer ride along in a doc that some other rule exposed — every read
+      // of a player now resolves membership on its own.
+      match /players/{playerId} {
         allow read, create, update, delete: if isTeamMember();
       }
 

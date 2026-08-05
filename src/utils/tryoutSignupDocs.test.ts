@@ -411,7 +411,7 @@ describe("removeLegacySignupEntries", () => {
 describe("dropLegacySignupArrays", () => {
   // The one IRREVERSIBLE write in the migration — TeamProvider fires it only
   // once coverage is proven, so its payload and target have to be exact.
-  it("deletes every DRAINABLE legacy array field in ONE write — games included", async () => {
+  it("deletes every DRAINABLE legacy array field in ONE write — both coach lanes included", async () => {
     await dropLegacySignupArrays({} as never, "app", "team1");
     expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
     const [ref, payload] = mockUpdateDoc.mock.calls[0];
@@ -422,14 +422,18 @@ describe("dropLegacySignupArrays", () => {
       playerInfoSubmissions: { __deleteField: true },
       availabilitySubmissions: { __deleteField: true },
       games: { __deleteField: true },
+      players: { __deleteField: true },
     });
     // Every drainable key in the SAME update: one collection being long gone
     // (or a team an earlier phase's drop already reached) must never block
     // dropping the others, and separate writes could half-apply.
-    expect(Object.keys(payload)).toHaveLength(5);
-    // The Phase 3a soak is OVER: `games` now mirrors and drops like every
-    // other lane, which is what actually reclaims the team doc's bytes.
-    expect(Object.keys(payload)).toContain("games");
+    expect(Object.keys(payload)).toHaveLength(6);
+    // The Phase 3a soak is OVER and Phase 3b landed with it: both
+    // coach-written lanes now mirror and drop like the portal lanes, which is
+    // what actually reclaims the team doc's bytes.
+    expect(Object.keys(payload)).toEqual(
+      expect.arrayContaining(["games", "players"]),
+    );
   });
 
   it("drops exactly the drainable set, so a withheld lane can be spotted", async () => {

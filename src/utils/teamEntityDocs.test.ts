@@ -1,7 +1,9 @@
 import {
   assembleGames,
+  assemblePlayers,
   diffEntityArrays,
   gameUnionOrder,
+  playerUnionOrder,
   stableStringify,
 } from "./teamEntityDocs";
 
@@ -117,5 +119,126 @@ describe("gameUnionOrder / assembleGames", () => {
       [],
     ) as Array<{ id: string }>;
     expect(union[0].id).toBe("real");
+  });
+});
+
+describe("playerUnionOrder / assemblePlayers", () => {
+  // Subcollection docs come back unordered, so the union's comparator is the
+  // only thing standing between a coach and a roster that reshuffles between
+  // snapshots — and between two devices seeding the lineup engine differently.
+  const sortNames = (players: Array<Record<string, unknown>>) =>
+    [...players].sort(playerUnionOrder).map((p) => p.name);
+
+  it("orders by jersey number, matching what the Roster tab already shows", () => {
+    expect(
+      sortNames([
+        { id: "c", name: "Cy", number: "12" },
+        { id: "a", name: "Ada", number: "7" },
+        { id: "b", name: "Bo", number: "9" },
+      ]),
+    ).toEqual(["Ada", "Bo", "Cy"]);
+  });
+
+  it("compares numbers numerically, not as strings", () => {
+    // "10" < "9" lexically — the bug this guards against puts #10 first.
+    expect(
+      sortNames([
+        { id: "a", name: "Nine", number: "9" },
+        { id: "b", name: "Ten", number: "10" },
+      ]),
+    ).toEqual(["Nine", "Ten"]);
+  });
+
+  it("accepts a numeric `number`, which the Player type still allows", () => {
+    expect(
+      sortNames([
+        { id: "a", name: "Five", number: 5 },
+        { id: "b", name: "Two", number: "2" },
+      ]),
+    ).toEqual(["Two", "Five"]);
+  });
+
+  it("sinks un-numbered players below numbered ones, then sorts them by name", () => {
+    expect(
+      sortNames([
+        { id: "z", name: "Zoe" },
+        { id: "a", name: "Abe" },
+        { id: "n", name: "Nan", number: "3" },
+      ]),
+    ).toEqual(["Nan", "Abe", "Zoe"]);
+  });
+
+  it("treats a non-numeric jersey as un-numbered rather than sorting it as NaN", () => {
+    expect(
+      sortNames([
+        { id: "a", name: "Dash", number: "-" },
+        { id: "b", name: "Real", number: "4" },
+      ]),
+    ).toEqual(["Real", "Dash"]);
+  });
+
+  it("is TOTAL — identical number and name still resolve, by id", () => {
+    // Two same-named twins wearing the same number is contrived, but a
+    // comparator that returns 0 here makes the order snapshot-dependent, and
+    // the lineup engine is seeded off this array.
+    const twins = [
+      { id: "p-2", name: "Sam", number: "4" },
+      { id: "p-1", name: "Sam", number: "4" },
+    ];
+    expect([...twins].sort(playerUnionOrder).map((p) => p.id)).toEqual([
+      "p-1",
+      "p-2",
+    ]);
+    expect(
+      [...twins]
+        .reverse()
+        .sort(playerUnionOrder)
+        .map((p) => p.id),
+    ).toEqual(["p-1", "p-2"]);
+  });
+
+  it("orders identically regardless of input order — the determinism the engine needs", () => {
+    const roster = [
+      { id: "d", name: "Dee", number: "21" },
+      { id: "a", name: "Ada", number: "7" },
+      { id: "e", name: "Eve" },
+      { id: "b", name: "Bo", number: "9" },
+    ];
+    const forward = [...roster].sort(playerUnionOrder).map((p) => p.id);
+    const backward = [...roster]
+      .reverse()
+      .sort(playerUnionOrder)
+      .map((p) => p.id);
+    expect(forward).toEqual(backward);
+  });
+
+  it("lets the subcollection doc win an id conflict with its legacy twin", () => {
+    // The legacy array entry is the pre-edit copy: a coach edit is a
+    // subdoc-only write, so resurrecting the twin would revert the edit.
+    const union = assemblePlayers(
+      [{ id: "p1", data: { name: "Ada Lovelace", number: "7" } }],
+      [{ id: "p1", name: "Ada", number: "7" }],
+    );
+    expect(union).toEqual([{ id: "p1", name: "Ada Lovelace", number: "7" }]);
+  });
+
+  it("carries not-yet-migrated legacy players through, in the same order", () => {
+    const union = assemblePlayers(
+      [{ id: "p2", data: { name: "Bo", number: "9" } }],
+      [{ id: "p1", name: "Ada", number: "7" }],
+    );
+    expect(union.map((p: any) => p.name)).toEqual(["Ada", "Bo"]);
+  });
+
+  it("makes the doc id authoritative over a stale id inside the doc data", () => {
+    const union = assemblePlayers([{ id: "real", data: { id: "stale" } }], []);
+    expect(union).toEqual([{ id: "real" }]);
+  });
+
+  it("tolerates null/undefined on both inputs", () => {
+    expect(assemblePlayers(null, null)).toEqual([]);
+    expect(assemblePlayers(undefined, [{ id: "p1", name: "Ada" }])).toEqual([
+      { id: "p1", name: "Ada" },
+    ]);
   });
 });

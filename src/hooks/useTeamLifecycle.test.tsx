@@ -6,6 +6,7 @@ import { saveEvalRound, deleteEvalRound } from "../utils/evalRounds";
 import {
   deleteAllSignupDocs,
   dropLegacySignupArray,
+  ALL_LEGACY_ARRAY_KEYS,
 } from "../utils/tryoutSignupDocs";
 import { downscaleImageToDataURL } from "../components/shared";
 import { blankStats } from "../utils/helpers";
@@ -34,7 +35,11 @@ vi.mock("../utils/evalRounds", () => ({
   saveEvalRound: vi.fn(() => Promise.resolve()),
   deleteEvalRound: vi.fn(() => Promise.resolve()),
 }));
-vi.mock("../utils/tryoutSignupDocs", () => ({
+// Mock the two destructive WRITES, but keep the real lane constants — the
+// sweep assertion below checks deleteTeamCmd covers every lane the migration
+// actually defines, which a hand-maintained copy of that list couldn't do.
+vi.mock("../utils/tryoutSignupDocs", async (importActual) => ({
+  ...(await importActual<typeof import("../utils/tryoutSignupDocs")>()),
   deleteAllSignupDocs: vi.fn(() => Promise.resolve(0)),
   dropLegacySignupArray: vi.fn(() => Promise.resolve()),
 }));
@@ -270,15 +275,14 @@ describe("deleteTeamCmd", () => {
     await act(async () => {
       await result.current.deleteTeamCmd();
     });
+    // Asserted against ALL_LEGACY_ARRAY_KEYS rather than a hand-written list:
+    // the property under test is "every subcollection this migration creates
+    // gets swept", so a lane added to the migration and forgotten here must
+    // fail. That omission is precisely the orphan bug — docs stranded under a
+    // deleted parent, unreachable and undeletable by any client forever.
     expect(
       mockSweepSignups.mock.calls.map((c: unknown[]) => c.slice(1)),
-    ).toEqual([
-      ["test-app", "t1", "tryoutSignups"],
-      ["test-app", "t1", "interestSignups"],
-      ["test-app", "t1", "playerInfoSubmissions"],
-      ["test-app", "t1", "availabilitySubmissions"],
-      ["test-app", "t1", "games"],
-    ]);
+    ).toEqual(ALL_LEGACY_ARRAY_KEYS.map((key) => ["test-app", "t1", key]));
     expect(Math.max(...mockSweepSignups.mock.invocationCallOrder)).toBeLessThan(
       mockDeleteDoc.mock.invocationCallOrder[0],
     );

@@ -62,9 +62,15 @@ import {
   signupDocRef,
   ALL_LEGACY_ARRAY_KEYS,
   DRAINABLE_LEGACY_ARRAY_KEYS,
+  ROUTED_ENTITY_KEYS,
   type SignupCollectionKey,
 } from "../utils/tryoutSignupDocs";
-import { assembleGames, diffEntityArrays } from "../utils/teamEntityDocs";
+import {
+  assembleGames,
+  assemblePlayers,
+  diffEntityArrays,
+  type EntityDiff,
+} from "../utils/teamEntityDocs";
 import {
   slimGame,
   scrubUndefined,
@@ -261,6 +267,29 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const rawAvailabilitySubmissionsRef = useRef<any[]>([]);
   // Phase 3a: the legacy games ARRAY, same discipline as the portal lanes.
   const rawGamesRef = useRef<any[]>([]);
+  // Phase 3b: the legacy players ARRAY. Same discipline again, and the same
+  // reason it can't be read off teamData — teamData.players is the assembled
+  // union, so backfilling from it would be circular.
+  const rawPlayersRef = useRef<any[]>([]);
+  // The raw legacy ARRAY ref for one lane. Four places need "the stored array
+  // for key K" — union assembly, the lazy backfill, the drop's coverage proof
+  // and persistTeam's legacy-twin cleanup — and each used to re-spell the same
+  // map inline, which is one edit per lane added and a silent wrong answer
+  // (undefined) for any spelling that got missed. One lookup, exhaustively
+  // typed by SignupCollectionKey, so adding a lane fails the typecheck here
+  // instead of quietly skipping a call site.
+  const rawEntityArrayRef = useCallback(
+    (key: SignupCollectionKey): { current: any[] } =>
+      ({
+        tryoutSignups: rawTryoutSignupsRef,
+        interestSignups: rawInterestSignupsRef,
+        playerInfoSubmissions: rawPlayerInfoSubmissionsRef,
+        availabilitySubmissions: rawAvailabilitySubmissionsRef,
+        games: rawGamesRef,
+        players: rawPlayersRef,
+      })[key],
+    [],
+  );
   // The latest signup subcollection DOCS per collection, as delivered by the
   // subscription callbacks. Held because assembly has TWO inputs — these docs
   // and the raw legacy arrays above — and either one moving has to re-assemble:
@@ -274,6 +303,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     playerInfoSubmissions: [],
     availabilitySubmissions: [],
     games: [],
+    players: [],
   });
   // Current signup subcollection doc-id sets, kept fresh by the subscription
   // callbacks. The backfill passes them as its overwrite guard and the array
@@ -285,6 +315,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     playerInfoSubmissions: new Set(),
     availabilitySubmissions: new Set(),
     games: new Set(),
+    players: new Set(),
   });
   // Whether each signup subscription has delivered a snapshot for the active
   // team. Until it has, assembly paints the legacy arrays alone (signups
@@ -296,6 +327,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     playerInfoSubmissions: false,
     availabilitySubmissions: false,
     games: false,
+    players: false,
   });
   // Strictly stronger than `landed`: whether each subscription has delivered a
   // snapshot the SERVER confirmed (metadata.fromCache === false). Firestore
@@ -315,6 +347,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     playerInfoSubmissions: false,
     availabilitySubmissions: false,
     games: false,
+    players: false,
   });
   // A lane whose read the server REFUSED. onSnapshot errors are terminal —
   // Firestore never calls that listener again — so a denied lane can never
@@ -327,6 +360,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     playerInfoSubmissions: false,
     availabilitySubmissions: false,
     games: false,
+    players: false,
   });
   // Bumped when a signup subscription reaches a milestone the migration
   // effects gate on — first snapshot landed, then first server-confirmed
@@ -376,6 +410,26 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // signupSubsProgressTick, which is bumped the moment confirmation lands.
   const gamesServerConfirmed = signupSubsServerConfirmedRef.current.games;
 
+  // "Has the SERVER confirmed this team's roster is really empty?" — the
+  // question the roster-wipe guard asks before letting an empty players write
+  // through. Phase 3b moved the roster into a subcollection, so the answer now
+  // takes BOTH homes: the team doc (where an undrained team's legacy array
+  // still lives) AND the players lane (where a migrated team's roster lives).
+  // Either one unconfirmed means this device is reasoning from CACHE about at
+  // least one half of the roster, which is precisely the stale-cache wipe
+  // vector the guard exists to close — a device whose cached copy predates the
+  // roster paints an empty team the server never agreed to.
+  // Requiring both is strictly more conservative than the old team-doc-only
+  // check: it can only ever REFUSE more empty-roster writes, never allow one
+  // the old rule blocked. What that costs is an empty write onto an
+  // already-empty roster, which is a no-op worth losing.
+  const rosterEmptinessServerConfirmed = useCallback(
+    (): boolean =>
+      teamDocServerConfirmedRef.current === activeTeamId &&
+      signupSubsServerConfirmedRef.current.players,
+    [activeTeamId],
+  );
+
   // Assemble ONE signup collection from BOTH of its inputs and return the
   // array to publish. Called from the team-doc snapshot handler (the legacy
   // array moved) AND from the subscription callbacks (the docs moved), because
@@ -383,27 +437,28 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // undropped teams — member cleanup shapes (exact-entry arrayRemove, the
   // deleteField drop) rewrite it, and every change must re-assemble. (The
   // deprecated public append lanes that once fed it are all REMOVED.)
-  const assembledSignups = useCallback((key: SignupCollectionKey): any[] => {
-    const legacy = {
-      tryoutSignups: rawTryoutSignupsRef,
-      interestSignups: rawInterestSignupsRef,
-      playerInfoSubmissions: rawPlayerInfoSubmissionsRef,
-      availabilitySubmissions: rawAvailabilitySubmissionsRef,
-      games: rawGamesRef,
-    }[key].current;
-    // Before the subscription lands there is no doc set to union, so paint the
-    // legacy array alone: first load renders, and rules lag that denies the
-    // subcollection read can't freeze a stale list. Once landed we always
-    // union — never regress to raw-only, or the subscription's docs would be
-    // clobbered by the (already-migrated, possibly stale) array.
-    if (!signupSubsLandedRef.current[key]) return legacy;
-    // Games sort by schedule order (date, start time, id — Phase 3a), the
-    // portal lanes by submission recency.
-    if (key === "games") {
-      return assembleGames(signupSubDocsRef.current[key], legacy);
-    }
-    return assembleSignups(signupSubDocsRef.current[key], legacy);
-  }, []);
+  const assembledSignups = useCallback(
+    (key: SignupCollectionKey): any[] => {
+      const legacy = rawEntityArrayRef(key).current;
+      // Before the subscription lands there is no doc set to union, so paint the
+      // legacy array alone: first load renders, and rules lag that denies the
+      // subcollection read can't freeze a stale list. Once landed we always
+      // union — never regress to raw-only, or the subscription's docs would be
+      // clobbered by the (already-migrated, possibly stale) array.
+      if (!signupSubsLandedRef.current[key]) return legacy;
+      // Each lane gets the order its consumers expect: games by schedule order
+      // (date, start time, id — Phase 3a), players by roster order (jersey
+      // number, name, id — Phase 3b), the portal lanes by submission recency.
+      if (key === "games") {
+        return assembleGames(signupSubDocsRef.current[key], legacy);
+      }
+      if (key === "players") {
+        return assemblePlayers(signupSubDocsRef.current[key], legacy);
+      }
+      return assembleSignups(signupSubDocsRef.current[key], legacy);
+    },
+    [rawEntityArrayRef],
+  );
   // JSON of the last public-mirror projection we wrote, so we only re-upsert
   // the sanitized teamPublic doc when a mirrored field actually changes.
   const lastMirrorRef = useRef<string>("");
@@ -706,13 +761,47 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           ? raw.availabilitySubmissions
           : [];
         rawGamesRef.current = Array.isArray(raw.games) ? raw.games : [];
+        // Phase 3b: the legacy players ARRAY. Captured BEFORE the schema
+        // ladder below so the union, the backfill and the drop all read what
+        // the doc actually stores — the ladder rewrites player SHAPES, and
+        // mirroring its output as though it were the stored array would make
+        // the drop's coverage proof compare migrated shapes against
+        // unmigrated ones.
+        rawPlayersRef.current = Array.isArray(raw.players) ? raw.players : [];
         // Eval schema migration:
         //   v1 (6-category) rounds get wiped — no straightforward mapping.
         //   v2 (1–10 11-category) rounds convert to v3 (1–5) by halving
         //   every numeric grade so prior trend history survives the scale
         //   change.
         const stored = raw.evalSchemaVersion ?? 1;
-        if (stored < EVAL_SCHEMA_VERSION) {
+        // Can this pass actually SEE the roster it is about to migrate?
+        // Pre-Phase-3b the answer was always yes, because the roster was on
+        // the doc we just received. Now it lives in a subcollection, and the
+        // ladder's steps rewrite player shapes — so a pass that runs before
+        // the players lane has landed, on a team whose legacy array is
+        // already dropped, would migrate an EMPTY roster, write
+        // evalSchemaVersion anyway, and mark the team migrated without ever
+        // having touched a single player. Every later pass then short-circuits
+        // on the version check, so the roster is silently stranded at the old
+        // shape forever.
+        //
+        // Two ways to be sure: the lane has delivered (the union is real), or
+        // the doc still carries a non-empty legacy array (the pre-migration
+        // world, where the doc IS the roster). Neither holds → defer the whole
+        // pass rather than bank a false result; a later snapshot retries with
+        // the lane landed, and until then the team simply stays on its current
+        // schema version, which is safe.
+        const rosterVisibleToLadder =
+          signupSubsLandedRef.current.players ||
+          rawPlayersRef.current.length > 0;
+        if (stored < EVAL_SCHEMA_VERSION && !rosterVisibleToLadder) {
+          console.warn(
+            "[schemaLadder] deferring migration for team",
+            activeTeamId,
+            "— players lane has not landed and the doc carries no legacy roster",
+          );
+        }
+        if (stored < EVAL_SCHEMA_VERSION && rosterVisibleToLadder) {
           let migratedEvents = raw.evaluationEvents || [];
           if (stored >= 2 && stored < 3) {
             migratedEvents = migratedEvents.map((ev: EvaluationEvent) => {
@@ -740,7 +829,17 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           // to positive (comfortablePositions) + dedicated isCatcher flag.
           // The engine still consults `restrictions` as a fallback for
           // one release so this is safe to run incrementally.
-          let migratedPlayers = raw.players || [];
+          // Phase 3b: the ladder migrates player SHAPES, so it has to see
+          // every player — which post-migration means the assembled UNION,
+          // not the legacy array. Two things depend on this. A team whose
+          // array has already been dropped has `raw.players === undefined`,
+          // and a future ladder step reading that would migrate an empty
+          // roster and publish it (blanking the roster on screen); and a
+          // half-drained team's subdocs would otherwise never be reached by
+          // any step at all. Pre-landing the union IS the legacy array (see
+          // assembledSignups), so this is exactly the old behavior on the
+          // path that predates the subcollection.
+          let migratedPlayers = assembledSignups("players");
           if (stored < 4) {
             const ALL_POS = [
               "P",
@@ -984,13 +1083,13 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
               ? { evaluationEvents: migratedEvents }
               : {}),
             // Only carry players when there was something to migrate: an
-            // empty/absent array migrates to an empty array, and writing that
+            // empty/absent roster migrates to an empty array, and writing that
             // back is at best a no-op and at worst (raced against another
             // device's real roster) a wipe vector — the ladder must never be
-            // the thing that owns emptying a roster.
-            ...(Array.isArray(raw.players) && raw.players.length > 0
-              ? { players: migratedPlayers }
-              : {}),
+            // the thing that owns emptying a roster. Gated on the UNION's
+            // length now, so a team whose legacy array is dropped but whose
+            // subdocs hold a real roster still migrates (Phase 3b).
+            ...(migratedPlayers.length > 0 ? { players: migratedPlayers } : {}),
             ...(migratedTryoutSessions !== undefined
               ? { tryoutSessions: migratedTryoutSessions }
               : {}),
@@ -1018,6 +1117,9 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             availabilitySubmissions: assembledSignups(
               "availabilitySubmissions",
             ),
+            // The ladder's output, which is the union with migrated shapes
+            // applied — publishing the raw array here would drop a migrated
+            // team's subdocs out of the UI until the next snapshot.
             players: migratedPlayers,
             evalSchemaVersion: EVAL_SCHEMA_VERSION,
           }));
@@ -1028,8 +1130,9 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           setTeamData((prev: any) => ({
             ...DEFAULT_TEAM_DATA,
             ...raw,
-            players: Array.isArray(raw.players) ? raw.players : [],
-            // Migrating lane — assembled union (see the branch above).
+            // Migrating lanes — assembled unions of subcollection docs + the
+            // legacy arrays captured above (Phase 3a games, Phase 3b players).
+            players: assembledSignups("players"),
             games: assembledSignups("games"),
             // The evalRounds subscription owns evaluationEvents.
             evaluationEvents: prev.evaluationEvents,
@@ -1114,6 +1217,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       rawPlayerInfoSubmissionsRef.current = [];
       rawAvailabilitySubmissionsRef.current = [];
       rawGamesRef.current = [];
+      rawPlayersRef.current = [];
       // The lineup UNDO buffer is team-scoped for the same reason: it holds a
       // snapshot of one team's roster in position/batting slots, and nothing
       // else ever clears it. The "Undo" action on the generate/re-roll toast
@@ -1177,7 +1281,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           updates,
           teamDataRef.current?.players,
           loadedTeamIdRef.current === activeTeamId,
-          teamDocServerConfirmedRef.current === activeTeamId,
+          rosterEmptinessServerConfirmed(),
         );
         if (wipeReason) {
           const message = `Refused to save an empty roster because ${wipeReason}.`;
@@ -1235,51 +1339,62 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // Scrub any undefined values from the tree — Firestore rejects them.
       toPersist = scrubUndefined(toPersist) as Partial<Team>;
 
-      // Phase 3a: games live per-doc, so a caller's games array (backup
-      // restore is the main one) never rides the team-doc merge — post-drop
-      // the rules ratchet would reject recreating the key and fail the WHOLE
-      // merge. Route it instead: diff against the assembled union (teamDataRef
-      // still holds the pre-write committed state here) into full-entry
-      // set()s + delete()s on the same atomic batch as the doc merge, plus
-      // one exact-entry arrayRemove clearing deleted entries' legacy twins.
+      // Phase 3a/3b: games and players live per-doc, so a caller's array for
+      // either lane (backup restore, the schema ladder, the photo strip)
+      // never rides the team-doc merge — post-drop the rules ratchet would
+      // reject recreating the key and fail the WHOLE merge. Route each
+      // instead: diff against the assembled union (teamDataRef still holds
+      // the pre-write committed state here) into full-entry set()s +
+      // delete()s on the same atomic batch as the doc merge, plus one
+      // exact-entry arrayRemove per lane clearing deleted entries' legacy
+      // twins.
       // Honest limit: the diff can only delete docs the union has SEEN — a
       // subdoc this client's subscription never delivered survives a
       // wholesale replace. Same best-effort boundary as every client-side
       // sweep in this file; the flows that need a true wipe (advanceSeason)
       // use the query-based deleteAllSignupDocs instead.
-      let gamesDiff: { sets: any[]; deletes: string[] } | null = null;
-      if (Array.isArray(toPersist.games)) {
-        const nextGames = toPersist.games as any[];
-        const { games: _routed, ...rest } = toPersist as Record<
+      const entityDiffs: Array<{ key: SignupCollectionKey; diff: EntityDiff }> =
+        [];
+      for (const key of ROUTED_ENTITY_KEYS) {
+        const next = (toPersist as Record<string, unknown>)[key];
+        if (!Array.isArray(next)) continue;
+        const { [key]: _routed, ...rest } = toPersist as Record<
           string,
           unknown
         >;
         toPersist = rest as Partial<Team>;
-        gamesDiff = diffEntityArrays(
-          teamDataRef.current?.games as any[],
-          nextGames,
+        const diff = diffEntityArrays(
+          (teamDataRef.current as Record<string, any> | null)?.[key] as any[],
+          next as any[],
         );
+        entityDiffs.push({ key, diff });
         const twins = findLegacySignupEntries(
-          rawGamesRef.current,
-          gamesDiff.deletes,
+          rawEntityArrayRef(key).current,
+          diff.deletes,
         );
         if (twins.length) {
-          (toPersist as Record<string, unknown>).games = arrayRemove(...twins);
+          (toPersist as Record<string, unknown>)[key] = arrayRemove(...twins);
         }
       }
 
       // Storage-headroom guard: the team doc has a 1 MiB cap. Estimate the
-      // post-merge size and warn once when nearing the limit. games counts
-      // via the RAW doc-resident array (rawGamesRef), never the assembled
-      // union — per-doc games no longer occupy team-doc bytes, and counting
-      // them would fire false warnings exactly after the migration relieved
-      // the pressure.
+      // post-merge size and warn once when nearing the limit. The two routed
+      // lanes count via their RAW doc-resident arrays, never the assembled
+      // unions — per-doc games and players no longer occupy team-doc bytes,
+      // and counting them would fire false warnings exactly after the
+      // migration relieved the pressure. On a fully drained team both read
+      // empty, which is the honest number.
       if (activeTeamId && !docSizeWarnedRef.current.has(activeTeamId)) {
         const prev = teamDataRef.current || {};
         const docResidentGames = Array.isArray(rawGamesRef.current)
           ? rawGamesRef.current.map(slimGame)
           : [];
-        warnDocSizeOnce({ ...prev, ...toPersist, games: docResidentGames });
+        warnDocSizeOnce({
+          ...prev,
+          ...toPersist,
+          games: docResidentGames,
+          players: rawPlayersRef.current,
+        });
       }
 
       setSyncStatus("Saving");
@@ -1293,31 +1408,40 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           "teams",
           activeTeamId,
         );
-        if (gamesDiff && (gamesDiff.sets.length || gamesDiff.deletes.length)) {
-          // Chunked like updateTeamArrays: Firestore rejects a batch past 500
-          // operations WHOLE, and this path now carries one op per game in
-          // the union (a season advance clears them all, a backup restore
-          // rewrites them all), so a long-running team could otherwise have
-          // its entire season patch rejected. The doc merge rides the first
-          // chunk so the team-doc write still lands first.
-          const gameOps: Array<(b: ReturnType<typeof writeBatch>) => void> = [
-            ...gamesDiff.deletes.map(
+        // Deletes across every routed lane first, then the sets. Ordering
+        // matters for the cascades this path carries (a backup restore that
+        // drops a player and rewrites the games that referenced them): the
+        // deletes ride the earliest chunk, alongside the team-doc merge that
+        // carries their legacy-twin arrayRemove.
+        const entityOps: Array<(b: ReturnType<typeof writeBatch>) => void> = [
+          ...entityDiffs.flatMap(({ key, diff }) =>
+            diff.deletes.map(
               (id: string) => (b: ReturnType<typeof writeBatch>) =>
-                b.delete(signupDocRef(db, appId, activeTeamId, "games", id)),
+                b.delete(signupDocRef(db, appId, activeTeamId, key, id)),
             ),
-            ...gamesDiff.sets.map(
+          ),
+          ...entityDiffs.flatMap(({ key, diff }) =>
+            diff.sets.map(
               (entry: { id: string }) => (b: ReturnType<typeof writeBatch>) =>
                 b.set(
-                  signupDocRef(db, appId, activeTeamId, "games", entry.id),
+                  signupDocRef(db, appId, activeTeamId, key, entry.id),
                   entry as Record<string, unknown>,
                 ),
             ),
-          ];
+          ),
+        ];
+        if (entityOps.length) {
+          // Chunked like updateTeamArrays: Firestore rejects a batch past 500
+          // operations WHOLE, and this path carries one op per game AND per
+          // player in the union (a season advance clears the schedule, a
+          // backup restore rewrites both lanes), so a long-running team could
+          // otherwise have its entire season patch rejected. The doc merge
+          // rides the first chunk so the team-doc write still lands first.
           const CHUNK = 400;
-          for (let i = 0; i < gameOps.length; i += CHUNK) {
+          for (let i = 0; i < entityOps.length; i += CHUNK) {
             const batch = writeBatch(db);
             if (i === 0) batch.set(ref, toPersist, { merge: true });
-            for (const apply of gameOps.slice(i, i + CHUNK)) apply(batch);
+            for (const apply of entityOps.slice(i, i + CHUNK)) apply(batch);
             await batch.commit();
           }
         } else {
@@ -1345,7 +1469,13 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         return false;
       }
     },
-    [activeTeamId, toast, warnDocSizeOnce],
+    [
+      activeTeamId,
+      toast,
+      warnDocSizeOnce,
+      rosterEmptinessServerConfirmed,
+      rawEntityArrayRef,
+    ],
   );
 
   // Expose persistTeam to the onSnapshot above so the eval schema migration
@@ -1632,22 +1762,34 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         toast.push({ kind: "error", title: "Save blocked", message });
         return;
       }
-      // Phase 3a: a games op is DIFFED against the assembled union, so it is
-      // only meaningful once the games lane has actually delivered. The team
-      // doc loading is NOT sufficient evidence: until the subscription lands,
-      // the union is the legacy array alone, which on an already-dropped team
-      // reads EMPTY. A mapEntries edit would then resolve to "no games at
-      // all" and diff to nothing — the coach's score/lineup save vanishing
-      // with no error — and a removeById would find nothing to delete.
+      // Phase 3a/3b: an op on a ROUTED lane is DIFFED against the assembled
+      // union, so it is only meaningful once that lane has actually
+      // delivered. The team doc loading is NOT sufficient evidence: until the
+      // subscription lands, the union is the legacy array alone, which on an
+      // already-dropped team reads EMPTY. A mapEntries edit would then
+      // resolve to "no games/players at all" and diff to nothing — the
+      // coach's score, lineup or profile save vanishing with no error — and a
+      // removeById would find nothing to delete.
       // Appends are exempt: they only ever add, so an early one is safe.
-      if (
-        updates.some((u) => u.key === "games" && u.op !== "append") &&
-        !signupSubsLandedRef.current.games
-      ) {
-        const message =
-          "This team's schedule hasn't finished loading on this device yet. Try again in a moment.";
-        lastPersistErrorRef.current = { code: "games-not-loaded", message };
-        console.error("[updateTeamArrays] blocked pre-landing games op");
+      // (That exemption is also what keeps RosterRecoveryCard's rebuild
+      // usable on exactly the broken state it exists to repair.)
+      const unlanded = updates.find(
+        (u) =>
+          (ROUTED_ENTITY_KEYS as readonly string[]).includes(u.key) &&
+          u.op !== "append" &&
+          !signupSubsLandedRef.current[u.key as SignupCollectionKey],
+      );
+      if (unlanded) {
+        const label = unlanded.key === "players" ? "roster" : "schedule";
+        const message = `This team's ${label} hasn't finished loading on this device yet. Try again in a moment.`;
+        lastPersistErrorRef.current = {
+          code: `${unlanded.key}-not-loaded`,
+          message,
+        };
+        console.error(
+          "[updateTeamArrays] blocked pre-landing op on lane",
+          unlanded.key,
+        );
         toast.push({ kind: "error", title: "Save blocked", message });
         return;
       }
@@ -1674,28 +1816,29 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         const update = resolveTeamArrayUpdate(prevTeam, rawUpdate);
         patch[update.key] = applyTeamArrayUpdate(prevTeam, update)[update.key];
         prevValues[update.key] = prevTeam[update.key];
-        if (update.key === "games") {
+        if ((ROUTED_ENTITY_KEYS as readonly string[]).includes(update.key)) {
+          const laneKey = update.key as SignupCollectionKey;
           const diff = diffEntityArrays(
-            prevTeam.games as any[],
-            patch.games as any[],
+            prevTeam[laneKey] as any[],
+            patch[laneKey] as any[],
           );
           for (const entry of diff.sets) {
-            entitySets.push({ key: "games", entry });
+            entitySets.push({ key: laneKey, entry });
           }
           for (const id of diff.deletes) {
-            entityDeletes.push({ key: "games", id });
+            entityDeletes.push({ key: laneKey, id });
           }
           if (diff.sets.length || diff.deletes.length) hasPayload = true;
-          // A deleted game's LEGACY twin must leave the team-doc array too —
+          // A deleted entry's LEGACY twin must leave the team-doc array too —
           // exact stored elements off the raw ref, or the union resurrects it
           // (the deleteTryoutSignup hazard). Rides the same batch as one
-          // arrayRemove on the team doc.
+          // arrayRemove per lane on the team doc.
           const twins = findLegacySignupEntries(
-            rawGamesRef.current,
+            rawEntityArrayRef(laneKey).current,
             diff.deletes,
           );
           if (twins.length) {
-            payload.games = arrayRemove(...twins);
+            payload[laneKey] = arrayRemove(...twins);
           }
           continue;
         }
@@ -1717,7 +1860,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           { players: patch.players },
           prevTeam.players,
           teamLoaded,
-          teamDocServerConfirmedRef.current === activeTeamId,
+          rosterEmptinessServerConfirmed(),
         );
         if (wipeReason) {
           const message = `Refused to save an empty roster because ${wipeReason}.`;
@@ -1818,7 +1961,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         },
       );
     },
-    [activeTeamId, toast],
+    [activeTeamId, toast, rawEntityArrayRef, rosterEmptinessServerConfirmed],
   );
 
   // One-time reclaim: player photos were removed from the app. Any team saved
@@ -2479,13 +2622,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           appId,
           teamId,
           key,
-          {
-            tryoutSignups: rawTryoutSignupsRef,
-            interestSignups: rawInterestSignupsRef,
-            playerInfoSubmissions: rawPlayerInfoSubmissionsRef,
-            availabilitySubmissions: rawAvailabilitySubmissionsRef,
-            games: rawGamesRef,
-          }[key].current,
+          rawEntityArrayRef(key).current,
           new Set([
             ...signupSubIdsRef.current[key],
             ...(signupBackfillMirroredRef.current.get(`${teamId}:${key}`) ||
@@ -2573,17 +2710,12 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // so the re-proof taken immediately before the irreversible write sees the
   // newest data rather than whatever armed the attempt.
   const signupArraysFullyMigrated = useCallback((): boolean => {
-    const legacy: Record<SignupCollectionKey, any[]> = {
-      tryoutSignups: rawTryoutSignupsRef.current || [],
-      interestSignups: rawInterestSignupsRef.current || [],
-      playerInfoSubmissions: rawPlayerInfoSubmissionsRef.current || [],
-      availabilitySubmissions: rawAvailabilitySubmissionsRef.current || [],
-      games: rawGamesRef.current || [],
-    };
+    const legacy = (key: SignupCollectionKey): any[] =>
+      rawEntityArrayRef(key).current || [];
     // Nothing real to delete — never spend the irreversible write. This is
     // also what stops it re-firing after a successful drop: every ref then
     // reads empty.
-    if (DRAINABLE_LEGACY_ARRAY_KEYS.every((key) => legacy[key].length === 0)) {
+    if (DRAINABLE_LEGACY_ARRAY_KEYS.every((key) => legacy(key).length === 0)) {
       return false;
     }
     // allLegacyMigrated is deliberately false-on-empty so a failed/empty read
@@ -2597,9 +2729,9 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     // report covered) would stall every other lane's drop along with its own.
     return DRAINABLE_LEGACY_ARRAY_KEYS.every(
       (key) =>
-        legacy[key].length === 0 || allLegacyMigrated(legacy[key], ids[key]),
+        legacy(key).length === 0 || allLegacyMigrated(legacy(key), ids[key]),
     );
-  }, []);
+  }, [rawEntityArrayRef]);
 
   // Migration long tail (Phase 1 + 1b) — the one irreversible step: delete
   // EVERY legacy signup/submission ARRAY from the team doc once the

@@ -120,6 +120,17 @@ const gameDocPath = (teamId: string, gameId: string) =>
     "games",
     gameId,
   ] as const;
+const playerDocPath = (teamId: string, playerId: string) =>
+  [
+    "artifacts",
+    APP_ID,
+    "public",
+    "data",
+    "teams",
+    teamId,
+    "players",
+    playerId,
+  ] as const;
 const mirrorPath = (teamId: string) =>
   ["artifacts", APP_ID, "public", "data", "teamPublic", teamId] as const;
 const invitePath = (code: string) =>
@@ -168,6 +179,9 @@ beforeEach(async () => {
       // the key while the doc still has it, so the pre-drop member shapes
       // below need it seeded.
       games: [{ id: "g1", date: "2026-06-01", opponent: "Sharks" }],
+      // Legacy Phase 3b array, same story: the players ratchet only admits a
+      // write carrying the key while the doc still has it.
+      players: [{ id: "p1", name: "Ada", number: "7" }],
       // A head-coach eval round, so finding-3.1 tests can target the head's
       // private grades from an assistant context.
       evaluationEvents: [
@@ -997,6 +1011,129 @@ describe("games legacy-field ratchet + subcollection (Phase 3a)", () => {
     );
     await assertFails(
       deleteDoc(doc(dbFor(OUTSIDER), ...gameDocPath("team-1", "g-priv"))),
+    );
+  });
+});
+
+// Phase 3b: players — the LAST array on the ladder. Same total ratchet as
+// games (no public lane has ever existed for the roster) and the same
+// member-only subcollection.
+describe("players legacy-field ratchet + subcollection (Phase 3b)", () => {
+  it("member shapes still work while the doc carries the players array", async () => {
+    // Exact-entry arrayRemove (the removed-player legacy-twin cleanup).
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        players: arrayRemove({ id: "p1", name: "Ada", number: "7" }),
+      }),
+    );
+    // A whole-array rewrite (a stale pre-migration coach bundle's mapEntries).
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        players: [{ id: "p1", name: "Ada", number: "7" }],
+      }),
+    );
+  });
+
+  it("the head can drop the players array, and NOBODY can recreate it after", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        players: deleteField(),
+      }),
+    );
+    // Post-drop a stale client's roster write fails LOUDLY rather than
+    // landing in an array the union no longer reads — the property that makes
+    // the drop safe against a mixed-version fleet.
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), { players: [] }),
+    );
+    await assertFails(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        players: arrayUnion({ id: "p-sneak", name: "Nope" }),
+      }),
+    );
+  });
+
+  it("a new team doc cannot be born with the players array — and the REAL createTeam payload passes", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), ...teamPath("team-fresh")), {
+        name: "Fresh",
+        ownerId: OWNER,
+        members: [OWNER],
+        players: [],
+      }),
+    );
+    // NEW_TEAM_DOC stopped seeding players in the same change that added this
+    // create ratchet — the real payload must keep passing. (The games case
+    // above asserts the same thing; both keys have to be absent at once for
+    // createTeam to work at all, so this is the combined regression guard.)
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER), ...teamPath("team-fresh")), {
+        ...NEW_TEAM_DOC,
+        name: "Fresh",
+        ownerId: OWNER,
+        members: [OWNER],
+      }),
+    );
+  });
+
+  it("scopes the players subcollection to members (read + write)", async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(ASSISTANT), ...playerDocPath("team-1", "p-doc-1")), {
+        id: "p-doc-1",
+        name: "Grace",
+        number: "12",
+        comfortablePositions: ["SS", "2B"],
+      }),
+    );
+    await assertSucceeds(
+      getDoc(doc(dbFor(OWNER), ...playerDocPath("team-1", "p-doc-1"))),
+    );
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...playerDocPath("team-1", "p-doc-1")), {
+        number: "13",
+      }),
+    );
+    await assertSucceeds(
+      deleteDoc(doc(dbFor(ASSISTANT), ...playerDocPath("team-1", "p-doc-1"))),
+    );
+    // The lazy backfill copies legacy roster entries VERBATIM at their short
+    // genId ids — a member create at "p-xxxxxxxx" must work (no id-length
+    // floor on this member-only lane).
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER), ...playerDocPath("team-1", "p-legacy1")), {
+        id: "p-legacy1",
+        name: "Legacy Kid",
+        restrictions: ["P"],
+        someLegacyKey: "kept-verbatim",
+      }),
+    );
+  });
+
+  it("denies outsiders and anonymous callers everything on the players subcollection", async () => {
+    // The roster is minor-child PII (names, DOBs, health notes), so this is
+    // the same closed door the signup lanes get — there is deliberately no
+    // public read even though the team's PUBLIC MIRROR exists for the portal.
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), ...playerDocPath("team-1", "p-priv")), {
+        id: "p-priv",
+        name: "Private Kid",
+        dob: "2015-04-02",
+      });
+    });
+    await assertFails(
+      getDoc(doc(dbFor(OUTSIDER), ...playerDocPath("team-1", "p-priv"))),
+    );
+    await assertFails(
+      getDoc(doc(dbFor(), ...playerDocPath("team-1", "p-priv"))),
+    );
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...playerDocPath("team-1", "p-evil")), {
+        id: "p-evil",
+        name: "Planted",
+      }),
+    );
+    await assertFails(
+      deleteDoc(doc(dbFor(OUTSIDER), ...playerDocPath("team-1", "p-priv"))),
     );
   });
 });

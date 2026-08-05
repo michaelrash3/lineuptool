@@ -35,21 +35,24 @@ import type {
   AvailabilitySubmission,
   Game,
   InterestSignup,
+  Player,
   PlayerInfoSubmission,
   TryoutSignup,
 } from "../types";
 
 // The subcollections share every helper below — the key doubles as the
 // subcollection name AND the legacy team-doc array field it replaces. Phase 3
-// (docs/firestore-data-migration.md) widens this union with the coach-written
-// `games` lane (and later `players`): same union-read + lazy-backfill +
-// head-only-drop machinery, no public write lane, member-only rules.
+// (docs/firestore-data-migration.md) widened this union with the two
+// coach-written lanes, `games` (3a) and `players` (3b): same union-read +
+// lazy-backfill + head-only-drop machinery, no public write lane, member-only
+// rules.
 export type SignupCollectionKey =
   | "tryoutSignups"
   | "interestSignups"
   | "playerInfoSubmissions"
   | "availabilitySubmissions"
-  | "games";
+  | "games"
+  | "players";
 
 // The four portal-written lanes (Phases 1 + 1b).
 export const SIGNUP_COLLECTION_KEYS: readonly SignupCollectionKey[] = [
@@ -65,6 +68,17 @@ export const SIGNUP_COLLECTION_KEYS: readonly SignupCollectionKey[] = [
 export const ALL_LEGACY_ARRAY_KEYS: readonly SignupCollectionKey[] = [
   ...SIGNUP_COLLECTION_KEYS,
   "games",
+  "players",
+] as const;
+
+// The COACH-written lanes the provider's two write choke points ROUTE: an
+// array arriving on one of these keys never rides the team-doc merge, it is
+// diffed against the assembled union into per-doc writes (Phase 3a games,
+// Phase 3b players). The portal lanes are deliberately absent — nothing writes
+// them as a whole array; their callers already speak per-entry.
+export const ROUTED_ENTITY_KEYS: readonly SignupCollectionKey[] = [
+  "games",
+  "players",
 ] as const;
 
 // The lanes whose legacy array a release is allowed to MIRROR and then DELETE.
@@ -91,7 +105,8 @@ type SignupEntry =
   | InterestSignup
   | PlayerInfoSubmission
   | AvailabilitySubmission
-  | Game;
+  | Game
+  | Player;
 
 export const signupCollectionRef = (
   db: Firestore,
