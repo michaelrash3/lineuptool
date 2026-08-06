@@ -371,6 +371,41 @@ document holds branding, settings, staff, practices, tournaments, finances and
 the roster-adjacent scalars — the 1 MiB ceiling is no longer a function of how
 long a season runs.
 
+### Orphaned documents, and the tool that clears them
+
+Firestore does not cascade-delete, and a client cannot recursively delete a
+collection — that needs the Admin SDK. So `deleteTeamCmd`'s subcollection sweep
+is best-effort by construction, and anything it misses becomes **permanently
+unreachable**: every subcollection rule resolves membership with a `get()` on
+the parent team doc, which returns null once that doc is gone, so reads _and_
+deletes are denied for every client forever.
+
+That matters more than it sounds. The stranded documents include the signup and
+submission lanes — children's names and dates of birth, parent emails and phone
+numbers — belonging to teams the coach believes they deleted. Each subcollection
+added by this migration widened the blast radius of a lost sweep.
+
+The sweep now awaits completion before the parent doc is deleted, which closes
+the race going forward. It does nothing for documents already stranded.
+
+`scripts/purge-orphaned-team-docs.mjs` finds and clears those. It is dry-run by
+default; deleting requires `--delete` plus a `--confirm <n>` matching the count
+that same scan reported, and it re-proves each parent is still missing
+immediately before destroying anything, so a team recreated at the same id is
+skipped rather than wiped. `--export <file>` dumps everything to local JSON
+first, which is what makes a PII purge auditable. Its safety properties are
+covered end to end by `scripts/test-purge-orphaned-team-docs.mjs`, run against
+the emulator:
+
+```
+npm install --no-save firebase-admin
+firebase emulators:exec --only firestore --project demo-purge-test \
+  "node scripts/test-purge-orphaned-team-docs.mjs"
+```
+
+Neither script is wired into CI — the purge needs production credentials, and
+the test needs `firebase-admin`, which is deliberately not a repo dependency.
+
 ### Cross-cutting constraints
 
 - **Back-compat is mandatory** at every phase: existing teams have data in the
