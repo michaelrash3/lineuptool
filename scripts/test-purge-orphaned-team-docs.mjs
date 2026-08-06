@@ -55,7 +55,11 @@ const check = (name, cond, detail = "") => {
   }
 };
 
-const runScript = (extraArgs = []) =>
+// onStdout fires with the accumulated output on every chunk, so a test can act
+// at a precise point in the script's lifecycle — the race in [7] needs the
+// revive to land AFTER the scan and BEFORE the sibling delete, which a sleep
+// cannot pin down reliably.
+const runScript = (extraArgs = [], opts = {}) =>
   new Promise((resolve) => {
     const child = spawn(
       process.execPath,
@@ -64,7 +68,10 @@ const runScript = (extraArgs = []) =>
     );
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (d) => (stdout += d));
+    child.stdout.on("data", (d) => {
+      stdout += d;
+      if (opts.onStdout) opts.onStdout(stdout);
+    });
     child.stderr.on("data", (d) => (stderr += d));
     child.on("close", (code) => resolve({ code, stdout, stderr }));
   });
@@ -373,6 +380,130 @@ console.log("\n[6] --include-mirrors confirmation covers stale siblings");
   check(
     "the live team's own data is untouched",
     (await countUnder("team-live-1")) === liveBefore,
+  );
+}
+
+// --- 7. a live team NEVER loses its public mirror or invite ---------------
+
+console.log("\n[7] sibling deletes re-check the owning team");
+{
+  await reset();
+  const mirrorsCol = db.collection(
+    `artifacts/${APP_ID}/public/data/teamPublic`,
+  );
+  const invitesCol = db.collection(
+    `artifacts/${APP_ID}/public/data/teamInvites`,
+  );
+  for (const col of [mirrorsCol, invitesCol]) {
+    const refs = await col.listDocuments();
+    for (const r of refs) await r.delete();
+  }
+
+  // A BIG orphan, so --export (which reads every document of every lane) holds
+  // the process open long enough to reproduce the real race: the staleness
+  // verdict is frozen during the scan, and the sibling delete happens minutes
+  // later. This is the window the reviewer identified.
+  const big = teams.doc("team-big");
+  await big.set({ name: "Big", ownerId: "u-owner" });
+  const batchWrite = async (lane, n) => {
+    for (let i = 0; i < n; i += 400) {
+      const b = db.batch();
+      for (let j = i; j < Math.min(i + 400, n); j++) {
+        b.set(big.collection(lane).doc(`${lane}-${j}`), {
+          id: `${lane}-${j}`,
+          firstName: "Big",
+          email: "parent@example.com",
+        });
+      }
+      await b.commit();
+    }
+  };
+  for (const lane of LANES_WITH_PII) await batchWrite(lane, 220);
+  await big.delete(); // now an orphan with 1100 documents
+
+  // team-revived is an orphan at scan time, with a stale mirror + invite.
+  await seedOrphan("team-revived", 2);
+  await mirrorsCol.doc("team-revived").set({ name: "Mirror" });
+  await invitesCol.doc("CODE99").set({ teamId: "team-revived", teamName: "R" });
+
+  const dry = await runScript(["--include-mirrors"]);
+  check(
+    "dry run counts 2 orphan teams + 2 siblings = 4",
+    /--delete --confirm 4/.test(dry.stdout),
+    dry.stdout.slice(-400),
+  );
+  check(
+    "dry run lists the sibling PATHS so they can be audited",
+    /teamPublic\/team-revived/.test(dry.stdout) &&
+      /teamInvites\/CODE99/.test(dry.stdout),
+    dry.stdout.slice(-700),
+  );
+
+  // Start the purge, then bring team-revived back to life WHILE it exports.
+  const exportFile = join(HERE, "..", ".orphan-race-export.json");
+  await rm(exportFile, { force: true });
+  let revived = null;
+  const run = await runScript(
+    ["--include-mirrors", "--export", exportFile, "--delete", "--confirm", "4"],
+    {
+      // "stranded document" is in the report summary, which main() prints once
+      // the scan is complete and before it exports or deletes anything. Firing
+      // here puts the revive squarely inside the window the guard exists for:
+      // the staleness verdict is already frozen, the deletes have not started.
+      onStdout: (out) => {
+        if (!revived && out.includes("stranded document")) {
+          revived = teams
+            .doc("team-revived")
+            .set({ name: "Back", ownerId: "u-owner" });
+        }
+      },
+    },
+  );
+  await revived;
+
+  check(
+    "the revived team's PUBLIC MIRROR survives — the portals keep working",
+    (await mirrorsCol.doc("team-revived").get()).exists,
+    run.stdout.slice(-900),
+  );
+  check(
+    "the revived team's INVITE survives — the join code keeps working",
+    (await invitesCol.doc("CODE99").get()).exists,
+  );
+  check(
+    "the big orphan WAS still purged — the guard is targeted, not a blanket abort",
+    (await countUnder("team-big")) === 0,
+    run.stdout.slice(-900),
+  );
+  check(
+    "it reports the skip rather than doing it silently",
+    /EXISTS on re-check/.test(run.stdout),
+    run.stdout.slice(-900),
+  );
+  await rm(exportFile, { force: true });
+}
+
+// --- 8. the printed remediation command carries the run's scope ------------
+
+console.log("\n[8] the purge hint is pasteable and cannot retarget");
+{
+  await reset();
+  await seedOrphan("team-scope", 2);
+  const { stdout } = await runScript([]);
+  check(
+    "hint includes the script PATH, not a bare basename",
+    /node \/.*purge-orphaned-team-docs\.mjs/.test(stdout),
+    stdout.slice(-400),
+  );
+  check(
+    "hint carries --app-id so a paste cannot hit the default namespace",
+    new RegExp(`--app-id ${APP_ID}`).test(stdout),
+    stdout.slice(-400),
+  );
+  check(
+    "hint carries --project so a paste cannot hit another project",
+    new RegExp(`--project ${PROJECT}`).test(stdout),
+    stdout.slice(-400),
   );
 }
 

@@ -159,3 +159,9 @@ src/__repro*
 !.claude/settings.json
 !.claude/hooks/
 bundle-stats.html
+
+# Local dumps from scripts/purge-orphaned-team-docs.mjs --export. These hold
+# real family PII pulled out of production; never commit one.
+.orphan-export*.json
+.orphan-race-export.json
+orphans.json
