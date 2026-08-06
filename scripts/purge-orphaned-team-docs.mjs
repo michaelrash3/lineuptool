@@ -167,6 +167,18 @@ const parseArgs = (argv) => {
 
 const args = parseArgs(process.argv.slice(2));
 
+// The scope flags THIS run used, echoed into the remediation command the dry
+// run prints. Without them the hint was a bare basename with no --app-id or
+// --project: pasting it either failed to resolve the script or, worse, quietly
+// re-scanned the DEFAULT namespace and project and deleted from a tree the
+// operator never surveyed.
+const scopeFlags = () =>
+  [
+    args.allApps ? "--all-apps" : `--app-id ${args.appId}`,
+    `--project ${args.project}`,
+    ...(args.includeMirrors ? ["--include-mirrors"] : []),
+  ].join(" ");
+
 // ---- init ------------------------------------------------------------------
 
 const usingEmulator = !!process.env.FIRESTORE_EMULATOR_HOST;
@@ -208,6 +220,7 @@ const listAppIds = async () => {
 const scanApp = async (appId) => {
   const teams = [];
   const errors = [];
+  const liveIds = new Set();
   let liveCount = 0;
 
   let refs;
@@ -215,7 +228,7 @@ const scanApp = async (appId) => {
     refs = await teamsCol(appId).listDocuments();
   } catch (e) {
     errors.push({ scope: `app:${appId}`, message: String(e?.message || e) });
-    return { appId, teams, errors, liveCount, scannedCount: 0 };
+    return { appId, teams, errors, liveCount, liveIds, scannedCount: 0 };
   }
 
   for (const ref of refs) {
@@ -232,6 +245,7 @@ const scanApp = async (appId) => {
     }
     if (snap.exists) {
       liveCount++;
+      liveIds.add(ref.id);
       continue;
     }
 
@@ -249,6 +263,11 @@ const scanApp = async (appId) => {
     if (cols.length === 0) continue; // nothing stranded
 
     const lanes = [];
+    // Lanes whose contents this scan could NOT enumerate. Load-bearing: the
+    // delete is a recursiveDelete of the whole subtree, so it destroys lanes
+    // this survey never saw — including from --export. A team with any
+    // unsurveyed lane is therefore reported but never purged.
+    const unsurveyed = [];
     for (const col of cols) {
       // listDocuments() returns references only — it never transfers document
       // CONTENTS, so a survey stays cheap in bandwidth and cannot spill PII
@@ -259,9 +278,13 @@ const scanApp = async (appId) => {
       try {
         docRefs = await col.listDocuments();
       } catch (e) {
+        unsurveyed.push(col.id);
         errors.push({
           scope: `team:${ref.id}/${col.id}`,
-          message: `could not list documents (skipped): ${String(e?.message || e)}`,
+          message:
+            `could not list documents — this team will NOT be purged ` +
+            `(a recursive delete would destroy this lane unsurveyed and ` +
+            `unexported); re-run: ${String(e?.message || e)}`,
         });
         continue;
       }
@@ -275,10 +298,21 @@ const scanApp = async (appId) => {
     const total = lanes.reduce((n, l) => n + l.count, 0);
     if (total === 0) continue; // subcollections existed but are already empty
 
-    teams.push({ appId, teamId: ref.id, ref, lanes, total });
+    teams.push({ appId, teamId: ref.id, ref, lanes, total, unsurveyed });
   }
 
-  return { appId, teams, errors, liveCount, scannedCount: refs.length };
+  // liveIds is returned so --include-mirrors can decide staleness from THIS
+  // scan instead of re-listing and re-getting every team document a second
+  // time (which doubled the read bill and, if it threw, discarded a completed
+  // scan before the report ever printed).
+  return {
+    appId,
+    teams,
+    errors,
+    liveCount,
+    liveIds,
+    scannedCount: refs.length,
+  };
 };
 
 /**
@@ -287,7 +321,7 @@ const scanApp = async (appId) => {
  * teamPublic mirror a small live exposure (a deleted team's branding and tryout
  * config stay publicly readable) rather than unreachable debris.
  */
-const scanMirrors = async (appId, missingTeamIds, liveTeamIds) => {
+const scanMirrors = async (appId, liveTeamIds) => {
   const stale = { teamPublic: [], teamInvites: [] };
   const errors = [];
 
@@ -296,7 +330,10 @@ const scanMirrors = async (appId, missingTeamIds, liveTeamIds) => {
       .collection(`artifacts/${appId}/public/data/teamPublic`)
       .listDocuments();
     for (const m of mirrors) {
-      if (!liveTeamIds.has(m.id)) stale.teamPublic.push(m);
+      // The mirror doc id IS the team id.
+      if (!liveTeamIds.has(m.id)) {
+        stale.teamPublic.push({ ref: m, teamId: m.id, appId });
+      }
     }
   } catch (e) {
     errors.push({
@@ -313,7 +350,7 @@ const scanMirrors = async (appId, missingTeamIds, liveTeamIds) => {
     for (const inv of invites.docs) {
       const teamId = inv.get("teamId");
       if (typeof teamId === "string" && teamId && !liveTeamIds.has(teamId)) {
-        stale.teamInvites.push(inv.ref);
+        stale.teamInvites.push({ ref: inv.ref, teamId, appId });
       }
     }
   } catch (e) {
@@ -323,7 +360,6 @@ const scanMirrors = async (appId, missingTeamIds, liveTeamIds) => {
     });
   }
 
-  void missingTeamIds;
   return { stale, errors };
 };
 
@@ -406,6 +442,13 @@ const report = (results, mirrors, opts) => {
         `  Stale siblings: ${teamPublic.length} teamPublic mirror(s), ` +
           `${teamInvites.length} teamInvite(s) — still client-readable.`,
       );
+      // Teams get a per-lane table; siblings used to get only this count, so
+      // there was no way to audit which ones the confirm number covered.
+      if (!opts.quiet) {
+        for (const { ref, teamId } of [...teamPublic, ...teamInvites]) {
+          console.log(`      ${ref.path}   (team ${teamId})`);
+        }
+      }
     }
   }
 
@@ -442,11 +485,12 @@ const exportAll = async (teams, mirrors, file) => {
   }
 
   if (mirrors) {
-    const dump = async (refs) => {
+    const dump = async (entries) => {
       const out = [];
-      for (const r of refs) {
-        const s = await r.get();
-        if (s.exists) out.push({ id: r.id, path: r.path, data: s.data() });
+      for (const { ref, teamId } of entries) {
+        const s = await ref.get();
+        if (s.exists)
+          out.push({ id: ref.id, path: ref.path, teamId, data: s.data() });
       }
       return out;
     };
@@ -466,6 +510,7 @@ const purge = async (teams, mirrors) => {
   let deletedDocs = 0;
   let deletedTeams = 0;
   let abortedTeams = 0;
+  let abortedSiblings = 0;
 
   for (const t of teams) {
     // Guard 4: re-prove the parent is still missing, immediately before
@@ -490,6 +535,17 @@ const purge = async (teams, mirrors) => {
       continue;
     }
 
+    // Belt and braces: main filters unsurveyed teams out of the purge set, but
+    // recursiveDelete is a whole-subtree operation and this is the last place
+    // that can stop it, so re-assert the invariant at the point of no return.
+    if (t.unsurveyed && t.unsurveyed.length) {
+      console.log(
+        `  ! ${t.teamId}: lane(s) ${t.unsurveyed.join(", ")} could not be surveyed — SKIPPED`,
+      );
+      abortedTeams++;
+      continue;
+    }
+
     // recursiveDelete handles batching, throttling and retries, and reaches any
     // nesting this script did not anticipate. The parent doc itself does not
     // exist, so deleting it is a no-op.
@@ -501,14 +557,45 @@ const purge = async (teams, mirrors) => {
 
   if (mirrors) {
     const all = [...mirrors.stale.teamPublic, ...mirrors.stale.teamInvites];
-    for (const ref of all) {
+    for (const { ref, teamId, appId } of all) {
+      // Guard 4 for SIBLINGS. This loop used to delete unconditionally, which
+      // made a live outage reachable in a single run: the staleness verdict is
+      // frozen during the scan, but --export can then read every document of
+      // every orphan lane and run for minutes. A team created in that window
+      // is correctly skipped by the subtree re-check above — and then had its
+      // public mirror deleted three lines later anyway.
+      //
+      // That is not inert debris. teamPublic/{teamId} is what the anonymous
+      // Tryouts, Availability and PlayerInfo portals read, and it does not
+      // heal on its own: writePublicMirror only runs for the coach's ACTIVE
+      // team and short-circuits on an unchanged projection, so the coach has
+      // to hit Resync. Deleting the invite likewise breaks that join code.
+      let owner;
+      try {
+        owner = await db
+          .doc(`artifacts/${appId}/public/data/teams/${teamId}`)
+          .get();
+      } catch (e) {
+        console.log(
+          `  ! ${ref.path}: owner re-check failed (${String(e?.message || e)}) — SKIPPED`,
+        );
+        abortedSiblings++;
+        continue;
+      }
+      if (owner.exists) {
+        console.log(
+          `  ! ${ref.path}: team ${teamId} EXISTS on re-check — live team, SKIPPED`,
+        );
+        abortedSiblings++;
+        continue;
+      }
       await ref.delete();
       deletedDocs++;
       console.log(`  ✓ ${ref.path}: deleted stale sibling`);
     }
   }
 
-  return { deletedDocs, deletedTeams, abortedTeams };
+  return { deletedDocs, deletedTeams, abortedTeams, abortedSiblings };
 };
 
 // ---- main ------------------------------------------------------------------
@@ -525,48 +612,69 @@ const main = async () => {
 
   let mirrors = null;
   if (args.includeMirrors) {
-    // Live ids come from the same scan, so "live" means the same thing here as
-    // it does for the orphan test.
+    // Reuse the liveIds the scan above already established. The previous
+    // version re-listed and re-got every team document here — a second full
+    // pass that doubled the read bill and, being unguarded, could throw away a
+    // completed scan before the report ever printed. It also disagreed with
+    // itself: a team created between the two passes would be "orphaned" by one
+    // and "live" by the other.
     const merged = { stale: { teamPublic: [], teamInvites: [] }, errors: [] };
     for (const appId of appIds) {
-      const liveIds = new Set();
-      const refs = await teamsCol(appId).listDocuments();
-      for (const r of refs) {
-        const s = await r.get();
-        if (s.exists) liveIds.add(r.id);
+      const scanned = results.find((r) => r.appId === appId);
+      if (!scanned) continue;
+      try {
+        const m = await scanMirrors(appId, scanned.liveIds);
+        merged.stale.teamPublic.push(...m.stale.teamPublic);
+        merged.stale.teamInvites.push(...m.stale.teamInvites);
+        merged.errors.push(...m.errors);
+      } catch (e) {
+        // Optional extra: never let it destroy the orphan report we already
+        // paid for.
+        merged.errors.push({
+          scope: `app:${appId}/mirrors`,
+          message: `sibling scan failed (siblings NOT purged): ${String(e?.message || e)}`,
+        });
       }
-      const missing = new Set(
-        results.find((r) => r.appId === appId)?.teams.map((t) => t.teamId) ||
-          [],
-      );
-      const m = await scanMirrors(appId, missing, liveIds);
-      merged.stale.teamPublic.push(...m.stale.teamPublic);
-      merged.stale.teamInvites.push(...m.stale.teamInvites);
-      merged.errors.push(...m.errors);
     }
     mirrors = merged;
   }
 
   const { allTeams, grandTotal, allErrors } = report(results, mirrors, args);
 
-  // Everything a --delete run would destroy: orphaned teams plus, when
-  // --include-mirrors widens the scope, each stale sibling document. Computed
-  // ONCE here so the number the dry run tells the operator to pass is exactly
-  // the number the confirmation gate below demands.
+  // Teams this run may DELETE — a strict subset of what it reports. A team
+  // whose survey was incomplete is excluded: the delete is a whole-subtree
+  // recursiveDelete, so purging one would destroy the lane the scan could not
+  // enumerate, which is also the lane --export never captured. Reporting it and
+  // refusing to purge it is the only honest option.
+  //
+  // destructiveTargets is then computed ONCE, so the number the dry run tells
+  // the operator to pass is exactly what the confirmation gate below demands.
+  const purgeable = allTeams.filter(
+    (t) => !t.unsurveyed || t.unsurveyed.length === 0,
+  );
+  const withheld = allTeams.length - purgeable.length;
+  if (withheld > 0) {
+    console.log(
+      `\n  ${withheld} orphaned team(s) are reported but WITHHELD from purge:\n` +
+        `  a subcollection could not be enumerated, and a recursive delete\n` +
+        `  would destroy it unsurveyed and unexported. Re-run to retry.`,
+    );
+  }
+
   const staleSiblingCount = mirrors
     ? mirrors.stale.teamPublic.length + mirrors.stale.teamInvites.length
     : 0;
-  const destructiveTargets = allTeams.length + staleSiblingCount;
+  const destructiveTargets = purgeable.length + staleSiblingCount;
 
   if (args.exportPath && destructiveTargets > 0) {
-    await exportAll(allTeams, mirrors, args.exportPath);
+    await exportAll(purgeable, mirrors, args.exportPath);
   }
 
   if (!args.doDelete) {
     if (destructiveTargets > 0 || grandTotal) {
       console.log(
         `\n  DRY RUN — nothing was deleted.\n` +
-          `  To purge:  node ${process.argv[1].split("/").pop()} --delete --confirm ${destructiveTargets}` +
+          `  To purge:  node ${process.argv[1]} ${scopeFlags()} --delete --confirm ${destructiveTargets}` +
           (args.exportPath
             ? ""
             : `\n  Consider --export <file> first; this is not recoverable.`),
@@ -605,18 +713,19 @@ const main = async () => {
   }
 
   console.log(`\n  DELETING — this cannot be undone.\n`);
-  const { deletedDocs, deletedTeams, abortedTeams } = await purge(
-    allTeams,
-    mirrors,
-  );
+  const { deletedDocs, deletedTeams, abortedTeams, abortedSiblings } =
+    await purge(purgeable, mirrors);
+  const aborted = abortedTeams + abortedSiblings;
   console.log(
     `\n  Purged ${deletedDocs} document(s) across ${deletedTeams} team(s).` +
-      (abortedTeams
-        ? `  ${abortedTeams} skipped by the live-team re-check.`
-        : ""),
+      (aborted ? `  ${aborted} target(s) skipped by the live re-check.` : ""),
   );
   console.log("");
   await deleteApp(app);
+  // A run that intended to delete and deleted NOTHING because every target was
+  // withdrawn is not a success — exiting 0 there tells a wrapper or a cron the
+  // cleanup happened. Report it, and keep reporting scan errors.
+  if (aborted > 0 && deletedDocs === 0) return 1;
   return allErrors.length ? 1 : 0;
 };
 
