@@ -18,6 +18,7 @@ import {
   getReturningDecision,
   normalizeTryoutSessions,
   evaluatorTryoutGradeForSignup,
+  isSubPlayer,
 } from "../utils/helpers";
 import {
   tryoutGradeWithMeasurements,
@@ -465,7 +466,10 @@ export const computeRosterProjection = (
 ): RosterProjection => {
   const rosterCap = Number(team?.rosterCap) || 12;
   const currentRoster = (team?.players || []).filter(
-    (p) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout",
+    (p) =>
+      !isSubPlayer(p) &&
+      p.playerStatus !== "accepted" &&
+      p.playerStatus !== "tryout",
   );
   const returningYes = currentRoster.filter(
     (p) => getReturningDecision(p) === "yes",
@@ -612,6 +616,7 @@ const computeImpact = (
   const rosterCap = Number(team.rosterCap) || 12;
   const returners = (team.players || []).filter(
     (p) =>
+      !isSubPlayer(p) &&
       p.playerStatus !== "accepted" &&
       p.playerStatus !== "tryout" &&
       getReturningDecision(p) === "yes",
@@ -712,7 +717,10 @@ const ReturningIntentPanel = memo(
     setPlayerReturning,
   }: ReturningIntentPanelProps) => {
     const players = (team?.players || []).filter(
-      (p) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout",
+      (p) =>
+        !isSubPlayer(p) &&
+        p.playerStatus !== "accepted" &&
+        p.playerStatus !== "tryout",
     );
     if (players.length === 0) return null;
     return (

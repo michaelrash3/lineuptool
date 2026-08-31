@@ -17,6 +17,7 @@ import {
   effectiveGameType,
   formatGameDateDisplay,
   gameTypeLabel,
+  playersForGame,
 } from "../../utils/helpers";
 import { featureEnabled } from "../../constants/features";
 import { PitchPlanGameBody } from "../../components/tournament/PitchPlanGameBody";
@@ -91,11 +92,17 @@ export const WeekPlannerPage = memo(() => {
       new Map<string, Player>((players || []).map((p: Player) => [p.id, p])),
     [players],
   );
-  const pitchers: Player[] = (players || []).filter(
+  const allPitchers: Player[] = (players || []).filter(
     (p: Player) =>
       Array.isArray(p.comfortablePositions) &&
       p.comfortablePositions.includes("P"),
   );
+  // The staff for ONE game: the season roster's arms plus any tournament sub
+  // borrowed for that game. This view spans weeks and both rule sets, so the
+  // pool has to be resolved per game — a sub picked up for June's tournament
+  // must not be offerable for a rec game in July.
+  const pitchersFor = (game: Game): Player[] =>
+    playersForGame(allPitchers, game.id, tournaments);
 
   // Route the write to wherever this game's plan lives: the stored
   // tournament's pitchPlan when the game is claimed (so the tournament panel
@@ -184,7 +191,7 @@ export const WeekPlannerPage = memo(() => {
                     teamAge={teamAge}
                     ruleSet={ruleSet}
                     dailyMax={dailyMax}
-                    pitchers={pitchers}
+                    pitchers={pitchersFor(game)}
                     playerById={playerById}
                     canEdit={canEdit}
                     onSetEntries={(next) => setEntriesFor(game, next)}

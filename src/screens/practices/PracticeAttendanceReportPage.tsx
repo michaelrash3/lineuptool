@@ -4,7 +4,7 @@ import { Icons } from "../../icons";
 import { useTeam, useToast } from "../../contexts";
 import { PageShell } from "../../components/PageShell";
 import { useBackOrFallback } from "../../hooks/usePageNav";
-import { dateToIsoLocal, isDepartedPlayer } from "../../utils/helpers";
+import { dateToIsoLocal, isRosterPlayer } from "../../utils/helpers";
 import { statusOf } from "../PracticesTab";
 
 // /practices/attendance-report — season attendance across COMPLETED
@@ -21,7 +21,7 @@ export const PracticeAttendanceReportPage = memo(() => {
   const players = useMemo(
     () =>
       (team.players || []).filter(
-        (p: any) => p && p.inactive !== true && !isDepartedPlayer(p),
+        (p: any) => p && p.inactive !== true && isRosterPlayer(p),
       ),
     [team.players],
   );

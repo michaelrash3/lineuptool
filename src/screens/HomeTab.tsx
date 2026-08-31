@@ -12,7 +12,7 @@ import {
   teamStatAverages,
   isGameFinalized,
   countsTowardStats,
-  isDepartedPlayer,
+  isRosterPlayer,
   recordWinningPercentage,
   latestGameLineMovement,
   teamFeesStatus,
@@ -1675,7 +1675,7 @@ export const UpNextPanel = memo(
         // roster's injured view.
         if (featureEnabled(team, "development")) {
           const outInjured = (players || []).filter(
-            (p: Player) => p.health?.status === "out" && !isDepartedPlayer(p),
+            (p: Player) => p.health?.status === "out" && isRosterPlayer(p),
           );
           if (outInjured.length === 1) {
             const p = outInjured[0];

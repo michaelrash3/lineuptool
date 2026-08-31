@@ -400,3 +400,108 @@ describe("ScheduleTab — batting order rows", () => {
     expect(within(row).queryByText(/AVG:/)).not.toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tournament subs on the attendance grid. A sub rides in team.players like
+// everyone else, so the grid has to gate them by game: they are listed for the
+// games of their own tournament and nowhere else.
+// ---------------------------------------------------------------------------
+const renderAttendanceGrid = (gameId: string, tournaments: any[]) =>
+  renderWithProviders(
+    <MemoryRouter>
+      <ScheduleTab />
+    </MemoryRouter>,
+    {
+      team: {
+        team: {
+          ...baseTeam,
+          featureToggles: { tournaments: true },
+          players: [
+            ...players,
+            {
+              id: "sub1",
+              name: "Guest Arm",
+              number: "42",
+              isSub: true,
+              subTournamentIds: ["t1"],
+            },
+          ],
+          tournaments,
+          games: [
+            {
+              id: "g1",
+              date: "2026-05-01",
+              opponent: "Rays",
+              status: "scheduled",
+              leagueRuleSet: "USSSA",
+              pitchingFormat: "Kid Pitch",
+              defenseSize: 9,
+              battingSize: 9,
+              lineup,
+              battingLineup: players,
+            },
+            {
+              id: "g2",
+              date: "2026-06-14",
+              opponent: "Cubs",
+              status: "scheduled",
+              leagueRuleSet: "USSSA",
+              pitchingFormat: "Kid Pitch",
+              defenseSize: 9,
+              battingSize: 9,
+              lineup,
+              battingLineup: players,
+            },
+          ],
+        },
+        record: { wins: 0, losses: 0, ties: 0 },
+        currentRole: "head",
+        updateGame: jest.fn(),
+        saveCurrentGame: jest.fn(),
+        saveAttendance: jest.fn(),
+      },
+      ui: {
+        selectedGameId: gameId,
+        currentGameAttendance: {},
+        setCurrentGameAttendance: jest.fn(),
+        firstInningLineup: {},
+        setFirstInningLineup: jest.fn(),
+        lineup,
+        battingLineup: players,
+        swapSelection: null,
+        handleCellClick: jest.fn(),
+        moveBatter: jest.fn(),
+      },
+    },
+  );
+
+const TOURNEYS = [
+  { id: "t1", name: "Memorial Bash", gameIds: ["g1"] },
+  { id: "t2", name: "Fall Brawl", gameIds: ["g2"] },
+];
+
+describe("ScheduleTab — tournament subs in Game Day Attendance", () => {
+  it("lists the sub, badged, for their own tournament's game", () => {
+    renderAttendanceGrid("g1", TOURNEYS);
+    expect(screen.getAllByText(/Guest Arm/).length).toBeGreaterThan(0);
+    // The "Sub" chip renders only on the attendance row, so it pins the
+    // assertion to the grid rather than any other panel showing the name.
+    expect(screen.getByText("Sub")).toBeInTheDocument();
+  });
+
+  it("leaves the sub off an unrelated game entirely", () => {
+    renderAttendanceGrid("g2", TOURNEYS);
+    expect(screen.queryByText(/Guest Arm/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Sub")).not.toBeInTheDocument();
+    // The roster is unaffected.
+    expect(screen.getAllByText(/Shortstop/).length).toBeGreaterThan(0);
+  });
+
+  it("leaves the sub off once their tournament stops claiming the game", () => {
+    renderAttendanceGrid("g1", [
+      { id: "t1", name: "Memorial Bash", gameIds: [] },
+    ]);
+    expect(screen.queryByText(/Guest Arm/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Sub")).not.toBeInTheDocument();
+  });
+});

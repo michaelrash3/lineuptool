@@ -348,3 +348,42 @@ describe("RosterTab", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tournament subs share team.players with the roster, so the Roster tab has to
+// filter them out — they belong to a weekend, not to the season, and they are
+// managed from their tournament's page.
+// ---------------------------------------------------------------------------
+describe("RosterTab — tournament subs are not roster", () => {
+  const withSub = [
+    ...players,
+    {
+      id: "s1",
+      name: "Guest Arm",
+      number: "42",
+      isSub: true,
+      subTournamentIds: ["t1"],
+    },
+  ];
+
+  it("keeps subs out of the roster list", () => {
+    renderWithProviders(<RosterTab />, {
+      team: { team: { players: withSub, games: [] }, currentRole: "head" },
+    });
+    expect(screen.getAllByText("Ava Rivera").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Guest Arm")).not.toBeInTheDocument();
+  });
+
+  it("keeps subs out of the Active count and the roster cap", () => {
+    renderWithProviders(<RosterTab />, {
+      team: {
+        team: { players: withSub, games: [], rosterCap: 2 },
+        currentRole: "head",
+      },
+    });
+    expect(screen.getByText("2 Active")).toBeInTheDocument();
+    // Roster Integrity reads the same two — a borrowed sub must not push a
+    // 2-player roster over its 2-player cap.
+    expect(screen.queryByText(/over cap/)).not.toBeInTheDocument();
+  });
+});

@@ -1,6 +1,10 @@
 import React, { memo, useState, useRef, useCallback, useEffect } from "react";
 import { Icons } from "../icons";
-import { formatGameDateDisplay, sameDayRoleSets } from "../utils/helpers";
+import {
+  formatGameDateDisplay,
+  sameDayRoleSets,
+  playsGame,
+} from "../utils/helpers";
 import {
   checkPitchEligibility,
   generateLineup,
@@ -1042,6 +1046,8 @@ export const InGameView = memo(() => {
               (p: any) =>
                 game.attendance?.[p.id] !== false &&
                 !usedPitcherIds.has(p.id) &&
+                // Subs are only arms for their own tournament's games.
+                playsGame(p, game.id, team.tournaments) &&
                 // Defensive: relieved arms are a subset of used arms above,
                 // but keep the dead-arm exclusion explicit so a refactor of
                 // the used scan can't silently reopen the override gap.

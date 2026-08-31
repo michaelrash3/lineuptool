@@ -9,6 +9,7 @@ import { formatGameDateDisplay, isGameFinalized } from "../../utils/helpers";
 import { orderedTournamentGames } from "../../utils/tournamentPitching";
 import { TournamentPitchPlanPanel } from "../../components/tournament/TournamentPitchPlanPanel";
 import { TournamentFormatCard } from "../../components/tournament/TournamentFormatCard";
+import { TournamentSubsPanel } from "../../components/tournament/TournamentSubsPanel";
 import type { Game, Tournament } from "../../types";
 
 // /schedule/tournaments/:tournamentId — one tournament as a real page:
@@ -199,6 +200,9 @@ export const TournamentDetailPage = memo(() => {
           </div>
         )}
       </div>
+
+      {/* Guest players borrowed for this weekend only */}
+      <TournamentSubsPanel tournament={tournament} />
 
       {/* Field structure, tiebreaker ladder, and the stakes they create */}
       <TournamentFormatCard tournament={tournament} />

@@ -18,6 +18,7 @@ import { downloadTeamBackup } from "../utils/teamBackup";
 import { getLocalDateString } from "../constants/ui";
 import type { ConfirmContextValue, Player, ToastContextValue } from "../types";
 import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
+import { rosterOnly } from "../utils/subPlayers";
 
 export const csvEscape = (val: unknown): string => {
   if (val == null) return "";
@@ -645,7 +646,7 @@ export const useImportExportFlows = ({
   };
 
   const exportRosterCsv = useCallback(() => {
-    const csv = playersToCsv(teamDataRef.current.players || []);
+    const csv = playersToCsv(rosterOnly(teamDataRef.current.players || []));
     downloadCsv(`roster-${activeTeamId}-${getLocalDateString()}.csv`, csv);
     toast.push({ kind: "success", title: "Roster CSV downloaded" });
   }, [teamDataRef, activeTeamId, toast, playersToCsv]);
@@ -710,7 +711,7 @@ export const useImportExportFlows = ({
   }, []);
 
   const exportPlayerInfoCsv = useCallback(() => {
-    const csv = playerInfoToCsv(teamDataRef.current.players || []);
+    const csv = playerInfoToCsv(rosterOnly(teamDataRef.current.players || []));
     downloadCsv(`player-info-${activeTeamId}-${getLocalDateString()}.csv`, csv);
     toast.push({ kind: "success", title: "Player Info CSV downloaded" });
   }, [teamDataRef, activeTeamId, toast, playerInfoToCsv]);

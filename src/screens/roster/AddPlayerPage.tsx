@@ -9,6 +9,7 @@ import {
   playersWithJersey,
   activeRosterCount,
 } from "../../utils/rosterIntegrity";
+import { rosterOnly } from "../../utils/subPlayers";
 
 // /roster/new — add a player as a real page (deep-linkable, refresh-safe,
 // back-button friendly) per the app-wide modals→pages rule. Head-coach
@@ -35,7 +36,7 @@ export const AddPlayerPage = memo(() => {
     typeof team.rosterCap === "number" && team.rosterCap > 0
       ? team.rosterCap
       : null;
-  const count = activeRosterCount(team.players);
+  const count = activeRosterCount(rosterOnly(team.players));
   const atCap = cap != null && count >= cap;
 
   const submit = (e: React.FormEvent) => {

@@ -29,6 +29,7 @@ import { useTeam } from "../../contexts";
 import { PageShell } from "../PageShell";
 import { useBackOrFallback } from "../../hooks/usePageNav";
 import { STAT_META, formatStatValue } from "./statTrend";
+import { rosterOnly } from "../../utils/subPlayers";
 
 // X-axis tick: abbreviated season on the first line, age group beneath, with
 // the current season tinted in the team color.
@@ -405,7 +406,12 @@ export const StatTrendPage = memo(() => {
   const players = useMemo(() => team.players || [], [team.players]);
   const player = players.find((p: any) => p.id === playerId);
   // Team-wide averages drive the dashed "Team avg" baseline.
-  const teamAverages = useMemo(() => teamStatAverages(players), [players]);
+  // Baseline is the season roster's average — a sub's one-weekend line
+  // would skew it.
+  const teamAverages = useMemo(
+    () => teamStatAverages(rosterOnly<any>(players)),
+    [players],
+  );
   if (!player) return <Navigate to="/roster" replace />;
   if (!statKey || !STAT_META[statKey]) {
     return <Navigate to={`/roster/${player.id}`} replace />;

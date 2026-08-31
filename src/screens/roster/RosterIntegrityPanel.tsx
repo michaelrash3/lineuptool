@@ -6,6 +6,8 @@ import {
   ageIneligiblePlayers,
   activeRosterCount as countActive,
 } from "../../utils/rosterIntegrity";
+import { rosterOnly } from "../../utils/subPlayers";
+import type { Player } from "../../types";
 
 // Coach-facing roster-health strip on the Roster tab: active count vs cap, a
 // finalize/unlock control, and non-blocking warnings for duplicate jersey
@@ -14,7 +16,10 @@ import {
 export const RosterIntegrityPanel = memo(() => {
   const { team, currentRole, updateTeam } = useTeam();
   const canEdit = currentRole !== "assistant";
-  const players = team.players || [];
+  // Roster health is about the season roster: tournament subs are borrowed
+  // for one weekend, so they never count toward the cap, take a jersey
+  // number, or trip the division age check.
+  const players = rosterOnly<Player>(team.players || []);
   if (!canEdit || players.length === 0) return null;
 
   const cap =

@@ -26,7 +26,7 @@ The whole signed-in app is **coach-facing**, split into two roles — **head** a
 
 - Games and events with date/time/location/home-away; ICS and GameChanger schedule import, calendar-feed sync, game-day weather, and reminder drafts
 - Depth chart; season stats (GameChanger CSV import), leaders, trends, a season report, and auto-generated awards
-- Tournaments: weekend grouping, format/tiebreaker tracking, and cross-game pitching plans
+- Tournaments: weekend grouping, format/tiebreaker tracking, cross-game pitching plans, and guest subs picked up for one weekend without joining the roster
 
 **Evaluations & practices**
 

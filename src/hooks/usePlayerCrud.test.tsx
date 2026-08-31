@@ -292,3 +292,112 @@ describe("usePlayerCrud", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tournament subs (guest players): borrowed for one weekend, never rostered.
+// ---------------------------------------------------------------------------
+describe("usePlayerCrud — tournament subs", () => {
+  it("addSubPlayer appends a flagged, tournament-attached player", () => {
+    const { result, updateTeamArrays } = setup();
+    let id: string | null = null;
+    act(() => {
+      id = result.current.addSubPlayer("t1", {
+        name: "  Guest Arm  ",
+        number: "42",
+        throws: "L",
+        comfortablePositions: ["P", "1B"],
+      });
+    });
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect(op).toMatchObject({ op: "append", key: "players" });
+    expect(op.entries[0]).toMatchObject({
+      id,
+      name: "Guest Arm",
+      number: "42",
+      throws: "L",
+      present: true,
+      isSub: true,
+      subTournamentIds: ["t1"],
+      comfortablePositions: ["P", "1B"],
+    });
+  });
+
+  it("addSubPlayer refuses without a name or a tournament", () => {
+    const { result, updateTeamArrays, toast } = setup();
+    let noName: string | null = "x";
+    let noTournament: string | null = "x";
+    act(() => {
+      noName = result.current.addSubPlayer("t1", { name: "   " });
+    });
+    act(() => {
+      noTournament = result.current.addSubPlayer("", { name: "Guest" });
+    });
+    expect(noName).toBeNull();
+    expect(noTournament).toBeNull();
+    expect(updateTeamArrays).not.toHaveBeenCalled();
+    expect(toast.push).toHaveBeenCalledTimes(2);
+  });
+
+  it("removeSubFromTournament only detaches while other tournaments remain", async () => {
+    const players = [
+      {
+        id: "s1",
+        name: "Guest",
+        isSub: true,
+        subTournamentIds: ["t1", "t2"],
+      },
+    ];
+    const { result, teamData, updateTeamArrays, confirm } = setup({ players });
+    await act(async () => {
+      await result.current.removeSubFromTournament("s1", "t1");
+    });
+    // No confirm: the player stays, just not for this weekend.
+    expect(confirm).not.toHaveBeenCalled();
+    const next = applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0]);
+    expect(next.players[0].subTournamentIds).toEqual(["t2"]);
+  });
+
+  it("removeSubFromTournament runs the full removal once nothing is left", async () => {
+    const players = [
+      { id: "s1", name: "Guest", isSub: true, subTournamentIds: ["t1"] },
+      { id: "p1", name: "Rostered" },
+    ];
+    const games = [
+      {
+        id: "g1",
+        lineup: [{ P: { id: "s1" }, C: { id: "p1" }, BENCH: [] }],
+        battingLineup: [{ id: "s1" }, { id: "p1" }],
+        attendance: { s1: true, p1: true },
+      },
+    ];
+    const { result, teamData, updateTeamArrays, confirm } = setup({
+      players,
+      games,
+    });
+    await act(async () => {
+      await result.current.removeSubFromTournament("s1", "t1");
+    });
+    // Confirmed with sub-specific copy — this is not a roster removal.
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Remove this sub?" }),
+    );
+    const next = applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0]);
+    expect(next.players.map((p: any) => p.id)).toEqual(["p1"]);
+    // And they leave the lineup, batting order and attendance with them.
+    expect(next.games[0].lineup[0].P).toBeNull();
+    expect(next.games[0].battingLineup.map((b: any) => b.id)).toEqual(["p1"]);
+    expect(next.games[0].attendance).toEqual({ p1: true });
+  });
+
+  it("a cancelled sub removal changes nothing", async () => {
+    const players = [
+      { id: "s1", name: "Guest", isSub: true, subTournamentIds: ["t1"] },
+    ];
+    const { result, updateTeamArrays, confirm } = setup({ players });
+    confirm.mockResolvedValueOnce(false);
+    await act(async () => {
+      await result.current.removeSubFromTournament("s1", "t1");
+    });
+    expect(updateTeamArrays).not.toHaveBeenCalled();
+  });
+});

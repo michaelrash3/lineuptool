@@ -51,6 +51,7 @@ import {
   rollFinancesForNewSeason,
   shouldRollFinances,
   genId,
+  isSubPlayer,
 } from "../utils/helpers";
 import {
   DEFAULT_TEAM_DATA,
@@ -279,19 +280,28 @@ export const useTeamLifecycle = ({
       const archivedSeason = teamData.currentSeason;
       const archivedAge = teamData.teamAge;
       const archivedFormat = teamData.pitchingFormat;
-      const playerCount = teamData.players.length;
+      // Tournament subs are weekend guests, not roster: they neither get a
+      // stats archive nor carry into the new season (the tournaments they
+      // were attached to are wiped below, so a carried-over sub would be an
+      // unreachable row).
+      const subCount = teamData.players.filter((p: Player) =>
+        isSubPlayer(p),
+      ).length;
+      const playerCount = teamData.players.length - subCount;
 
       // Split current roster by the returning Y/N answer (with legacy
       // playerStatus fallback via isReturning). Returners keep their
       // slot; non-returners (explicit returning:false OR legacy
       // released/declined) are archived but dropped from the next
       // roster.
-      const isDropped = (p: Player) => !isReturning(p);
-      const droppedCount = teamData.players.filter(isDropped).length;
+      const isDropped = (p: Player) => isSubPlayer(p) || !isReturning(p);
+      const droppedCount = teamData.players.filter(
+        (p: Player) => !isSubPlayer(p) && isDropped(p),
+      ).length;
       // Tryout accepts ride on the same `team.players` array with
       // playerStatus === "accepted" — they join the new roster directly.
       const acceptedCount = teamData.players.filter(
-        (p: Player) => p.playerStatus === "accepted",
+        (p: Player) => !isSubPlayer(p) && p.playerStatus === "accepted",
       ).length;
 
       // The season YEAR runs Fall → Spring: the mid-year Fall→Spring advance
@@ -320,6 +330,11 @@ export const useTeamLifecycle = ({
           ? `• ${acceptedCount} tryout accept${
               acceptedCount === 1 ? "" : "s"
             } will join the new roster\n`
+          : "") +
+        (subCount > 0
+          ? `• ${subCount} tournament sub${
+              subCount === 1 ? "" : "s"
+            } will be dropped with the tournaments\n`
           : "") +
         `• Record being archived: ${wins}-${losses}${
           ties > 0 ? "-" + ties : ""

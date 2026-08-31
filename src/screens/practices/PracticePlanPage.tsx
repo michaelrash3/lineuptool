@@ -8,7 +8,7 @@ import { DEFAULT_DRILL_LIBRARY } from "../../constants/ui";
 import { featureEnabled } from "../../constants/features";
 import { downloadPracticePlanPdf } from "../../practices/practicePlanPdf";
 import { drillAssignmentIndex } from "../../utils/developmentPlan";
-import { isDepartedPlayer } from "../../utils/helpers";
+import { isRosterPlayer } from "../../utils/helpers";
 import { isoInstantToLocalTimeInput } from "../../utils/icsParse";
 import {
   buildTeamSkillProfile,
@@ -53,7 +53,7 @@ export const PracticePlanPage = memo(() => {
   const assignedDrillIds = useMemo(() => {
     if (!featureEnabled(team, "development")) return undefined;
     const players = (team.players || []).filter(
-      (p: any) => p && p.inactive !== true && !isDepartedPlayer(p),
+      (p: any) => p && p.inactive !== true && isRosterPlayer(p),
     );
     return new Set(Object.keys(drillAssignmentIndex(players)));
   }, [team]);

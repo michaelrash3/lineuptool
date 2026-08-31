@@ -11,6 +11,8 @@ import {
   effectiveGameType,
   isPlayerScheduledOut,
   isPlayerHealthOut,
+  isSubPlayer,
+  playersForGame,
 } from "../utils/helpers";
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
@@ -415,7 +417,14 @@ export const ScheduleTab = memo(() => {
     const isTournamentGame =
       (currentGame.leagueRuleSet || leagueRuleSet) === "USSSA";
 
-    const presentPlayers = players.filter(
+    // Tournament subs only enter the picture for their own tournament's
+    // games; everyone else is filtered by attendance alone.
+    const gamePlayers = playersForGame(
+      players,
+      currentGame.id,
+      storedTournaments,
+    );
+    const presentPlayers = gamePlayers.filter(
       (p: any) => currentGameAttendance[p.id] !== false,
     );
     // Pregame shows the STARTING lineup only — for every game type. Under
@@ -1136,8 +1145,10 @@ export const ScheduleTab = memo(() => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                 {/* Inactive roster players don't take attendance — reactivate
-                      them from the Roster tab to list them again. */}
-                {players
+                      them from the Roster tab to list them again. Subs are
+                      listed only for the games of the tournament they were
+                      brought in for. */}
+                {gamePlayers
                   .filter((p: any) => p.present !== false)
                   .map((p: any) => {
                     const scheduledOut = isPlayerScheduledOut(
@@ -1166,6 +1177,11 @@ export const ScheduleTab = memo(() => {
                         <span className="truncate mr-2">
                           {p.number ? `#${p.number} ` : ""}
                           {p.name}
+                          {isSubPlayer(p) && (
+                            <span className="ml-1.5 t-chip px-1.5 py-0.5 rounded border border-line text-ink-3 align-middle">
+                              Sub
+                            </span>
+                          )}
                           {injuredOut ? (
                             <span className="block text-[9px] font-bold text-loss normal-case tracking-normal">
                               Injured — marked Out

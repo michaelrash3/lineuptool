@@ -4,7 +4,7 @@ import { useTeam, useToast } from "../contexts";
 import { EmptyState } from "../components/shared";
 import { PortalShareCard } from "../components/PortalShareCard";
 import {
-  isDepartedPlayer,
+  isRosterPlayer,
   formatDateDisplay,
   dedupePlayerInfoSubmissions,
 } from "../utils/helpers";
@@ -40,7 +40,7 @@ export const PlayerInfoTab = memo(() => {
   }, [team?.playerInfoSubmissions]);
 
   const activePlayers = useMemo(
-    () => players.filter((p: any) => !isDepartedPlayer(p)),
+    () => players.filter((p: any) => isRosterPlayer(p)),
     [players],
   );
   const submittedCount = activePlayers.filter(

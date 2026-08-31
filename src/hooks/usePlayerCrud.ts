@@ -68,6 +68,57 @@ export const usePlayerCrud = ({
     [updateTeamArrays],
   );
 
+  // Add a tournament sub (guest player). Same players array as everyone else
+  // — the isSub flag plus the tournament attachment are what keep them off
+  // the season roster and out of every season-long readout. Deliberately
+  // skips the roster cap and the roster lock: a borrowed weekend arm is not
+  // a roster add, which is the whole point of the flow.
+  const addSubPlayer = useCallback(
+    (
+      tournamentId: string,
+      form: {
+        name?: string;
+        number?: string;
+        bats?: string;
+        throws?: string;
+        comfortablePositions?: string[];
+        primaryPosition?: string;
+      },
+    ): string | null => {
+      const name = String(form.name ?? "").trim();
+      if (!name || !tournamentId) {
+        toast.push({
+          kind: "warn",
+          title: "Missing info",
+          message: "A sub needs a name and a tournament to play in.",
+        });
+        return null;
+      }
+      const id = genId("p");
+      const newPlayer: Player = {
+        id,
+        name,
+        number: form.number || "",
+        bats: form.bats || "R",
+        throws: form.throws || "R",
+        present: true,
+        restrictions: [],
+        comfortablePositions: Array.isArray(form.comfortablePositions)
+          ? form.comfortablePositions
+          : [],
+        primaryPosition: form.primaryPosition || "",
+        stats: blankStats(),
+        pitching: { recentPitches: 0, lastPitchDate: null },
+        absences: [],
+        isSub: true,
+        subTournamentIds: [tournamentId],
+      };
+      updateTeamArrays({ op: "append", key: "players", entries: [newPlayer] });
+      return id;
+    },
+    [updateTeamArrays, toast],
+  );
+
   const updatePlayer = useCallback(
     (id: any, updates: any) => {
       updateTeamArrays({
@@ -96,13 +147,20 @@ export const usePlayerCrud = ({
     [updateTeamArrays],
   );
 
+  // `copy` lets a caller restate the confirm for a non-roster removal (the
+  // tournament-sub flow) — the cascade below is identical either way, so the
+  // wording is the only thing that differs.
   const removePlayer = useCallback(
-    async (id: any) => {
+    async (
+      id: any,
+      copy?: { title?: string; message?: string; confirmLabel?: string },
+    ) => {
       const ok = await confirm({
-        title: "Remove player?",
+        title: copy?.title || "Remove player?",
         message:
+          copy?.message ||
           "Removes them from the roster, lineups, attendance, and eval grades. You can undo right after.",
-        confirmLabel: "Remove",
+        confirmLabel: copy?.confirmLabel || "Remove",
         danger: true,
       });
       if (!ok) return;
@@ -292,5 +350,45 @@ export const usePlayerCrud = ({
     [teamDataRef, updateTeamArrays, toast, confirm, db, appId, teamId],
   );
 
-  return { addPlayer, updatePlayer, updatePlayerNested, removePlayer };
+  // Drop a sub from one tournament. Still attached elsewhere -> just detach;
+  // otherwise fall through to the full removePlayer cascade so the guest
+  // leaves the lineups, attendance and pitch plans they were written into
+  // rather than lingering as an unreachable row.
+  const removeSubFromTournament = useCallback(
+    async (id: string, tournamentId: string) => {
+      const player = (teamDataRef.current.players || []).find(
+        (p: Player) => p.id === id,
+      );
+      const remaining = (
+        Array.isArray(player?.subTournamentIds) ? player.subTournamentIds : []
+      ).filter((t: string) => t !== tournamentId);
+      if (remaining.length > 0) {
+        updateTeamArrays({
+          op: "mapEntries",
+          key: "players",
+          map: (items: Player[]) =>
+            items.map((p) =>
+              p.id === id ? { ...p, subTournamentIds: remaining } : p,
+            ),
+        });
+        return;
+      }
+      await removePlayer(id, {
+        title: "Remove this sub?",
+        message:
+          "Takes them off this tournament's attendance, lineups, and pitch plan. Nothing on your season roster changes. You can undo right after.",
+        confirmLabel: "Remove sub",
+      });
+    },
+    [teamDataRef, updateTeamArrays, removePlayer],
+  );
+
+  return {
+    addPlayer,
+    addSubPlayer,
+    updatePlayer,
+    updatePlayerNested,
+    removePlayer,
+    removeSubFromTournament,
+  };
 };

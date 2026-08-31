@@ -1,7 +1,7 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useToast, useUI } from "../contexts";
-import { isDepartedPlayer } from "../utils/helpers";
+import { isRosterPlayer } from "../utils/helpers";
 import {
   buildPlayingTimeReportData,
   downloadPlayingTimeReportPdf,
@@ -29,7 +29,7 @@ export const PlayingTimePanel = memo(() => {
 
   // Departed players are excluded everywhere but the Roster tab.
   const roster = useMemo(
-    () => (players || []).filter((p) => !isDepartedPlayer(p)),
+    () => (players || []).filter((p) => isRosterPlayer(p)),
     [players],
   );
 
