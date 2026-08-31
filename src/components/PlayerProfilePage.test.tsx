@@ -1,5 +1,6 @@
 import React from "react";
 import { screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { PlayerProfilePage } from "./PlayerProfilePage";
 import { renderWithProviders } from "../test-utils";
@@ -19,18 +20,25 @@ beforeAll(() => {
   };
 });
 
+const mkPlayer = (id: string, name: string, number: string) => ({
+  id,
+  name,
+  number,
+  bats: "R",
+  throws: "R",
+  present: true,
+  stats: {},
+  pitching: { recentPitches: 0, lastPitchDate: null },
+});
+
 const team = {
+  // Three players so the Prev/Next pager has somewhere to go. Ava wears #3, so
+  // display order is Bo (#1), Cy (#2), Ava (#3) — which is what pins the pager
+  // to jersey order rather than array order.
   players: [
-    {
-      id: "p1",
-      name: "Ava",
-      number: "3",
-      bats: "R",
-      throws: "R",
-      present: true,
-      stats: {},
-      pitching: { recentPitches: 0, lastPitchDate: null },
-    },
+    mkPlayer("p1", "Ava", "3"),
+    mkPlayer("p2", "Bo", "1"),
+    mkPlayer("p3", "Cy", "2"),
   ],
   games: [],
   evaluationEvents: [],
@@ -78,6 +86,32 @@ describe("PlayerProfilePage — a real navigable page", () => {
     // Header back chip and footer Back button do the same thing.
     fireEvent.click(screen.getAllByRole("button", { name: "Back" })[0]);
     expect(screen.getByText("ROSTER LIST")).toBeInTheDocument();
+  });
+
+  it("carries a roster pager that follows jersey order, not array order", () => {
+    // Ava wears #3 and is last in display order, so her only neighbour is
+    // Cy (#2) behind her — the pager reads the Roster tab's list order, not
+    // the order players happen to sit in the array.
+    window.history.replaceState({ idx: 1 }, "");
+    mountAt(["/roster", "/roster/p1"], 1);
+    expect(screen.getByText("3 of 3")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Previous player: #2 Cy" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Next player/ })).toBeDisabled();
+  });
+
+  it("paging mirrors the new player into the provider without leaving the page", async () => {
+    window.history.replaceState({ idx: 1 }, "");
+    const { setViewingPlayerId } = mountAt(["/roster", "/roster/p1"], 1);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Previous player: #2 Cy" }),
+    );
+    // The route moved to Cy and the page mirrored it into viewingPlayerId,
+    // which is what drives the profile content (see the mirroring note above).
+    expect(setViewingPlayerId).toHaveBeenCalledWith("p3");
+    // And the coach stayed on the profile rather than bouncing to the list.
+    expect(screen.queryByText("ROSTER LIST")).not.toBeInTheDocument();
   });
 
   it("a deep link with no in-app history falls back to the roster", () => {

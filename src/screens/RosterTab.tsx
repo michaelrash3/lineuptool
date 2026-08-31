@@ -6,6 +6,7 @@ import {
   formatDateDisplay,
   rosterOnly,
 } from "../utils/helpers";
+import { rosterDisplayOrder } from "../utils/rosterOrder";
 import { useTeam, useTeamActions, useUI, useToast } from "../contexts";
 import { getPlayerInitials, EmptyState } from "../components/shared";
 import { PortalShareCard } from "../components/PortalShareCard";
@@ -467,16 +468,12 @@ export const RosterTab = memo(() => {
     setSearchQuery("");
   };
 
-  const sortedRosterPlayers = useMemo(() => {
-    return [...players].sort((a, b) => {
-      const numA = parseInt(a.number, 10);
-      const numB = parseInt(b.number, 10);
-      if (isNaN(numA) && isNaN(numB)) return a.name.localeCompare(b.name);
-      if (isNaN(numA)) return 1;
-      if (isNaN(numB)) return -1;
-      return numA - numB;
-    });
-  }, [players]);
+  // Shared with the profile's Prev/Next pager (utils/rosterOrder) so "next
+  // player" always means the next row of this list.
+  const sortedRosterPlayers = useMemo(
+    () => rosterDisplayOrder<any>(players),
+    [players],
+  );
 
   // AND-combine: a player must match the search and every active filter chip.
   const visiblePlayers = useMemo(() => {
