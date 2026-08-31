@@ -22,6 +22,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTeam, useUI, useToast } from "../contexts";
 import { useBackOrFallback } from "../hooks/usePageNav";
 import { PlayerAvatar } from "./shared";
+import { PlayerPager } from "./PlayerPager";
 
 // Shell for the player profile page at /roster/:playerId. The profile is a
 // real routed page — the old centered dialog overlay is gone, so there is no
@@ -582,6 +583,9 @@ const PlayerProfile = memo(() => {
           className="p-1.5"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
+        {/* Prev/Next across the roster — sticky so it stays reachable without
+            scrolling back up a long profile. */}
+        <PlayerPager players={players} playerId={player.id} />
         <div className="p-6 sm:p-7 flex flex-col sm:flex-row items-start gap-5 border-b border-line">
           <div className="relative shrink-0">
             <PlayerAvatar player={player} size={96} showNumber showPosition />
@@ -1724,9 +1728,16 @@ export const PlayerProfilePage = memo(() => {
     if (playerId) setViewingPlayerId(playerId);
     return () => setViewingPlayerId(null);
   }, [playerId, setViewingPlayerId]);
+  // Paging to the next player keeps this route mounted, so without the key the
+  // previous kid's open section, half-finished inline edit and scroll offset
+  // would ride along. Keying on the id remounts the profile clean, and the
+  // scroll reset below puts the coach at the top of the new one.
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [playerId]);
   return (
     <div className="w-full py-2">
-      <PlayerProfile />
+      <PlayerProfile key={playerId} />
     </div>
   );
 });
