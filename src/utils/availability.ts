@@ -8,6 +8,8 @@
 // school event), entered ahead of time on the player profile. A game on one
 // of these dates defaults the kid to absent in Game Day Attendance — the
 // coach can still toggle them back if plans change.
+import { isRosterPlayer } from "./subPlayers";
+
 const minutesFromTime = (value: unknown): number | null => {
   const m = String(value || "").match(/^(\d{1,2}):(\d{2})/);
   if (!m) return null;
@@ -225,7 +227,7 @@ export const countAvailableOnDate = (
   if (!dateIso) return 0;
   const day = String(dateIso).slice(0, 10);
   return (players || []).filter(
-    (p) => !isDepartedPlayer(p) && !isPlayerUnavailable(p, day),
+    (p) => isRosterPlayer(p) && !isPlayerUnavailable(p, day),
   ).length;
 };
 
@@ -252,6 +254,6 @@ export const playersOutOnDate = <
   if (!dateIso) return [];
   const day = String(dateIso).slice(0, 10);
   return (players || []).filter(
-    (p) => !isDepartedPlayer(p) && isPlayerUnavailable(p, day),
+    (p) => isRosterPlayer(p) && isPlayerUnavailable(p, day),
   );
 };

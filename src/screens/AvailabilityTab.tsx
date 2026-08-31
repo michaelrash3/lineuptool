@@ -10,7 +10,7 @@ import {
   buildMonthGrid,
   countAvailableOnDate,
   formatDateDisplay,
-  isDepartedPlayer,
+  isRosterPlayer,
   playersOutOnDate,
 } from "../utils/helpers";
 
@@ -42,7 +42,7 @@ export const AvailabilityTab = memo(() => {
     [team?.players],
   );
   const activePlayers = useMemo(
-    () => players.filter((p: any) => !isDepartedPlayer(p)),
+    () => players.filter((p: any) => isRosterPlayer(p)),
     [players],
   );
   const defenseSize = (team as any)?.defenseSize;

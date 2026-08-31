@@ -8,7 +8,7 @@ import { aggregateGameLines, seasonSeriesFromGameLines } from "./stats";
 import { countsTowardStats } from "./gameStatus";
 import { buildSeasonPositionVariety, POSITION_INNINGS_FIELDS } from "./season";
 import { currentEvaluationScore100 } from "./evaluationScore";
-import { isDepartedPlayer } from "./availability";
+import { isRosterPlayer } from "./subPlayers";
 import { attIsPresent, attIsAbsent } from "./attendance";
 import type {
   EvaluationEvent,
@@ -283,7 +283,7 @@ export const computeDevelopmentTrends = (args: {
 }): PlayerDevelopmentTrend[] => {
   const { players, games, evaluationEvents, teamAge, extraCategories } = args;
   return (players || [])
-    .filter((p) => p && !isDepartedPlayer(p))
+    .filter((p) => p && isRosterPlayer(p))
     .map((p): PlayerDevelopmentTrend => {
       const batting = battingTrend(games, p.id);
       const evals = evalTrend(

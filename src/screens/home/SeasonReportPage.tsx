@@ -15,6 +15,7 @@ import {
   formatStatDisplay,
   type StatDisplayKind,
 } from "../../utils/stats";
+import { rosterOnly } from "../../utils/subPlayers";
 
 // /season-report — End-of-Season team report: record + run diff + streak, top
 // performers, attendance leaders, and biggest eval improvers. Read-only;
@@ -39,7 +40,12 @@ export const SeasonReportPage = memo(() => {
   const { team } = useTeam();
   const toast = useToast();
   const back = useBackOrFallback("/");
-  const players = useMemo(() => team?.players || [], [team?.players]);
+  // The season report is a roster document — tournament subs played one
+  // weekend and are not part of the season's story.
+  const players = useMemo(
+    () => rosterOnly<any>(team?.players || []),
+    [team?.players],
+  );
   const games = useMemo(() => team?.games || [], [team?.games]);
   const practices = useMemo(() => team?.practices || [], [team?.practices]);
   const evaluationEvents = useMemo(

@@ -5,7 +5,7 @@ import {
   generateTournamentLineup as engineGenerateTournamentLineup,
   resolvePitchRuleSet,
 } from "../lineupEngine";
-import { sameDayRoleSets, genId } from "../utils/helpers";
+import { sameDayRoleSets, genId, playsGame } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 // Lineup generation, undo, save, templates, and mid-game player removal —
@@ -136,8 +136,13 @@ export const useLineupActions = ({
       const presentPlayers = teamDataRef.current.players.filter(
         // Roster-inactive kids never play, even if a stale attendance map
         // still has them marked present from before they went inactive.
+        // playsGame is the sub gate: a tournament sub is only in the pool for
+        // the games of the tournament they were brought in for, whatever an
+        // attendance map carried over from another game happens to say.
         (p: any) =>
-          p.present !== false && currentGameAttendance[p.id] !== false,
+          p.present !== false &&
+          currentGameAttendance[p.id] !== false &&
+          playsGame(p, currentGame.id, teamDataRef.current.tournaments),
       );
       if (presentPlayers.length < 7) {
         toast.push({
@@ -710,6 +715,9 @@ export const useLineupActions = ({
           if (p.id === playerId) return false;
           if (existingRemovals[p.id]) return false;
           if (attendance[p.id] === false) return false;
+          // Subs are only in the pool for their own tournament's games.
+          if (!playsGame(p, gameId, teamDataRef.current.tournaments))
+            return false;
           return true;
         },
       );

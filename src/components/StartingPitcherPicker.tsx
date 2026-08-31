@@ -12,6 +12,7 @@ import {
   priorPlannedOutingsForGame,
   withPlannedOutings,
 } from "../utils/tournamentPitching";
+import { playsGame } from "../utils/subPlayers";
 import { opponentStrengthGuidance } from "../utils/tournamentStakes";
 import { featureEnabled } from "../constants/features";
 
@@ -119,7 +120,12 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
     const dateStr = game.date;
     const att = currentGameAttendance || {};
     const present = ((players || []) as any[]).filter(
-      (p) => p && p.present !== false && att[p.id] !== false,
+      (p) =>
+        p &&
+        p.present !== false &&
+        att[p.id] !== false &&
+        // A borrowed arm is only a candidate for their own tournament's games.
+        playsGame(p, game.id, tournaments),
     );
     // Pitching candidates among present players; if nobody is marked as a
     // pitcher, fall back to everyone present so the coach is never stuck.
@@ -160,6 +166,7 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
     teamAge,
     pitchRules,
     priorPlanned,
+    tournaments,
   ]);
 
   if (!isKidPitch || !game || ranked.length === 0) return null;

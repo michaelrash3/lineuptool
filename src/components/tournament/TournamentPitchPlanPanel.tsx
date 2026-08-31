@@ -3,6 +3,7 @@ import { useTeam } from "../../contexts";
 import { maxPitchesForAge, resolvePitchRuleSet } from "../../lineupEngine";
 import { assessTournamentPlan } from "../../utils/tournamentPitching";
 import { formatGameDateDisplay } from "../../utils/helpers";
+import { isSubPlayer, subTournamentIds } from "../../utils/subPlayers";
 import { PitchPlanGameBody } from "./PitchPlanGameBody";
 import type { Game, Player, Tournament } from "../../types";
 
@@ -51,8 +52,11 @@ export const TournamentPitchPlanPanel = memo(
     const gameById = new Map<string, Game>(
       (games || []).map((g: Game) => [g.id, g]),
     );
+    // Arms available this weekend: the season roster plus THIS tournament's
+    // subs — a sub borrowed for a different weekend is not on the staff here.
     const pitchers = (players || []).filter(
       (p: Player) =>
+        (!isSubPlayer(p) || subTournamentIds(p).includes(tournament.id)) &&
         Array.isArray(p.comfortablePositions) &&
         p.comfortablePositions.includes("P"),
     );

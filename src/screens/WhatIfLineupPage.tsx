@@ -5,7 +5,11 @@ import { PageShell } from "../components/PageShell";
 import { useBackOrFallback } from "../hooks/usePageNav";
 import { Icons } from "../icons";
 import { generateLineup, buildCompetitiveLineup } from "../lineupEngine";
-import { isGameFinalized, formatGameDateDisplay } from "../utils/helpers";
+import {
+  isGameFinalized,
+  formatGameDateDisplay,
+  playersForGame,
+} from "../utils/helpers";
 import { getLocalDateString, leagueRuleSetLabel } from "../constants/ui";
 import { isActiveRosterPlayer } from "../utils/rosterIntegrity";
 import {
@@ -44,11 +48,6 @@ export const WhatIfLineupPage = memo(() => {
     catcherConsecutive,
   } = team as any;
 
-  const roster = useMemo(
-    () => (players || []).filter(isActiveRosterPlayer),
-    [players],
-  );
-
   const upcoming = useMemo(() => {
     const today = getLocalDateString();
     return (games || [])
@@ -64,6 +63,19 @@ export const WhatIfLineupPage = memo(() => {
   const game = useMemo(
     () => upcoming.find((g: any) => g.id === gameId) || upcoming[0],
     [upcoming, gameId],
+  );
+
+  // The pool for the selected game: active roster plus the tournament subs
+  // brought in for THAT game, so a sandbox run matches who would actually
+  // be available.
+  const roster = useMemo(
+    () =>
+      playersForGame(
+        ((players || []) as any[]).filter(isActiveRosterPlayer),
+        game?.id,
+        team.tournaments,
+      ),
+    [players, game, team.tournaments],
   );
 
   const runFor = useMemo(() => {

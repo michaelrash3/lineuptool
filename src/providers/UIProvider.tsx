@@ -9,7 +9,12 @@ import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { UIContext, useTeam, useToast } from "../contexts";
 import { APP_NAME, getLocalDateString } from "../constants/ui";
 import { applyLineupSwap } from "../utils/lineupSwap";
-import { isPlayerUnavailable, evalRoundRecency } from "../utils/helpers";
+import { lineupSignature, battingSignature } from "../utils/lineupSignature";
+import {
+  isPlayerUnavailable,
+  evalRoundRecency,
+  playsGame,
+} from "../utils/helpers";
 import type {
   EvaluationEvent,
   Game,
@@ -144,8 +149,8 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   // game underneath us.
   const loadedGameRef = useRef<{
     id: string;
-    lineupJson: string;
-    battingJson: string;
+    lineupSig: string;
+    battingSig: string;
   } | null>(null);
 
   // The generate/re-roll Undo toast is GAME-scoped: its snapshot refuses to
@@ -168,8 +173,8 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     if (!game) return;
     loadedGameRef.current = {
       id: game.id,
-      lineupJson: JSON.stringify(game.lineup || null),
-      battingJson: JSON.stringify(game.battingLineup || null),
+      lineupSig: lineupSignature(game.lineup),
+      battingSig: battingSignature(game.battingLineup),
     };
     setOpponentName(game.opponent || "");
     setLineup(game.lineup || null);
@@ -186,38 +191,43 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   // If the user has no unsaved local changes, silently re-sync. If they do,
   // surface a toast so they know their next save will clobber the remote
   // edit (better than silently overwriting another coach's work).
+  //
+  // All three comparisons run on lineupSignature/battingSignature — who is in
+  // which slot — never on raw JSON. The in-editor lineup carries whole player
+  // objects off the engine while the stored one is slimmed to
+  // {id, name, number}, so the two are byte-different even when they are the
+  // same lineup: a JSON compare read every save's own echo as a remote edit
+  // and put this warning on screen every single time a coach hit Save.
   useEffect(() => {
     if (!selectedGameId || !loadedGameRef.current) return;
     if (loadedGameRef.current.id !== selectedGameId) return;
     const game = team.team.games.find((g: Game) => g.id === selectedGameId);
     if (!game) return;
 
-    const remoteLineupJson = JSON.stringify(game.lineup || null);
-    const remoteBattingJson = JSON.stringify(game.battingLineup || null);
+    const remoteLineupSig = lineupSignature(game.lineup);
+    const remoteBattingSig = battingSignature(game.battingLineup);
     const remoteChanged =
-      remoteLineupJson !== loadedGameRef.current.lineupJson ||
-      remoteBattingJson !== loadedGameRef.current.battingJson;
+      remoteLineupSig !== loadedGameRef.current.lineupSig ||
+      remoteBattingSig !== loadedGameRef.current.battingSig;
     if (!remoteChanged) return;
 
-    const localLineupJson = JSON.stringify(lineup || null);
-    const localBattingJson = JSON.stringify(battingLineup || null);
+    const localLineupSig = lineupSignature(lineup);
+    const localBattingSig = battingSignature(battingLineup);
     const localUnsaved =
-      localLineupJson !== loadedGameRef.current.lineupJson ||
-      localBattingJson !== loadedGameRef.current.battingJson;
-    // The remote snapshot already matches what we have locally — this is our
-    // OWN save echoing back (or another device landing on the identical
-    // lineup), NOT a conflict. Adopt it silently. Without this guard the
-    // warning fired on every save you made, since loadedGameRef still held
-    // the pre-edit version.
+      localLineupSig !== loadedGameRef.current.lineupSig ||
+      localBattingSig !== loadedGameRef.current.battingSig;
+    // The remote snapshot already matches what we have locally — our OWN save
+    // echoing back, or another device landing on the identical lineup. Not a
+    // conflict: adopt it silently.
     const remoteMatchesLocal =
-      remoteLineupJson === localLineupJson &&
-      remoteBattingJson === localBattingJson;
+      remoteLineupSig === localLineupSig &&
+      remoteBattingSig === localBattingSig;
 
     if (!localUnsaved || remoteMatchesLocal) {
       loadedGameRef.current = {
         id: game.id,
-        lineupJson: remoteLineupJson,
-        battingJson: remoteBattingJson,
+        lineupSig: remoteLineupSig,
+        battingSig: remoteBattingSig,
       };
       setLineup(game.lineup || null);
       setBattingLineup(game.battingLineup || null);
@@ -225,17 +235,17 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     } else {
       toast.push({
         kind: "warn",
-        title: "Game updated remotely",
+        title: "Another coach changed this game",
         message:
-          "Another device changed this game while you were editing. Saving now will overwrite those changes.",
+          "Their lineup is on the server; yours is still on screen. Save to keep yours, or reopen the game to load theirs.",
         duration: 8000,
       });
       // Update the snapshot so we don't fire the warning again for the
       // same remote version.
       loadedGameRef.current = {
         id: game.id,
-        lineupJson: remoteLineupJson,
-        battingJson: remoteBattingJson,
+        lineupSig: remoteLineupSig,
+        battingSig: remoteBattingSig,
       };
     }
   }, [team.team.games, selectedGameId, lineup, battingLineup, toast]);
@@ -258,18 +268,31 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     const gameDate = team.team.games.find(
       (g: Game) => g.id === selectedGameId,
     )?.date;
+    const tournaments = team.team.tournaments || [];
     setCurrentGameAttendance((prev) => {
       const next = { ...prev };
       let changed = false;
       for (const p of team.team.players) {
         if (next[p.id] === undefined) {
-          next[p.id] = p.present !== false && !isPlayerUnavailable(p, gameDate);
+          // A tournament sub is only ever defaulted in for the games of the
+          // tournament they were brought in for — every other game defaults
+          // them out, so a borrowed weekend arm can't drift onto the rest of
+          // the schedule via a stale attendance map.
+          next[p.id] =
+            playsGame(p, selectedGameId, tournaments) &&
+            p.present !== false &&
+            !isPlayerUnavailable(p, gameDate);
           changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [team.team.players, team.team.games, selectedGameId]);
+  }, [
+    team.team.players,
+    team.team.games,
+    team.team.tournaments,
+    selectedGameId,
+  ]);
 
   // Sync teamEvalGrades based on selectedRoundId:
   //   - If a specific round is selected, load its grades for editing

@@ -10,6 +10,7 @@ import { makeOfferLetterContext } from "../../utils/offerContext";
 import { OFFER_LETTER_LABELS } from "../../constants/offerLetters";
 import { computeNextSeason } from "../../constants/ui";
 import { isReturning } from "../../utils/season";
+import { rosterOnly } from "../../utils/subPlayers";
 
 // /settings/advance-season — the two-step "Advance to next season" wizard as
 // a routed page per the app-wide modals→pages rule. The head marks every
@@ -53,7 +54,12 @@ export const AdvanceSeasonPage = memo(() => {
   const navigate = useNavigate();
   const back = useBackOrFallback("/settings");
 
-  const players = useMemo(() => team.players || [], [team.players]);
+  // Tournament subs belong to one weekend, not to the season being rolled —
+  // they are neither carried forward nor listed as returning/leaving.
+  const players = useMemo(
+    () => rosterOnly<any>(team.players || []),
+    [team.players],
+  );
   const tryoutSignups = useMemo(
     () => team.tryoutSignups || [],
     [team.tryoutSignups],

@@ -2134,16 +2134,22 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   ]);
   // ----- Roster actions -----
   // ----- Player CRUD ----- (extracted to src/hooks/usePlayerCrud.ts)
-  const { addPlayer, updatePlayer, updatePlayerNested, removePlayer } =
-    usePlayerCrud({
-      teamDataRef,
-      updateTeamArrays,
-      toast,
-      confirm,
-      db,
-      appId,
-      teamId: activeTeamId,
-    });
+  const {
+    addPlayer,
+    addSubPlayer,
+    updatePlayer,
+    updatePlayerNested,
+    removePlayer,
+    removeSubFromTournament,
+  } = usePlayerCrud({
+    teamDataRef,
+    updateTeamArrays,
+    toast,
+    confirm,
+    db,
+    appId,
+    teamId: activeTeamId,
+  });
 
   // ----- Past-season CRUD ----- (extracted to src/hooks/usePastSeasonCrud.ts)
   const {
@@ -3265,9 +3271,11 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       updateFinances,
       updateTeamArrays,
       addPlayer,
+      addSubPlayer,
       updatePlayer,
       updatePlayerNested,
       removePlayer,
+      removeSubFromTournament,
       addPastSeason,
       updatePastSeason,
       removePastSeason,
@@ -3355,9 +3363,11 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       updateFinances,
       updateTeamArrays,
       addPlayer,
+      addSubPlayer,
       updatePlayer,
       updatePlayerNested,
       removePlayer,
+      removeSubFromTournament,
       addPastSeason,
       updatePastSeason,
       removePastSeason,

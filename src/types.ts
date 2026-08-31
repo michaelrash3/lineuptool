@@ -208,6 +208,17 @@ export interface Player {
     | "offered"
     | "accepted"
     | "declined";
+  // Tournament sub (guest player): borrowed for one weekend, never on the
+  // season roster. Subs ride in the same `players` array so lineups,
+  // attendance, pitch counts and the in-game view keep working unchanged —
+  // every season-long surface (roster, stats, evals, development, practices,
+  // availability, finances, tryouts, advance-season) filters them out via
+  // isRosterPlayer(). See src/utils/subPlayers.ts.
+  isSub?: boolean;
+  // Tournaments this sub was brought in for. Their games are the ONLY ones
+  // the sub is offered for in attendance and lineup generation. Empty or
+  // missing = attached to nothing, so the sub is offered for no game.
+  subTournamentIds?: string[];
   [key: string]: unknown;
 }
 

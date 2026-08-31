@@ -4,6 +4,7 @@ import {
   formatStat,
   calculateBaseballAge,
   formatDateDisplay,
+  rosterOnly,
 } from "../utils/helpers";
 import { useTeam, useTeamActions, useUI, useToast } from "../contexts";
 import { getPlayerInitials, EmptyState } from "../components/shared";
@@ -391,7 +392,8 @@ const PlayerInfoLinkCard = memo(({ team }: any) => {
           onClick={() =>
             downloadRosterDirectoryPdf({
               team,
-              players: team?.players,
+              // The directory is the season roster; weekend subs are not in it.
+              players: rosterOnly<any>(team?.players),
               toast,
             })
           }
@@ -433,7 +435,15 @@ export const RosterTab = memo(() => {
   // hack double-pushed the URL with a raw history.pushState, which made the
   // first back press a no-op — the profile read as a modal wearing a URL.)
   const { openAddPlayer, openPlayerProfile } = useUI();
-  const { players, logoUrl, currentSeason } = team;
+  const { players: allTeamPlayers, logoUrl, currentSeason } = team;
+  // Tournament subs ride in team.players so the lineup engine and Game Day
+  // Attendance can use them, but they are borrowed for one weekend and belong
+  // to their tournament's page — never to the roster, the Active count, the
+  // cap, the directory PDF, or the Player Info tracker below.
+  const players = useMemo(
+    () => rosterOnly<any>(allTeamPlayers || []),
+    [allTeamPlayers],
+  );
   const stripped = (team as any).statDisplay === "stripped";
   // Health badges + the Injured filter belong to the Development module.
   const devEnabled = featureEnabled(team, "development");

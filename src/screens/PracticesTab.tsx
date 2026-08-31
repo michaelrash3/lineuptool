@@ -4,7 +4,7 @@ import { Icons } from "../icons";
 import { useTeam } from "../contexts";
 import {
   formatGameDateDisplay,
-  isDepartedPlayer,
+  isRosterPlayer,
   dateToIsoLocal,
   genId,
 } from "../utils/helpers";
@@ -798,7 +798,7 @@ export const PracticesTab = memo(() => {
   const players = useMemo(
     () =>
       (team.players || []).filter(
-        (p: any) => p && p.inactive !== true && !isDepartedPlayer(p),
+        (p: any) => p && p.inactive !== true && isRosterPlayer(p),
       ),
     [team.players],
   );

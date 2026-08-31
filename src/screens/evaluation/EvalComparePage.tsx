@@ -4,7 +4,7 @@ import { useTeam } from "../../contexts";
 import { PageShell } from "../../components/PageShell";
 import { useBackOrFallback } from "../../hooks/usePageNav";
 import { RoundComparisonView } from "./panels";
-import { headEvalRounds, isDepartedPlayer } from "../../utils/helpers";
+import { headEvalRounds, isRosterPlayer } from "../../utils/helpers";
 import { handGradedCategoriesForTeam } from "../../constants/ui";
 import { readEvalCategoryConfig } from "../../utils/evalCategories";
 import type { EvalRound } from "../../utils/evalScoring";
@@ -27,7 +27,7 @@ export const EvalComparePage = memo(() => {
   // Jersey-number order, same as the eval workspace's grading cards.
   const players = useMemo(() => {
     return ((team.players || []) as Player[])
-      .filter((p) => !isDepartedPlayer(p))
+      .filter((p) => isRosterPlayer(p))
       .slice()
       .sort((a, b) => {
         const na = parseInt(String(a.number ?? ""), 10);

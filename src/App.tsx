@@ -251,6 +251,11 @@ const TournamentDetailPage = lazy(() =>
     default: m.TournamentDetailPage,
   })),
 );
+const AddTournamentSubPage = lazy(() =>
+  import("./screens/schedule/AddTournamentSubPage").then((m) => ({
+    default: m.AddTournamentSubPage,
+  })),
+);
 const AddPlayerPage = lazy(() =>
   import("./screens/roster/AddPlayerPage").then((m) => ({
     default: m.AddPlayerPage,
@@ -986,6 +991,10 @@ const MainShell = () => {
                 <Route
                   path="/schedule/tournaments/:tournamentId"
                   element={<TournamentDetailPage />}
+                />
+                <Route
+                  path="/schedule/tournaments/:tournamentId/subs/new"
+                  element={<AddTournamentSubPage />}
                 />
                 <Route
                   path="/schedule/game/:gameId/final"

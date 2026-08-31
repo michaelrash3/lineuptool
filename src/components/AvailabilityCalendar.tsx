@@ -3,7 +3,7 @@ import { Icons } from "../icons";
 import {
   buildMonthGrid,
   countAvailableOnDate,
-  isDepartedPlayer,
+  isRosterPlayer,
   playersOutOnDate,
 } from "../utils/helpers";
 
@@ -50,7 +50,7 @@ export const AvailabilityCalendar = ({
     [view.year, view.month],
   );
   const activeCount = useMemo(
-    () => (players || []).filter((p) => !isDepartedPlayer(p)).length,
+    () => (players || []).filter((p) => isRosterPlayer(p)).length,
     [players],
   );
   useEffect(() => {

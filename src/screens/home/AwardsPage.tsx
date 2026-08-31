@@ -14,6 +14,7 @@ import {
   formatStatDisplay,
   type StatDisplayKind,
 } from "../../utils/stats";
+import { rosterOnly } from "../../utils/subPlayers";
 
 // /awards — auto season awards / superlatives. Each award nominates a winner
 // straight from the team's data; the coach can override per award (persisted
@@ -31,7 +32,11 @@ const NONE = "__none__";
 export const AwardsPage = memo(() => {
   const { team, updateTeam } = useTeam();
   const back = useBackOrFallback("/");
-  const players: any[] = useMemo(() => team?.players || [], [team?.players]);
+  // Season awards go to the roster, never to a weekend sub.
+  const players: any[] = useMemo(
+    () => rosterOnly<any>(team?.players || []),
+    [team?.players],
+  );
   const games: any[] = useMemo(() => team?.games || [], [team?.games]);
   const practices: any[] = useMemo(
     () => team?.practices || [],

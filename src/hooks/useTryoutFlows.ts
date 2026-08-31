@@ -4,7 +4,7 @@ import type { DocumentData } from "firebase/firestore";
 import {
   blankStats,
   normalizeTryoutSessions,
-  isDepartedPlayer,
+  isRosterPlayer,
   randomCode,
   genId,
   scrubUndefined,
@@ -708,7 +708,7 @@ export const useTryoutFlows = ({
       const full = `${sub.firstName || ""} ${sub.lastName || ""}`
         .trim()
         .toLowerCase();
-      const active = players.filter((p: any) => !isDepartedPlayer(p));
+      const active = players.filter((p: any) => isRosterPlayer(p));
       if (dob) {
         const byDob = active.filter(
           (p: any) => String(p.dob || "").trim() === dob,

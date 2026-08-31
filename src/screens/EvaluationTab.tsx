@@ -14,7 +14,7 @@ import {
   evalStatHint,
   evalRoundRecency,
   headEvalRounds,
-  isDepartedPlayer,
+  isRosterPlayer,
 } from "../utils/helpers";
 import {
   EVAL_GROUPS_UNIVERSAL,
@@ -130,7 +130,7 @@ export const EvaluationTab = memo(() => {
   const players = useMemo<Player[]>(() => {
     // Departed players are excluded everywhere but the Roster tab.
     return ((rawPlayers || []) as Player[])
-      .filter((p) => !isDepartedPlayer(p))
+      .filter((p) => isRosterPlayer(p))
       .slice()
       .sort((a, b) => {
         const na = parseInt(String(a.number ?? ""), 10);

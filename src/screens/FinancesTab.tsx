@@ -39,6 +39,7 @@ import {
   isValidIsoDate,
   parseMoneyInput,
   round2,
+  rosterOnly,
 } from "../utils/helpers";
 import type { LedgerRow } from "../utils/helpers";
 import type { BudgetItem, Player, Team, TeamFinances } from "../types";
@@ -80,7 +81,12 @@ export const FinancesTab = memo(() => {
   // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
   // the known Team shape for this screen.
   const team = teamRaw as Team;
-  const players: Player[] = useMemo(() => team.players || [], [team]);
+  // Team fees are a season-roster obligation — a borrowed tournament sub
+  // never appears on the fee ledger.
+  const players: Player[] = useMemo(
+    () => rosterOnly<Player>(team.players || []),
+    [team],
+  );
   const finances: TeamFinances = useMemo(() => team.finances || {}, [team]);
 
   // All mutations go through updateFinances (utils/financeUpdates.ts): narrow

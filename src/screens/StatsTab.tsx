@@ -32,7 +32,7 @@ import {
   buildSeasonBenchImbalance,
   recentGameLines,
   aggregateGameLines,
-  isDepartedPlayer,
+  isRosterPlayer,
 } from "../utils/helpers";
 import type { BenchImbalanceEntry } from "../utils/helpers";
 import { ageFromTeamAge, isKidPitchFormat } from "../constants/ui";
@@ -365,7 +365,7 @@ export const StatsTab = memo(() => {
   const stripped = team.statDisplay === "stripped";
   // Departed players are excluded everywhere but the Roster tab.
   const players: Player[] = useMemo(
-    () => (team.players || []).filter((p: Player) => !isDepartedPlayer(p)),
+    () => (team.players || []).filter((p: Player) => isRosterPlayer(p)),
     [team],
   );
   const games: Game[] = useMemo(() => team.games || [], [team]);

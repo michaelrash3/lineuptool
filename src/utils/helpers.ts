@@ -55,6 +55,22 @@ export {
   playersOutOnDate,
 } from "./availability";
 
+// Tournament-sub (guest player) helpers live in ./subPlayers, re-exported so
+// screens can pull them from the same barrel as the availability predicates
+// they sit beside.
+export {
+  isSubPlayer,
+  isRosterPlayer,
+  rosterOnly,
+  subsForTournament,
+  subGameIds,
+  subGames,
+  playsGame,
+  playersForGame,
+  tournamentForGame,
+  subTournamentLabel,
+} from "./subPlayers";
+
 // Game-status predicates now live in ./gameStatus (imported for the many
 // in-module callers, re-exported for existing import sites).
 import { isGameFinalized, countsTowardStats } from "./gameStatus";
