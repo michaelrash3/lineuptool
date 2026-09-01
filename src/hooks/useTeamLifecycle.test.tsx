@@ -899,6 +899,69 @@ describe("advanceSeason", () => {
   });
 });
 
+describe("advanceSeason — tournament subs keep their stats", () => {
+  const withSub = () => {
+    const base: any = makeFixture();
+    base.players = [
+      ...base.players,
+      {
+        id: "s1",
+        name: "Guest Arm",
+        isSub: true,
+        subTournamentIds: ["trn1"],
+        stats: { ...blankStats(), ab: 6, h: 3 },
+        pitching: { recentPitches: 40, lastPitchDate: "2025-09-20" },
+        pastSeasons: [],
+      },
+    ];
+    return base;
+  };
+
+  const advanceWith = async (teamData: any) => {
+    const { result, updateTeam } = setup({
+      teamDataRef: { current: teamData } as any,
+    });
+    await act(async () => {
+      await result.current.advanceSeason();
+    });
+    return updateTeam.mock.calls[0][0];
+  };
+
+  it("carries the sub forward instead of deleting them", async () => {
+    const patch = await advanceWith(withSub());
+    const ids = patch.players.map((p: any) => p.id);
+    // Ray returns, Lee was marked not-returning and is dropped, and the sub
+    // survives — a guest is never asked the Returning question.
+    expect(ids).toContain("s1");
+    expect(ids).toContain("p1");
+    expect(ids).not.toContain("p2");
+  });
+
+  it("archives the sub's season line and resets the live counters", async () => {
+    const patch = await advanceWith(withSub());
+    const sub = patch.players.find((p: any) => p.id === "s1");
+    expect(sub.pastSeasons).toHaveLength(1);
+    expect(sub.pastSeasons[0]).toMatchObject({
+      season: "Fall 2025",
+      stats: expect.objectContaining({ ab: 6, h: 3 }),
+    });
+    // Same treatment as a roster player: the archive keeps the line, the live
+    // stats and pitch counters start the new season clean.
+    expect(sub.stats.ab).toBe(0);
+    expect(sub.pitching).toEqual({ recentPitches: 0, lastPitchDate: null });
+  });
+
+  it("keeps them flagged a sub, not stamped a returning roster player", async () => {
+    const patch = await advanceWith(withSub());
+    const sub = patch.players.find((p: any) => p.id === "s1");
+    expect(sub.isSub).toBe(true);
+    expect(sub.playerStatus).toBeUndefined();
+    // The tournaments array is wiped by the advance, so the attachment goes
+    // stale — which is what makes them inert for next season's games.
+    expect(patch.tournaments).toEqual([]);
+  });
+});
+
 describe("uploadLogo", () => {
   it("downscales the image, saves the data URL, and toasts", async () => {
     const { result, updateTeam, toast } = setup();

@@ -280,10 +280,14 @@ export const useTeamLifecycle = ({
       const archivedSeason = teamData.currentSeason;
       const archivedAge = teamData.teamAge;
       const archivedFormat = teamData.pitchingFormat;
-      // Tournament subs are weekend guests, not roster: they neither get a
-      // stats archive nor carry into the new season (the tournaments they
-      // were attached to are wiped below, so a carried-over sub would be an
-      // unreachable row).
+      // Tournament subs are weekend guests, not roster — but their stats and
+      // pitching log are real and are KEPT: they archive to pastSeasons like
+      // everyone else and carry into the new season as subs, listed under
+      // Tournament Subs on the Roster tab. The tournaments they were attached
+      // to are wiped below, which leaves the attachment stale and makes them
+      // inert for games (playsGame resolves nothing) — exactly right for a
+      // record of who played for you last year. The Returning Y/N question is
+      // never put to a guest, so isReturning must not decide their fate.
       const subCount = teamData.players.filter((p: Player) =>
         isSubPlayer(p),
       ).length;
@@ -294,10 +298,8 @@ export const useTeamLifecycle = ({
       // slot; non-returners (explicit returning:false OR legacy
       // released/declined) are archived but dropped from the next
       // roster.
-      const isDropped = (p: Player) => isSubPlayer(p) || !isReturning(p);
-      const droppedCount = teamData.players.filter(
-        (p: Player) => !isSubPlayer(p) && isDropped(p),
-      ).length;
+      const isDropped = (p: Player) => !isSubPlayer(p) && !isReturning(p);
+      const droppedCount = teamData.players.filter(isDropped).length;
       // Tryout accepts ride on the same `team.players` array with
       // playerStatus === "accepted" — they join the new roster directly.
       const acceptedCount = teamData.players.filter(
@@ -334,7 +336,7 @@ export const useTeamLifecycle = ({
         (subCount > 0
           ? `• ${subCount} tournament sub${
               subCount === 1 ? "" : "s"
-            } will be dropped with the tournaments\n`
+            } keep their stats and stay under Tournament Subs\n`
           : "") +
         `• Record being archived: ${wins}-${losses}${
           ties > 0 ? "-" + ties : ""
@@ -452,9 +454,11 @@ export const useTeamLifecycle = ({
             pastSeasons: past,
             stats: blankStats(),
             pitching: { recentPitches: 0, lastPitchDate: null },
-            // After advance, every surviving player is treated as
-            // returning for the new season.
-            playerStatus: "returning",
+            // After advance, every surviving ROSTER player is treated as
+            // returning for the new season. A sub was never asked the
+            // Returning question — stamping one "returning" would file a
+            // guest as a returner in next year's tryout planning.
+            ...(isSubPlayer(p) ? {} : { playerStatus: "returning" }),
           };
         });
 
