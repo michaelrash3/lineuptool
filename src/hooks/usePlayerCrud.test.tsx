@@ -338,6 +338,46 @@ describe("usePlayerCrud — tournament subs", () => {
     expect(toast.push).toHaveBeenCalledTimes(2);
   });
 
+  it("addSubToTournament reuses the record so stats and pitch log carry over", () => {
+    const players = [
+      {
+        id: "s1",
+        name: "Guest",
+        isSub: true,
+        subTournamentIds: ["t1"],
+        stats: { ab: 9, h: 4 },
+        pitching: {
+          recentPitches: 42,
+          log: [{ date: "2026-06-06", pitches: 42 }],
+        },
+      },
+    ];
+    const { result, teamData, updateTeamArrays } = setup({ players });
+    act(() => {
+      result.current.addSubToTournament("s1", "t2");
+    });
+    const next = applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0]);
+    // One record, now attached to both weekends — NOT a second row, which is
+    // what would hand the rest rules a fresh arm.
+    expect(next.players).toHaveLength(1);
+    expect(next.players[0].subTournamentIds).toEqual(["t1", "t2"]);
+    expect(next.players[0].stats).toEqual({ ab: 9, h: 4 });
+    expect(next.players[0].pitching.recentPitches).toBe(42);
+  });
+
+  it("addSubToTournament is idempotent and ignores unknown players", () => {
+    const players = [
+      { id: "s1", name: "Guest", isSub: true, subTournamentIds: ["t1"] },
+    ];
+    const { result, updateTeamArrays } = setup({ players });
+    act(() => {
+      result.current.addSubToTournament("s1", "t1");
+      result.current.addSubToTournament("nobody", "t2");
+      result.current.addSubToTournament("s1", "");
+    });
+    expect(updateTeamArrays).not.toHaveBeenCalled();
+  });
+
   it("removeSubFromTournament only detaches while other tournaments remain", async () => {
     const players = [
       {

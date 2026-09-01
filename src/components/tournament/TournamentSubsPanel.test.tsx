@@ -1,5 +1,5 @@
 import React from "react";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { TournamentSubsPanel } from "./TournamentSubsPanel";
@@ -20,6 +20,8 @@ const players = [
     isSub: true,
     subTournamentIds: ["t1"],
     comfortablePositions: ["P", "1B"],
+    stats: { ab: 9, h: 3, avg: 0.333 },
+    pitching: { recentPitches: 40 },
   },
   {
     id: "s2",
@@ -31,14 +33,14 @@ const players = [
   { id: "s3", name: "Anywhere Kid", isSub: true, subTournamentIds: ["t1"] },
 ];
 
-const renderPanel = (over: any = {}) =>
+const renderPanel = (over: any = {}, list: any[] = players) =>
   renderWithProviders(
     <MemoryRouter>
       <TournamentSubsPanel tournament={tournament as any} />
     </MemoryRouter>,
     {
       team: {
-        team: { players, games: [], tournaments: [tournament] },
+        team: { players: list, games: [], tournaments: [tournament] },
         currentRole: "head",
         ...over,
       },
@@ -61,17 +63,61 @@ describe("TournamentSubsPanel", () => {
     expect(screen.getByText("Anywhere")).toBeInTheDocument();
   });
 
-  it("links the head to the add-sub page", () => {
+  it("links the head to the new-sub page", () => {
     renderPanel();
-    expect(screen.getByRole("link", { name: "Add sub" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "New sub" })).toHaveAttribute(
       "href",
       "/schedule/tournaments/t1/subs/new",
     );
   });
 
-  it("hides both add and remove from an assistant", () => {
+  it("links each sub to their profile, the only place to edit or read them", () => {
+    renderPanel();
+    expect(screen.getByRole("link", { name: /Guest Arm/ })).toHaveAttribute(
+      "href",
+      "/roster/s1",
+    );
+  });
+
+  it("shows the stats a sub has piled up, so they are visibly kept", () => {
+    renderPanel();
+    expect(screen.getByText(/\.333 · 9 AB/)).toBeInTheDocument();
+    expect(screen.getByText(/40 recent pitches/)).toBeInTheDocument();
+  });
+
+  it("offers past subs for reuse rather than a fresh record", async () => {
+    const addSubToTournament = jest.fn();
+    renderPanel({ addSubToTournament });
+    // "Other Weekend Kid" is a sub on t2 — reusable here.
+    await userEvent.click(screen.getByRole("button", { name: "Add past sub" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: /Other Weekend Kid/ }),
+    );
+    expect(addSubToTournament).toHaveBeenCalledWith("s2", "t1");
+  });
+
+  it("does not offer subs already on this tournament", async () => {
+    renderPanel();
+    await userEvent.click(screen.getByRole("button", { name: "Add past sub" }));
+    // Guest Arm is already on t1, so only the other-weekend subs are offered.
+    // Scoped to the reuse list: Guest Arm's own row still carries a
+    // "Remove Guest Arm" button elsewhere on the card.
+    const list = within(screen.getByRole("group", { name: "Past subs" }));
+    expect(list.queryByText("Guest Arm")).not.toBeInTheDocument();
+    expect(list.getByText("Other Weekend Kid")).toBeInTheDocument();
+  });
+
+  it("hides the reuse control when there are no past subs to add", () => {
+    renderPanel({}, [players[0], players[1]]);
+    expect(
+      screen.queryByRole("button", { name: "Add past sub" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides every edit control from an assistant", () => {
     renderPanel({ currentRole: "assistant" });
-    expect(screen.queryByRole("link", { name: "Add sub" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "New sub" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add past sub" })).toBeNull();
     expect(
       screen.queryByRole("button", { name: /Remove Guest Arm/ }),
     ).toBeNull();

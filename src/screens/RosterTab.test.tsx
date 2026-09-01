@@ -366,12 +366,66 @@ describe("RosterTab — tournament subs are not roster", () => {
     },
   ];
 
-  it("keeps subs out of the roster list", () => {
+  it("lists subs in their own section, never among the roster", () => {
     renderWithProviders(<RosterTab />, {
       team: { team: { players: withSub, games: [] }, currentRole: "head" },
     });
     expect(screen.getAllByText("Ava Rivera").length).toBeGreaterThan(0);
-    expect(screen.queryByText("Guest Arm")).not.toBeInTheDocument();
+    // The guest appears exactly once on the page, inside the subs group —
+    // not as a roster row above it.
+    const subs = within(screen.getByRole("group", { name: "Tournament subs" }));
+    expect(subs.getByText("Guest Arm")).toBeInTheDocument();
+    expect(screen.getAllByText("Guest Arm")).toHaveLength(1);
+    expect(subs.queryByText("Ava Rivera")).not.toBeInTheDocument();
+  });
+
+  it("keeps their stats findable in a Tournament Subs section", () => {
+    const withStats = [
+      ...players,
+      {
+        id: "s1",
+        name: "Guest Arm",
+        number: "42",
+        isSub: true,
+        subTournamentIds: ["t1"],
+        stats: { ab: 9, h: 3, avg: 0.333 },
+      },
+    ];
+    renderWithProviders(<RosterTab />, {
+      team: {
+        team: {
+          players: withStats,
+          games: [],
+          tournaments: [{ id: "t1", name: "Memorial Bash", gameIds: ["g1"] }],
+        },
+        currentRole: "head",
+      },
+    });
+    // Its own section, clear of the roster list above it.
+    expect(screen.getByText("Tournament Subs")).toBeInTheDocument();
+    // Named, attributed to their weekend, with the stats they piled up, and
+    // tappable through to their profile — the only place to edit a guest.
+    expect(
+      screen.getByRole("button", { name: /Guest Arm/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Memorial Bash")).toBeInTheDocument();
+    expect(screen.getByText(/\.333 · 9 AB/)).toBeInTheDocument();
+  });
+
+  it("reads a sub as unattached once their tournament is gone", () => {
+    const orphan = [
+      ...players,
+      { id: "s1", name: "Guest Arm", isSub: true, subTournamentIds: ["gone"] },
+    ];
+    renderWithProviders(<RosterTab />, {
+      team: {
+        team: { players: orphan, games: [], tournaments: [] },
+        currentRole: "head",
+      },
+    });
+    // Survives a season rollover (which wipes tournaments) as a record
+    // rather than vanishing.
+    expect(screen.getByText("No tournament")).toBeInTheDocument();
   });
 
   it("keeps subs out of the Active count and the roster cap", () => {

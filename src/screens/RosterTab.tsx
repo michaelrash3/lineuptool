@@ -6,7 +6,8 @@ import {
   formatDateDisplay,
   rosterOnly,
 } from "../utils/helpers";
-import { rosterDisplayOrder } from "../utils/rosterOrder";
+import { byJerseyNumber, rosterDisplayOrder } from "../utils/rosterOrder";
+import { isSubPlayer, subTournamentLabel } from "../utils/subPlayers";
 import { useTeam, useTeamActions, useUI, useToast } from "../contexts";
 import { getPlayerInitials, EmptyState } from "../components/shared";
 import { PortalShareCard } from "../components/PortalShareCard";
@@ -475,6 +476,18 @@ export const RosterTab = memo(() => {
     [players],
   );
 
+  // Tournament subs are not roster — they are excluded from the list above,
+  // the Active count and the cap. They still need a home: their stats and
+  // pitching log live on their player record, and this is the only place to
+  // find one outside the tournament they were borrowed for.
+  const subPlayers = useMemo(
+    () =>
+      (allTeamPlayers || [])
+        .filter((p: any) => isSubPlayer(p))
+        .sort(byJerseyNumber),
+    [allTeamPlayers],
+  );
+
   // AND-combine: a player must match the search and every active filter chip.
   const visiblePlayers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -502,6 +515,14 @@ export const RosterTab = memo(() => {
     () => visiblePlayers.filter((p) => getRosterStatus(p) === "departed"),
     [visiblePlayers],
   );
+
+  const visibleSubs = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return subPlayers;
+    return subPlayers.filter((p: any) =>
+      (p.name || "").toLowerCase().includes(q),
+    );
+  }, [subPlayers, searchQuery]);
 
   const filtersActive = activeFilters.size > 0 || searchQuery.trim().length > 0;
 
@@ -711,6 +732,71 @@ export const RosterTab = memo(() => {
                         </StaggerItem>
                       ))}
                     </StaggerList>
+                  </div>
+                )}
+                {visibleSubs.length > 0 && (
+                  <div
+                    className={
+                      visibleActive.length > 0 || visibleDeparted.length > 0
+                        ? "mt-6"
+                        : ""
+                    }
+                  >
+                    <div className="flex items-center gap-2 px-1 pb-2 mb-1 border-b border-line">
+                      <Icons.UserPlus className="w-4 h-4 text-ink-3" />
+                      <h3 className="text-xs font-black uppercase tracking-widest text-ink-3">
+                        Tournament Subs
+                      </h3>
+                      <span className="t-eyebrow text-ink-3 tabular-nums">
+                        {visibleSubs.length}
+                      </span>
+                    </div>
+                    <p className="px-1 pb-2 text-[11px] font-bold text-ink-3 leading-snug">
+                      Guests borrowed for a weekend. They never count toward
+                      your roster or its cap, and they stay out of season stats,
+                      evaluations and fees — but their own stats and pitch count
+                      are kept here.
+                    </p>
+                    <div
+                      role="group"
+                      aria-label="Tournament subs"
+                      className="flex flex-col divide-y divide-line border-b border-line"
+                    >
+                      {visibleSubs.map((p: any) => {
+                        const s = p.stats || {};
+                        const ab = Number(s.ab) || 0;
+                        const ip = Number(s.ip) || 0;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => openPlayerProfile(p.id)}
+                            className="px-1 py-2.5 flex items-center gap-3 text-left hover:bg-surface-2 transition-colors group"
+                          >
+                            <span className="text-[11px] font-black uppercase tracking-widest text-ink-3 tabular-nums w-9 shrink-0">
+                              {p.number ? `#${p.number}` : "--"}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-bold text-ink text-sm truncate group-hover:text-team-primary transition-colors">
+                                {p.name}
+                              </span>
+                              <span className="block t-chip text-ink-3 normal-case tracking-normal truncate">
+                                {subTournamentLabel(p, team?.tournaments)}
+                              </span>
+                            </span>
+                            {(ab > 0 || ip > 0) && (
+                              <span className="t-chip text-ink-3 tabular-nums whitespace-nowrap shrink-0">
+                                {ab > 0
+                                  ? `${formatStat(s.avg)} · ${ab} AB`
+                                  : ""}
+                                {ab > 0 && ip > 0 ? " · " : ""}
+                                {ip > 0 ? `${ip} IP` : ""}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </>

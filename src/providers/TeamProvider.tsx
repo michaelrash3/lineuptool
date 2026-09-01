@@ -2137,6 +2137,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const {
     addPlayer,
     addSubPlayer,
+    addSubToTournament,
     updatePlayer,
     updatePlayerNested,
     removePlayer,
@@ -3272,6 +3273,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       updateTeamArrays,
       addPlayer,
       addSubPlayer,
+      addSubToTournament,
       updatePlayer,
       updatePlayerNested,
       removePlayer,
@@ -3364,6 +3366,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       updateTeamArrays,
       addPlayer,
       addSubPlayer,
+      addSubToTournament,
       updatePlayer,
       updatePlayerNested,
       removePlayer,

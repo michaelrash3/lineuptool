@@ -350,6 +350,52 @@ export const usePlayerCrud = ({
     [teamDataRef, updateTeamArrays, toast, confirm, db, appId, teamId],
   );
 
+  // Bring a sub the team has used before into another tournament. Reusing the
+  // record is the whole point: stats and — critically — the pitching log live
+  // on the player, so minting a second row for the same kid would hand the
+  // rest rules a fresh arm and under-count a real workload across weekends.
+  // Idempotent, so a double-tap can't duplicate the attachment.
+  const addSubToTournament = useCallback(
+    (id: string, tournamentId: string) => {
+      if (!id || !tournamentId) return;
+      const player = (teamDataRef.current.players || []).find(
+        (p: Player) => p.id === id,
+      );
+      if (!player) return;
+      const current = Array.isArray(player.subTournamentIds)
+        ? player.subTournamentIds
+        : [];
+      if (current.includes(tournamentId)) return;
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: (items: Player[]) =>
+          items.map((p) =>
+            p.id === id
+              ? {
+                  ...p,
+                  // Re-flag defensively: a record that lost isSub somehow
+                  // would otherwise be silently promoted onto the roster.
+                  isSub: true,
+                  subTournamentIds: [
+                    ...(Array.isArray(p.subTournamentIds)
+                      ? p.subTournamentIds
+                      : []),
+                    tournamentId,
+                  ],
+                }
+              : p,
+          ),
+      });
+      toast.push({
+        kind: "success",
+        title: `${player.name} added`,
+        message: "Their stats and pitch count carry over from before.",
+      });
+    },
+    [teamDataRef, updateTeamArrays, toast],
+  );
+
   // Drop a sub from one tournament. Still attached elsewhere -> just detach;
   // otherwise fall through to the full removePlayer cascade so the guest
   // leaves the lineups, attendance and pitch plans they were written into
@@ -373,10 +419,14 @@ export const usePlayerCrud = ({
         });
         return;
       }
+      // Last tournament: this is a real delete, and it takes their stats and
+      // pitching log with it. Say so — a coach who only wants them off this
+      // weekend has no other tournament to detach from, so the confirm is the
+      // only place that distinction can be made.
       await removePlayer(id, {
         title: "Remove this sub?",
         message:
-          "Takes them off this tournament's attendance, lineups, and pitch plan. Nothing on your season roster changes. You can undo right after.",
+          "This was their only tournament, so their record goes too — stats, pitch count and all. They leave this weekend's attendance, lineups and pitch plan. Nothing on your season roster changes, and you can undo right after.",
         confirmLabel: "Remove sub",
       });
     },
@@ -386,6 +436,7 @@ export const usePlayerCrud = ({
   return {
     addPlayer,
     addSubPlayer,
+    addSubToTournament,
     updatePlayer,
     updatePlayerNested,
     removePlayer,
