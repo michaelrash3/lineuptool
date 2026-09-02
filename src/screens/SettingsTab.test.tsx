@@ -1,9 +1,20 @@
 import React from "react";
 import { screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { SettingsTab } from "./SettingsTab";
 import { renderWithProviders } from "../test-utils";
+
+// Settings mounts behind the same routes App.tsx registers: /settings is the
+// category index and /settings/:section is one open category. Tests render it
+// this way so clicking a category actually navigates (and so a test can deep
+// link straight into a panel, which is the point of the URLs).
+const settingsRoutes = (
+  <Routes>
+    <Route path="/settings" element={<SettingsTab />} />
+    <Route path="/settings/:section" element={<SettingsTab />} />
+  </Routes>
+);
 
 const teamData = {
   leagueRuleSet: "USSSA",
@@ -27,8 +38,8 @@ const teamData = {
 describe("SettingsTab", () => {
   it("renders the settings shell on the default Team section", () => {
     renderWithProviders(
-      <MemoryRouter>
-        <SettingsTab />
+      <MemoryRouter initialEntries={["/settings"]}>
+        {settingsRoutes}
       </MemoryRouter>,
       {
         team: { team: teamData, currentRole: "head", realRole: "head" },
@@ -45,8 +56,8 @@ describe("SettingsTab", () => {
 
   it("persists a league-rules change via updateTeam (interaction)", async () => {
     const { teamValue } = renderWithProviders(
-      <MemoryRouter>
-        <SettingsTab />
+      <MemoryRouter initialEntries={["/settings"]}>
+        {settingsRoutes}
       </MemoryRouter>,
       {
         team: {
@@ -73,8 +84,8 @@ describe("SettingsTab", () => {
 
   it("renames the team from Settings (commit on blur, blank snaps back)", async () => {
     const { teamValue } = renderWithProviders(
-      <MemoryRouter>
-        <SettingsTab />
+      <MemoryRouter initialEntries={["/settings"]}>
+        {settingsRoutes}
       </MemoryRouter>,
       {
         team: {
@@ -107,8 +118,8 @@ describe("SettingsTab", () => {
 
   it("no longer offers a Reminders section", () => {
     renderWithProviders(
-      <MemoryRouter>
-        <SettingsTab />
+      <MemoryRouter initialEntries={["/settings"]}>
+        {settingsRoutes}
       </MemoryRouter>,
       {
         team: { team: teamData, currentRole: "head", realRole: "head" },
@@ -129,8 +140,8 @@ describe("SettingsTab", () => {
     const user = userEvent.setup();
     const setCoachRole = jest.fn();
     renderWithProviders(
-      <MemoryRouter>
-        <SettingsTab />
+      <MemoryRouter initialEntries={["/settings"]}>
+        {settingsRoutes}
       </MemoryRouter>,
       {
         team: {
@@ -154,7 +165,7 @@ describe("SettingsTab", () => {
         },
       },
     );
-    await user.click(screen.getByRole("button", { name: /^Staff$/ }));
+    await user.click(screen.getByRole("link", { name: /^Staff$/ }));
     // Display-only names block is clearly relabeled.
     expect(screen.getByText("Lineup-Card Coaches")).toBeInTheDocument();
     // Real-access block resolves the member's name from coachContacts (not a
@@ -168,8 +179,8 @@ describe("SettingsTab", () => {
 
   it("turns a feature off and back on from the Features section", async () => {
     const { teamValue } = renderWithProviders(
-      <MemoryRouter>
-        <SettingsTab />
+      <MemoryRouter initialEntries={["/settings"]}>
+        {settingsRoutes}
       </MemoryRouter>,
       {
         team: {
@@ -186,7 +197,7 @@ describe("SettingsTab", () => {
         },
       },
     );
-    await userEvent.click(screen.getByRole("button", { name: /Features/ }));
+    await userEvent.click(screen.getByRole("link", { name: /Features/ }));
     // Finances is on → unchecking it disables it ALONGSIDE the stored tryouts.
     const finances = screen.getByRole("checkbox", {
       name: "Finances feature",
@@ -207,11 +218,75 @@ describe("SettingsTab", () => {
   });
 });
 
+describe("SettingsTab — category URLs", () => {
+  const renderAt = (path: string) =>
+    renderWithProviders(
+      <MemoryRouter initialEntries={[path]}>{settingsRoutes}</MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...teamData,
+            ownerId: "ownerUID",
+            members: ["ownerUID"],
+          },
+          currentRole: "head",
+          realRole: "head",
+          user: { uid: "ownerUID" },
+        },
+        ui: {
+          isAddingCoach: false,
+          setIsAddingCoach: jest.fn(),
+          newCoachForm: {},
+          setNewCoachForm: jest.fn(),
+        },
+      },
+    );
+
+  // The category used to live in useState, so /settings was the only address
+  // the whole screen had — nothing could link to a panel, a reload dropped
+  // you back on Team, and on a phone "back" was an in-page button rather than
+  // the browser's.
+  it("opens the category named by the URL on a cold load", () => {
+    renderAt("/settings/staff");
+    expect(screen.getByText("Lineup-Card Coaches")).toBeInTheDocument();
+  });
+
+  it("opens a different category from its own URL", () => {
+    renderAt("/settings/features");
+    // A toggle label only the Features panel renders.
+    expect(screen.getByText("Tournament Ops")).toBeInTheDocument();
+  });
+
+  it("defaults to Team when no category segment is present", () => {
+    renderAt("/settings");
+    expect(screen.getByText("Game Default Configuration")).toBeInTheDocument();
+  });
+
+  it("links every category to its own address", () => {
+    renderAt("/settings");
+    expect(screen.getByRole("link", { name: /^Staff$/ })).toHaveAttribute(
+      "href",
+      "/settings/staff",
+    );
+    expect(screen.getByRole("link", { name: /^Advanced$/ })).toHaveAttribute(
+      "href",
+      "/settings/advanced",
+    );
+  });
+
+  it("falls back to the index for an unknown category segment", () => {
+    renderAt("/settings/not-a-real-section");
+    // Bounced to /settings, which renders the Team panel — never a titleless
+    // empty panel.
+    expect(screen.getByText("Game Default Configuration")).toBeInTheDocument();
+  });
+});
+
 describe("SettingsTab — 9U+ pitching format is fixed to Kid Pitch", () => {
   const renderSettings = (over: Record<string, unknown> = {}) =>
     renderWithProviders(
-      <MemoryRouter>
-        <SettingsTab />
+      <MemoryRouter initialEntries={["/settings"]}>
+        {settingsRoutes}
       </MemoryRouter>,
       {
         team: {
@@ -255,8 +330,8 @@ describe("SettingsTab — 9U+ pitching format is fixed to Kid Pitch", () => {
 describe("SettingsTab — eval categories", () => {
   const renderPanel = async (over: Record<string, unknown> = {}) => {
     const rendered = renderWithProviders(
-      <MemoryRouter>
-        <SettingsTab />
+      <MemoryRouter initialEntries={["/settings"]}>
+        {settingsRoutes}
       </MemoryRouter>,
       {
         team: {
@@ -273,7 +348,7 @@ describe("SettingsTab — eval categories", () => {
         },
       },
     );
-    await userEvent.click(screen.getByRole("button", { name: /Evaluations/ }));
+    await userEvent.click(screen.getByRole("link", { name: /Evaluations/ }));
     return rendered;
   };
 

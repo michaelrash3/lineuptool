@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
 import { auth } from "../firebase";
@@ -8,6 +8,7 @@ import { useConfirm, useTeam, useUI, useToast } from "../contexts";
 import { RecordBadge, Eyebrow } from "./shared";
 import { useTheme } from "../hooks/useTheme";
 import { APP_NAME } from "../constants/ui";
+import { TAB_TO_PATH } from "../hooks/useMainShellRouting";
 
 // Light/dark toggle — sun in dark mode (tap to go light), moon in light mode.
 const ThemeToggle = () => {
@@ -176,9 +177,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
     newTeamName,
     setNewTeamName,
     activeTab,
-    setActiveTab,
   } = useUI();
-  const navigate = useNavigate();
   const [isJoiningTeam, setIsJoiningTeam] = React.useState(false);
   const [joinCodeInput, setJoinCodeInput] = React.useState("");
   // New teams must explicitly pick a type (Rec vs Tournament) — no default.
@@ -247,12 +246,9 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
           <NavDrawer
             navButtons={navButtons}
             activeTab={activeTab}
-            setActiveTab={setActiveTab}
             teamName={activeTeamName}
             subtitle={subtitle}
             showSettings={currentRole !== "assistant"}
-            onSettings={() => setActiveTab?.("settings")}
-            onHelp={() => navigate("/help", { state: { from: activeTab } })}
             themeToggle={<ThemeToggle />}
             onSignOut={doSignOut}
           />
@@ -474,30 +470,20 @@ const activeTabStyle = {
 // the drawer auto-closes the instant one is picked. Account-level actions
 // (Settings, theme, Sign Out) sit pinned at the bottom, where they used to
 // live in the header's right rail.
-const NavRow = ({
-  icon: Icon,
-  label,
-  isActive,
-  onClick,
-  role = "menuitem",
-}: any) => (
-  <button
-    type="button"
-    role={role}
-    onClick={onClick}
-    aria-current={isActive ? "page" : undefined}
-    className={`relative w-full text-left flex items-center gap-3 px-3 py-3 rounded-xl font-extrabold text-sm tracking-wide transition-colors border ${
-      isActive
-        ? "shadow-sm"
-        : "text-ink-2 hover:bg-surface-2 hover:text-ink border-transparent"
-    }`}
-    style={isActive ? activeTabStyle : undefined}
-  >
-    {/* Non-color cue for the active item: a leading accent bar whose mere
-        presence (not its hue) marks the current page, so the active state
-        survives color-vision differences and low-contrast team colors. It
-        sits in the row's left padding, so it adds no layout shift.
-        aria-current already conveys the same to screen readers. */}
+const navRowClass = (isActive: boolean) =>
+  `relative w-full text-left flex items-center gap-3 px-3 py-3 rounded-xl font-extrabold text-sm tracking-wide transition-colors border ${
+    isActive
+      ? "shadow-sm"
+      : "text-ink-2 hover:bg-surface-2 hover:text-ink border-transparent"
+  }`;
+
+// Non-color cue for the active item: a leading accent bar whose mere
+// presence (not its hue) marks the current page, so the active state
+// survives color-vision differences and low-contrast team colors. It
+// sits in the row's left padding, so it adds no layout shift.
+// aria-current already conveys the same to screen readers.
+const NavRowBody = ({ icon: Icon, label, isActive }: any) => (
+  <>
     {isActive && (
       <span
         aria-hidden="true"
@@ -506,19 +492,46 @@ const NavRow = ({
       />
     )}
     <Icon className="w-5 h-5 shrink-0" /> {label}
-  </button>
+  </>
 );
+
+// Destinations render as real anchors (`to`), so the drawer behaves like a
+// website's nav: the status bar previews the URL on hover, Cmd/Ctrl/middle
+// click opens a section in a new tab, and right-click offers "Copy link
+// address". Router navigation still handles the plain click, so nothing
+// reloads. Rows that run a command rather than go somewhere (Sign Out) pass
+// `onClick` with no `to` and stay buttons.
+const NavRow = ({ icon, label, isActive, onClick, to, state }: any) =>
+  to ? (
+    <Link
+      to={to}
+      state={state}
+      onClick={onClick}
+      aria-current={isActive ? "page" : undefined}
+      className={navRowClass(isActive)}
+      style={isActive ? activeTabStyle : undefined}
+    >
+      <NavRowBody icon={icon} label={label} isActive={isActive} />
+    </Link>
+  ) : (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={isActive ? "page" : undefined}
+      className={navRowClass(isActive)}
+      style={isActive ? activeTabStyle : undefined}
+    >
+      <NavRowBody icon={icon} label={label} isActive={isActive} />
+    </button>
+  );
 
 export const NavDrawer = memo(
   ({
     navButtons,
     activeTab,
-    setActiveTab,
     teamName,
     subtitle,
     showSettings,
-    onSettings,
-    onHelp,
     themeToggle,
     onSignOut,
   }: any) => {
@@ -539,10 +552,9 @@ export const NavDrawer = memo(
       };
     }, [open]);
 
-    const pick = (id: string) => {
-      setActiveTab(id);
-      setOpen(false);
-    };
+    // Rows navigate by href now, so picking one only has to shut the drawer —
+    // the URL→activeTab sync in useMainShellRouting lights up the new row.
+    const close = () => setOpen(false);
 
     return (
       <>
@@ -572,7 +584,6 @@ export const NavDrawer = memo(
                 onClick={() => setOpen(false)}
               />
               <nav
-                role="menu"
                 aria-label="Primary navigation"
                 className="nav-drawer-panel absolute inset-y-0 left-0 w-[300px] max-w-[88vw] flex flex-col bg-surface/70 supports-[backdrop-filter]:bg-surface/55 backdrop-blur-2xl border-r border-white/20 shadow-2xl"
                 style={{ animation: "drawerIn 0.2s ease-out" }}
@@ -614,8 +625,9 @@ export const NavDrawer = memo(
                         key={btn.id}
                         icon={btn.icon}
                         label={btn.label}
+                        to={TAB_TO_PATH[btn.id] || "/"}
                         isActive={activeTab === btn.id}
-                        onClick={() => pick(btn.id)}
+                        onClick={close}
                       />
                     ))}
                   </div>
@@ -625,20 +637,17 @@ export const NavDrawer = memo(
                   <NavRow
                     icon={Icons.Help}
                     label="Help & Tutorials"
-                    onClick={() => {
-                      setOpen(false);
-                      onHelp?.();
-                    }}
+                    to="/help"
+                    state={{ from: activeTab }}
+                    onClick={close}
                   />
                   {showSettings && (
                     <NavRow
                       icon={Icons.Settings}
                       label="Settings"
+                      to="/settings"
                       isActive={activeTab === "settings"}
-                      onClick={() => {
-                        onSettings?.();
-                        setOpen(false);
-                      }}
+                      onClick={close}
                     />
                   )}
                   <div className="flex items-center gap-2">

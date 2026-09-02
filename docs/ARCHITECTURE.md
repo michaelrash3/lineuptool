@@ -123,12 +123,40 @@ The top level is deliberately concentrated rather than scattered: `src/App.tsx` 
    - `useMainShellRouting.ts` — keeps the active tab in sync with the URL
 
 4. **Reusable components under `src/components/`:**
-   - `Chrome.tsx` — `LoginScreen`, `AppHeader`, `TabBarNav`
+   - `Chrome.tsx` — `LoginScreen`, `AppHeader`, `NavDrawer` (the hamburger drawer; its rows are `<Link>`s, see the URL-state rule below)
    - `shared.tsx` — `Button`, `Chip`, `Eyebrow`, `PlayerAvatar`, `RecordBadge`, `Modal`, `A11yDialog`, plus the image helpers (`downscaleImageToDataURL`, `extractLogoPalette`)
    - `PlayerProfilePage.tsx` — the routed player profile (`/roster/:playerId`); every former modal is a routed page under `src/screens/` per the app-wide modals→pages rule
    - `OnboardingTutorial.tsx` — 7-step CTA tour, gated by `lineuptool.onboardingComplete.v2` in localStorage
    - `EvalGradeCard.tsx` — eval grading card
+   - `ScrollRestoration.tsx` — per-history-entry scroll offsets: a new route starts at the top, Back returns to where you were
    - (first-run Join-vs-Create lives at `src/screens/WelcomePage.tsx`, the routed `/welcome` page)
+
+## The URL is the state
+
+The app should read as a website, not a stack of overlays. Concretely:
+
+- **If it's a place, it has an address.** Anything a coach would link, bookmark,
+  reload, or back out of belongs in the URL — not in `useState`. That covers
+  whole screens, the sub-views inside them (`/stats/trends`), and the panels a
+  settings-style sidebar switches between (`/settings/staff`). This is the same
+  rule as the modals→pages conversion, applied one level down.
+- **If it navigates, it's an anchor.** Destinations render as `<Link>`, never a
+  `<button>` calling `navigate()`. Only a real anchor gives you the browser's
+  URL preview on hover, Cmd/Ctrl/middle-click into a new tab, and right-click →
+  copy link address. The nav drawer's rows (`Chrome.tsx`) and the Settings and
+  Stats sub-navs follow this; `onClick`-only rows are reserved for commands
+  (Sign Out), not for going somewhere.
+- **Validate the segment, don't trust it.** A hand-typed or stale segment
+  (`/settings/<junk>`, `/stats/<junk>`) resolves to the section default or
+  `<Navigate>`s back to the index — never a blank panel.
+- **Back means back.** An in-page "back" control that only flips local state
+  (the old mobile Settings drill-in) is the thing that makes a routed screen
+  still feel like a modal. Link it to the parent URL so the browser and Android
+  back buttons do the same job.
+- **Exception: ephemeral payloads.** A page whose input is extraction output
+  rather than addressable data (`/settings/logo-colors`,
+  `/settings/import/past-season`) travels by navigation state and bounces back
+  to its parent on a cold load. Don't link to those from nav surfaces.
 
 ## Desktop layout (control-panel spec)
 

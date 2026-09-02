@@ -1,5 +1,6 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { NavDrawer } from "./Chrome";
 import { Icons } from "../icons";
 
@@ -13,24 +14,32 @@ const NAV = [
   { id: "finances", icon: Icons.Wallet, label: "Finances" },
 ];
 
+// Surfaces the router's current path so a test can assert that clicking a
+// row actually navigated, rather than that a callback fired.
+const PathProbe = () => {
+  const { pathname } = useLocation();
+  return <div data-testid="path">{pathname}</div>;
+};
+
 const setup = (overrides: any = {}) => {
-  const setActiveTab = jest.fn();
-  const onSettings = jest.fn();
   const onSignOut = jest.fn();
   render(
-    <NavDrawer
-      navButtons={NAV}
-      activeTab={overrides.activeTab ?? "home"}
-      setActiveTab={setActiveTab}
-      teamName="Wildcats"
-      subtitle="Head Coach Dashboard"
-      showSettings={overrides.showSettings ?? true}
-      onSettings={onSettings}
-      themeToggle={<button>Theme</button>}
-      onSignOut={onSignOut}
-    />,
+    <MemoryRouter initialEntries={["/"]}>
+      <NavDrawer
+        navButtons={NAV}
+        activeTab={overrides.activeTab ?? "home"}
+        teamName="Wildcats"
+        subtitle="Head Coach Dashboard"
+        showSettings={overrides.showSettings ?? true}
+        themeToggle={<button>Theme</button>}
+        onSignOut={onSignOut}
+      />
+      <Routes>
+        <Route path="*" element={<PathProbe />} />
+      </Routes>
+    </MemoryRouter>,
   );
-  return { setActiveTab, onSettings, onSignOut };
+  return { onSignOut };
 };
 
 const openDrawer = () =>
@@ -38,24 +47,42 @@ const openDrawer = () =>
     screen.getByRole("button", { name: /open navigation menu/i }),
   );
 
+const drawer = () => screen.queryByRole("navigation", { name: /primary/i });
+
 describe("NavDrawer", () => {
   it("hides the navigation until the hamburger is tapped", () => {
     setup();
     // Drawer panel is not mounted while closed.
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(drawer()).not.toBeInTheDocument();
     openDrawer();
-    expect(
-      screen.getByRole("menu", { name: /primary navigation/i }),
-    ).toBeInTheDocument();
+    expect(drawer()).toBeInTheDocument();
   });
 
   it("lists every destination once the drawer is open", () => {
     setup();
     openDrawer();
     NAV.forEach((b) =>
-      expect(
-        screen.getByRole("menuitem", { name: b.label }),
-      ).toBeInTheDocument(),
+      expect(screen.getByRole("link", { name: b.label })).toBeInTheDocument(),
+    );
+  });
+
+  // The point of the drawer rows being anchors: the browser can preview the
+  // target on hover, Cmd/middle-click opens a section in a new tab, and
+  // right-click offers "Copy link address". A button gives you none of that.
+  it("renders each destination as a real link to its route", () => {
+    setup();
+    openDrawer();
+    expect(screen.getByRole("link", { name: "Finances" })).toHaveAttribute(
+      "href",
+      "/finances",
+    );
+    expect(screen.getByRole("link", { name: "Depth Chart" })).toHaveAttribute(
+      "href",
+      "/depth-chart",
+    );
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+      "href",
+      "/",
     );
   });
 
@@ -63,26 +90,26 @@ describe("NavDrawer", () => {
     setup({ activeTab: "roster" });
     openDrawer();
     const current = screen
-      .getAllByRole("menuitem")
+      .getAllByRole("link")
       .filter((b) => b.getAttribute("aria-current") === "page");
     expect(current).toHaveLength(1);
     expect(current[0].textContent).toContain("Roster");
   });
 
-  it("selects a destination and auto-closes the drawer", () => {
-    const { setActiveTab } = setup();
+  it("navigates to a destination and auto-closes the drawer", () => {
+    setup();
     openDrawer();
-    fireEvent.click(screen.getByRole("menuitem", { name: /finances/i }));
-    expect(setActiveTab).toHaveBeenCalledWith("finances");
+    fireEvent.click(screen.getByRole("link", { name: /finances/i }));
+    expect(screen.getByTestId("path")).toHaveTextContent("/finances");
     // Drawer closes after picking.
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(drawer()).not.toBeInTheDocument();
   });
 
   it("exposes Settings and Sign Out in the footer for head coaches", () => {
-    const { onSettings, onSignOut } = setup({ showSettings: true });
+    const { onSignOut } = setup({ showSettings: true });
     openDrawer();
-    fireEvent.click(screen.getByRole("menuitem", { name: /settings/i }));
-    expect(onSettings).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("link", { name: /settings/i }));
+    expect(screen.getByTestId("path")).toHaveTextContent("/settings");
     openDrawer();
     fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
     expect(onSignOut).toHaveBeenCalled();
@@ -92,7 +119,7 @@ describe("NavDrawer", () => {
     setup({ showSettings: false });
     openDrawer();
     expect(
-      screen.queryByRole("menuitem", { name: /settings/i }),
+      screen.queryByRole("link", { name: /settings/i }),
     ).not.toBeInTheDocument();
     // Sign Out remains reachable for everyone.
     expect(
