@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useTeam } from "../../contexts";
 import { PageShell } from "../../components/PageShell";
 import { useBackOrFallback } from "../../hooks/usePageNav";
+import { playerSlugFromId } from "../../utils/playerSlug";
 import { RoundComparisonView } from "./panels";
 import { headEvalRounds, isRosterPlayer } from "../../utils/helpers";
 import { handGradedCategoriesForTeam } from "../../constants/ui";
@@ -70,7 +71,9 @@ export const EvalComparePage = memo(() => {
         players={players}
         activeCategories={activeCategories}
         categoryConfig={categoryConfig}
-        onPlayerClick={(id: string) => navigate(`/evaluation/trend/${id}`)}
+        onPlayerClick={(id: string) =>
+          navigate(`/evaluation/trend/${playerSlugFromId(id, players)}`)
+        }
       />
     </PageShell>
   );

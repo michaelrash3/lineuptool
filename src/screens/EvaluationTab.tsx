@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icons } from "../icons";
+import { playerSlug, playerSlugFromId } from "../utils/playerSlug";
 import { HelpTip } from "../components/help/HelpTip";
 import {
   calculateBaseballAge,
@@ -826,7 +827,7 @@ export const EvaluationTab = memo(() => {
               activeCategories={historyCategories}
               categoryConfig={categoryConfig}
               onPlayerClick={(id: string) =>
-                navigate(`/evaluation/trend/${id}`)
+                navigate(`/evaluation/trend/${playerSlugFromId(id, players)}`)
               }
             />
 
@@ -1161,7 +1162,9 @@ export const EvaluationTab = memo(() => {
                               <button
                                 type="button"
                                 onClick={() =>
-                                  navigate(`/evaluation/trend/${player.id}`)
+                                  navigate(
+                                    `/evaluation/trend/${playerSlug(player, players)}`,
+                                  )
                                 }
                                 className="text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
                               >

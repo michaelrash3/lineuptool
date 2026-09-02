@@ -3,6 +3,7 @@ import { Navigate, useParams } from "react-router-dom";
 import { Icons } from "../../icons";
 import { PageShell } from "../../components/PageShell";
 import { useBackOrFallback } from "../../hooks/usePageNav";
+import { findPlayerByParam } from "../../utils/playerSlug";
 import { useTeam } from "../../contexts";
 import { ChartFrame, ChartTooltip } from "../../components/charts/primitives";
 import {
@@ -319,7 +320,7 @@ export const EvalTrendPage = memo(() => {
   const { playerId } = useParams();
   const { team, user, currentRole } = useTeam();
   const back = useBackOrFallback("/evaluation");
-  const player = (team.players || []).find((p: Player) => p.id === playerId);
+  const player = findPlayerByParam(playerId, (team.players || []) as Player[]);
   if (currentRole === "assistant" || !player) {
     return <Navigate to="/evaluation" replace />;
   }

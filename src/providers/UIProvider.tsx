@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { UIContext, useTeam, useToast } from "../contexts";
+import { playerPathFromId } from "../utils/playerSlug";
 import { APP_NAME, getLocalDateString } from "../constants/ui";
 import { applyLineupSwap } from "../utils/lineupSwap";
 import { lineupSignature, battingSignature } from "../utils/lineupSignature";
@@ -367,11 +368,15 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     });
   }, []);
 
-  // Each player has their own page now: navigate to /player/:id. The route's
-  // PlayerProfilePage sets viewingPlayerId, which the profile content reads.
+  // Each player has their own page: /roster/<name-slug>. Callers still pass an
+  // id — the identity everything else is keyed by — and the slug is derived
+  // here so no call site has to know about the naming. PlayerProfilePage
+  // resolves the segment back to a player and sets viewingPlayerId, which the
+  // profile content reads.
+  const players = team.team?.players;
   const openPlayerProfile = useCallback(
-    (id: string) => navigateToRoute(`/roster/${id}`),
-    [navigateToRoute],
+    (id: string) => navigateToRoute(playerPathFromId(id, players)),
+    [navigateToRoute, players],
   );
 
   // Adding a player is the /roster/new page. A provider-level shortcut (like

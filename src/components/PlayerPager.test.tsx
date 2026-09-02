@@ -10,6 +10,7 @@ import {
   useParams,
 } from "react-router-dom";
 import { PlayerPager } from "./PlayerPager";
+import { findPlayerByParam, playerSlug } from "../utils/playerSlug";
 import { renderWithProviders } from "../test-utils";
 
 // The pager lets a coach walk the roster from inside a profile. What matters:
@@ -43,13 +44,29 @@ const Probe = () => {
 // leaving it pinned to the one the coach started on.
 const RoutedPager = ({ list }: { list: any[] }) => {
   const { id } = useParams();
-  return <PlayerPager players={list} playerId={id} />;
+  // The profile page resolves the URL's name slug back to a player id before
+  // handing it down; do the same here so a chained step keeps working.
+  const resolved = findPlayerByParam(id, list);
+  return (
+    <PlayerPager
+      players={list}
+      playerId={resolved ? String(resolved.id) : id}
+    />
+  );
 };
 
+// Callers still name the player by id; the URL carries their name slug, the
+// way every link in the app now builds it.
 const renderPager = (playerId: string, list = players) =>
   renderWithProviders(
     <MemoryRouter
-      initialEntries={["/roster", `/roster/${playerId}`]}
+      initialEntries={[
+        "/roster",
+        `/roster/${playerSlug(
+          list.find((p) => p.id === playerId) || { id: playerId },
+          list,
+        )}`,
+      ]}
       initialIndex={1}
     >
       <Probe />
@@ -80,7 +97,7 @@ describe("PlayerPager", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Next player: #3 Cy" }),
     );
-    expect(path()).toBe("/roster/c");
+    expect(path()).toBe("/roster/cy");
   });
 
   it("disables the ends instead of wrapping", () => {
@@ -109,7 +126,7 @@ describe("PlayerPager", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Next player: #3 Cy" }),
     );
-    expect(path()).toBe("/roster/c");
+    expect(path()).toBe("/roster/cy");
 
     // A single back press lands on the roster — not on Bo, and not on Ava.
     // Pushing instead of replacing would bury the list under every player
@@ -121,13 +138,13 @@ describe("PlayerPager", () => {
   it("arrow keys page left and right", () => {
     renderPager("b");
     fireEvent.keyDown(document, { key: "ArrowRight" });
-    expect(path()).toBe("/roster/c");
+    expect(path()).toBe("/roster/cy");
   });
 
   it("arrow keys stop at the ends", () => {
     renderPager("a");
     fireEvent.keyDown(document, { key: "ArrowLeft" });
-    expect(path()).toBe("/roster/a");
+    expect(path()).toBe("/roster/ava");
   });
 
   it("leaves arrow keys alone while typing in a field", () => {
@@ -136,7 +153,7 @@ describe("PlayerPager", () => {
     document.body.appendChild(input);
     input.focus();
     fireEvent.keyDown(input, { key: "ArrowRight" });
-    expect(path()).toBe("/roster/b");
+    expect(path()).toBe("/roster/bo");
     input.remove();
   });
 
@@ -146,14 +163,14 @@ describe("PlayerPager", () => {
     dialog.setAttribute("role", "dialog");
     document.body.appendChild(dialog);
     fireEvent.keyDown(document, { key: "ArrowRight" });
-    expect(path()).toBe("/roster/b");
+    expect(path()).toBe("/roster/bo");
     dialog.remove();
   });
 
   it("ignores a modified arrow — that is a text or browser gesture", () => {
     renderPager("b");
     fireEvent.keyDown(document, { key: "ArrowRight", metaKey: true });
-    expect(path()).toBe("/roster/b");
+    expect(path()).toBe("/roster/bo");
   });
 
   it("renders nothing for a one-player roster", () => {

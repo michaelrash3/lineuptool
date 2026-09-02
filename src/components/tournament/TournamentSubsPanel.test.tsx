@@ -75,7 +75,7 @@ describe("TournamentSubsPanel", () => {
     renderPanel();
     expect(screen.getByRole("link", { name: /Guest Arm/ })).toHaveAttribute(
       "href",
-      "/roster/s1",
+      "/roster/guest-arm",
     );
   });
 

@@ -2,6 +2,7 @@ import { memo, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Icons } from "../../icons";
+import { playerSlug } from "../../utils/playerSlug";
 import { calculateBaseballAge, evalRoundRecency } from "../../utils/helpers";
 import {
   getEvalCategoriesForPlayer,
@@ -459,7 +460,9 @@ export const RosterDecisionsPanel = memo(() => {
     <button
       key={d.player.id}
       type="button"
-      onClick={() => navigate(`/evaluation/trend/${d.player.id}`)}
+      onClick={() =>
+        navigate(`/evaluation/trend/${playerSlug(d.player, players)}`)
+      }
       className="w-full text-left border-b border-line px-1 py-2.5 hover:bg-surface transition-colors"
     >
       <div className="flex items-baseline justify-between gap-2 mb-1">

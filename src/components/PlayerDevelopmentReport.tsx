@@ -3,6 +3,7 @@ import { Navigate, useParams } from "react-router-dom";
 import { Icons } from "../icons";
 import { PageShell } from "./PageShell";
 import { useBackOrFallback } from "../hooks/usePageNav";
+import { findPlayerByParam } from "../utils/playerSlug";
 import { useTeam, useToast } from "../contexts";
 import { EVAL_CATEGORIES, getEvalCategoriesForTeam } from "../constants/ui";
 import {
@@ -778,7 +779,7 @@ export const PlayerReportPage = memo(() => {
   const { playerId } = useParams();
   const { team } = useTeam();
   const back = useBackOrFallback(playerId ? `/roster/${playerId}` : "/roster");
-  const player = (team.players || []).find((p: any) => p.id === playerId);
+  const player = findPlayerByParam(playerId, team.players as any[]);
   if (!player) return <Navigate to="/roster" replace />;
   return (
     <PlayerDevelopmentReport
