@@ -422,11 +422,17 @@ export const velocityGradeFromMph = (
 // pitcher (all max) earns the full bonus. Returns 0..PITCHER_ROSTER_PREMIUM_MAX.
 export const PITCHER_ROSTER_PREMIUM_MAX = 15;
 // Flat scarcity nudge for a left-handed pitcher, on the same 0–100 scale as
-// the roster-decision standing and the tryout fit bonus. Sized as a
-// tiebreaker: below the tryout model's "thin at P/C" (+3) and well under one
-// grade step of the earned pitching premium — handedness alone should never
-// outweigh how well a kid actually pitches.
-export const LEFT_HANDED_PITCHER_ROSTER_PREMIUM = 2;
+// the roster-decision standing and the tryout fit bonus.
+//
+// Sized to break a tie, not to move a kid past someone genuinely ahead of
+// them. Eval scores cluster tightly (most kids grade 3s and 4s, and the score
+// is a percentage of the grading ceiling), so a couple of points on this scale
+// buys more rank than it looks like it should. For reference, the EARNED
+// pitching premium on the same scale is +4 at an average pitcher grade of 3.5,
+// +8 at 4, and +15 at 5 — handedness is a fraction of the smallest of those,
+// which is the point: it should separate two kids who are otherwise level,
+// never outrank how well someone actually pitches.
+export const LEFT_HANDED_PITCHER_ROSTER_PREMIUM = 1;
 
 export const isLeftHandedThrower = (player?: {
   throws?: string | null;
