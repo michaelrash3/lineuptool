@@ -57,6 +57,13 @@ export interface DecisionRow {
   // The player's most recent eval score on the 0–100 scale
   // (currentEvaluationScore100), or null when they have no graded round.
   latestEvalScore: number | null;
+  // The three terms of the standing, kept apart so the card can show its
+  // work. baseScore is grades+stats alone; the two "applied" figures are what
+  // each premium was worth after the 100 cap, so base + pitch + lefty always
+  // equals decisionScore on screen.
+  baseScore: number;
+  pitchPremiumApplied: number;
+  leftyPremiumApplied: number;
   totalScore: number;
   decisionScore: number;
   evalTrend: "improving" | "declining" | "flat" | null;
