@@ -193,21 +193,27 @@ export const RosterDecisionsPanel = memo(() => {
         .reverse()
         .find((ev: EvalRound) => ev.grades?.[player.id]);
       const savedGrades = latestRoundForPlayer?.grades?.[player.id] || {};
+      // Kept as three separate terms so the card can show its work. The
+      // premiums are real thumbs on the scale — an arm can be worth more than
+      // a couple of rank places — and a coach reading "why is he above her?"
+      // deserves the arithmetic rather than an opaque number.
+      const baseScore = calculateTotalScore(
+        asGradeMap({ ...seedGrades, ...savedGrades }),
+        player.stats,
+        extraCategories,
+      );
       const totalScore = Math.min(
         100,
-        calculateTotalScore(
-          asGradeMap({ ...seedGrades, ...savedGrades }),
-          player.stats,
-          extraCategories,
-        ) + pitcherPremium(savedGrades, player, teamAge),
+        baseScore + pitcherPremium(savedGrades, player, teamAge),
       );
-      // Hidden decision standing: left-handed pitcher scarcity matters for the
-      // coach's roster advisory, but it is intentionally not shown in the
-      // score badge so handedness cannot be reverse-engineered as extra points.
       const decisionScore = Math.min(
         100,
         totalScore + leftHandedPitcherRosterPremium(player),
       );
+      // What each premium was actually WORTH after the 100 cap, so the parts
+      // always add up to the whole on screen.
+      const pitchPremiumApplied = Math.round(totalScore - baseScore);
+      const leftyPremiumApplied = Math.round(decisionScore - totalScore);
 
       // ---- Age eligibility ----
       const baseballAge = calculateBaseballAge(player.dob, currentSeason);
@@ -318,6 +324,9 @@ export const RosterDecisionsPanel = memo(() => {
         baseballAge,
         playingUp,
         latestEvalScore,
+        baseScore: Math.round(baseScore),
+        pitchPremiumApplied,
+        leftyPremiumApplied,
         totalScore,
         decisionScore,
         evalTrend,
@@ -534,6 +543,42 @@ export const RosterDecisionsPanel = memo(() => {
           </span>
         )}
       </div>
+
+      {/* What the standing is made of. The ranking below adds premiums on top
+          of the eval score, and an arm is worth several rank places — so when
+          a kid sits above someone who grades better, the card says why instead
+          of leaving the coach to reverse-engineer it. Only shown when a
+          premium actually applies; for most of the roster the standing IS the
+          eval score and there is nothing to explain. */}
+      {(d.pitchPremiumApplied > 0 || d.leftyPremiumApplied > 0) && (
+        <div className="mb-1.5 text-[10px] font-bold tabular-nums text-ink-3 flex items-center gap-1 flex-wrap">
+          <span title="Grades and stats alone, before any premium">
+            Eval {d.baseScore}
+          </span>
+          {d.pitchPremiumApplied > 0 && (
+            <span
+              className="text-ink-2"
+              title="Added for pitching above a neutral grade"
+            >
+              + {d.pitchPremiumApplied} pitching
+            </span>
+          )}
+          {d.leftyPremiumApplied > 0 && (
+            <span
+              className="text-ink-2"
+              title="Left-handed scarcity — a nudge to separate two otherwise level kids"
+            >
+              + {d.leftyPremiumApplied} lefty
+            </span>
+          )}
+          <span
+            className="text-ink-2"
+            title="What this player is ranked on inside their group"
+          >
+            = {d.decisionScore} ranked
+          </span>
+        </div>
+      )}
       <div className="text-[10px] text-ink-3 italic font-medium">
         {d.rationale.join(" · ")}
       </div>

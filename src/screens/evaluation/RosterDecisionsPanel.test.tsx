@@ -317,3 +317,112 @@ describe("RosterDecisionsPanel", () => {
     expect(screen.queryAllByText("86")).toHaveLength(0);
   });
 });
+
+// The ranking adds premiums on top of the eval score, and a pitching bonus is
+// worth several rank places — so a card that ranks above a better-graded kid
+// has to say why rather than leaving the coach to reverse-engineer it.
+describe("RosterDecisionsPanel — standing breakdown", () => {
+  const renderRoster = (
+    players: Record<string, unknown>[],
+    grades: Record<string, unknown>,
+  ) =>
+    renderWithProviders(
+      <MemoryRouter>
+        <RosterDecisionsPanel />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            players,
+            primaryColor: "#1d4ed8",
+            currentSeason: "2026",
+            teamAge: "10U",
+            pitchingFormat: "Kid Pitch",
+            evaluationEvents: [headRound(grades)],
+          },
+          user: { uid: "u1" },
+        },
+        ui: { setEvalTrendPlayerId: jest.fn() },
+      },
+    );
+
+  const pitcher = {
+    id: "p1",
+    name: "Ava",
+    stats: { ops: 0.9 },
+    comfortablePositions: ["P"],
+  };
+  const other = { id: "p2", name: "Ben", stats: { ops: 0.5 } };
+
+  // The pitching premium scores its own categories; without them neutralFill
+  // leaves it at zero (which the "stays off the card" case relies on). Middling
+  // universal grades keep the total clear of the 100 ceiling, so the premiums
+  // land at full value — see the cap case at the end.
+  const acePitching = { velocity: 5, strikes: 5, offSpeed: 5, composure: 5 };
+  const midPitcherGrades = { ...allGrades(3), ...acePitching };
+
+  it("shows the pitching premium as its own term", () => {
+    renderRoster([pitcher, other], {
+      p1: midPitcherGrades,
+      p2: allGrades(3),
+    });
+    expect(screen.getByText(/pitching$/)).toBeInTheDocument();
+  });
+
+  it("names the lefty nudge separately from the pitching premium", () => {
+    renderRoster([{ ...pitcher, throws: "L" }, other], {
+      p1: midPitcherGrades,
+      p2: allGrades(3),
+    });
+    expect(screen.getByText(/pitching$/)).toBeInTheDocument();
+    expect(screen.getByText(/lefty$/)).toBeInTheDocument();
+  });
+
+  // Most of the roster has no premium at all; a breakdown reading
+  // "Eval 62 = 62 ranked" would be noise on every card.
+  it("stays off the card when nothing was added", () => {
+    renderRoster([{ id: "p1", name: "Ava", stats: { ops: 0.9 } }, other], {
+      p1: allGrades(4),
+      p2: allGrades(3),
+    });
+    expect(screen.queryByText(/pitching$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/lefty$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ranked$/)).not.toBeInTheDocument();
+  });
+
+  // The whole point is that the arithmetic is checkable, so the parts have to
+  // reconcile to the number the sort actually uses.
+  it("adds up: eval plus every premium equals the ranked score", () => {
+    const { container } = renderRoster([{ ...pitcher, throws: "L" }, other], {
+      p1: midPitcherGrades,
+      p2: allGrades(3),
+    });
+    const m = (container.textContent || "").match(
+      /Eval (\d+)\s*\+ (\d+) pitching\s*\+ (\d+) lefty\s*= (\d+) ranked/,
+    );
+    expect(m).not.toBeNull();
+    const [, base, pitch, lefty, ranked] = (m as RegExpMatchArray).map(Number);
+    expect(base + pitch + lefty).toBe(ranked);
+  });
+
+  // A kid already near the ceiling gets less than the headline premium,
+  // because the standing is capped at 100. The breakdown shows what was
+  // actually applied, so the parts still reconcile instead of claiming a
+  // bonus the ranking never gave.
+  it("shows the clipped value when the premium hits the 100 cap", () => {
+    const { container } = renderRoster([{ ...pitcher, throws: "L" }, other], {
+      p1: { ...allGrades(5), ...acePitching },
+      p2: allGrades(3),
+    });
+    const text = container.textContent || "";
+    const m = text.match(/Eval (\d+)\s*\+ (\d+) pitching\s*= (\d+) ranked/);
+    expect(m).not.toBeNull();
+    const [, base, pitch, ranked] = (m as RegExpMatchArray).map(Number);
+    expect(ranked).toBe(100);
+    expect(base + pitch).toBe(100);
+    // Pinned below the full premium: the cap ate the rest, including every
+    // point of the lefty nudge, so no lefty term is claimed.
+    expect(pitch).toBeLessThan(15);
+    expect(text).not.toMatch(/lefty/);
+  });
+});
