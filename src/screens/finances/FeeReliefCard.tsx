@@ -47,6 +47,8 @@ export const FeeReliefCard = ({
   // amounts (strings — committed only on confirm).
   const [editorFor, setEditorFor] = useState<string | null>(null);
   const [draftAmounts, setDraftAmounts] = useState<Record<string, string>>({});
+  // Why the last confirm was refused, shown in the editor. Null while fine.
+  const [error, setError] = useState<string | null>(null);
 
   if (passThrough.fundraisers.length === 0) return null;
 
@@ -56,19 +58,39 @@ export const FeeReliefCard = ({
       Object.fromEntries(payers.map((p, i) => [p.id, String(split[i] ?? "")])),
     );
     setEditorFor(incomeId);
+    setError(null);
   };
 
   const confirmDistribute = (incomeId: string) => {
     const rows: Array<{ playerId: string; name: string; amount: number }> = [];
+    const badNames: string[] = [];
     for (const p of payers) {
       const raw = (draftAmounts[p.id] || "").trim();
       if (!raw) continue; // blank = leave this family out
-      const amount = parseAmount(raw);
-      if (amount == null) return; // keep editing until every amount is valid
+      // allowZero: a typed 0 is a deliberate "skip this family", and without
+      // it parseAmount returns null for 0 exactly as it does for junk — which
+      // is what made a single 0 row abort the whole submit with no feedback.
+      const amount = parseAmount(raw, { allowZero: true });
+      if (amount == null) {
+        badNames.push(p.name);
+        continue;
+      }
       if (amount <= 0) continue;
       rows.push({ playerId: p.id, name: p.name, amount });
     }
-    if (rows.length === 0) return;
+    // Every refusal below says WHY. Returning quietly here is indistinguishable
+    // from a dead button.
+    if (badNames.length > 0) {
+      setError(
+        `Check the amount for ${badNames.join(", ")} — enter a number, or 0 to leave them out.`,
+      );
+      return;
+    }
+    if (rows.length === 0) {
+      setError("Nothing to pay out — enter an amount for at least one family.");
+      return;
+    }
+    setError(null);
     if (distribute(incomeId, rows)) {
       setEditorFor(null);
       setDraftAmounts({});
@@ -131,12 +153,20 @@ export const FeeReliefCard = ({
                             }))
                           }
                           aria-label={`Payout amount for ${p.name}`}
-                          className={`${FORM_INPUT_CLASS} w-28 !py-1 tabular-nums text-right`}
+                          className={`${FORM_INPUT_CLASS} !w-28 shrink-0 !py-1 tabular-nums text-right`}
                           style={FORM_INPUT_RING_STYLE}
                         />
                       </li>
                     ))}
                   </ul>
+                  {error && (
+                    <p
+                      role="alert"
+                      className="text-[11px] font-bold text-loss bg-loss-bg border border-line rounded-lg px-2.5 py-1.5"
+                    >
+                      {error}
+                    </p>
+                  )}
                   <div className="flex items-center gap-2 pt-1">
                     <Button
                       variant="primary"
@@ -149,7 +179,10 @@ export const FeeReliefCard = ({
                     <button
                       type="button"
                       aria-label="Cancel fee-relief distribution"
-                      onClick={() => setEditorFor(null)}
+                      onClick={() => {
+                        setEditorFor(null);
+                        setError(null);
+                      }}
                       className="text-ink-3 hover:text-ink text-xs font-bold underline"
                     >
                       Cancel

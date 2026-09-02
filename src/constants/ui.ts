@@ -420,7 +420,15 @@ export const velocityGradeFromMph = (
 // pitching ABOVE the neutral grade — so default/ungraded pitching (every cat at
 // EVAL_SCALE_DEFAULT) adds nothing, weak pitching never subtracts, and an elite
 // pitcher (all max) earns the full bonus. Returns 0..PITCHER_ROSTER_PREMIUM_MAX.
-export const PITCHER_ROSTER_PREMIUM_MAX = 15;
+//
+// Halved from 15. Pitching is ALREADY scored inside the number this is added
+// to — currentEvaluationScore100 folds the pitcher score into the numerator
+// and PITCHER_EVAL_MAX into the denominator — so the premium is a second
+// count of the same thing, and at 15 it was moving arms past kids several
+// places better overall. At 8 an elite arm is worth about one grade step of
+// separation rather than five, which is the intent: a real arm is worth
+// keeping, not worth outranking a clearly better player.
+export const PITCHER_ROSTER_PREMIUM_MAX = 8;
 // Flat scarcity nudge for a left-handed pitcher, on the same 0–100 scale as
 // the roster-decision standing and the tryout fit bonus.
 //

@@ -405,24 +405,25 @@ describe("RosterDecisionsPanel — standing breakdown", () => {
     expect(base + pitch + lefty).toBe(ranked);
   });
 
-  // A kid already near the ceiling gets less than the headline premium,
-  // because the standing is capped at 100. The breakdown shows what was
-  // actually applied, so the parts still reconcile instead of claiming a
-  // bonus the ranking never gave.
-  it("shows the clipped value when the premium hits the 100 cap", () => {
+  // The standing is capped at 100 and the premiums are clipped to fit, so the
+  // figures shown are what was actually APPLIED, not the headline values. At
+  // the current premium the ceiling is out of reach in practice — the best
+  // reachable eval base is around 90, so a full +8 still lands under 100 —
+  // but the reconciliation has to hold either way, which is what protects the
+  // display if the premium is ever raised again.
+  it("reconciles to the ranked score at the very top of the roster", () => {
     const { container } = renderRoster([{ ...pitcher, throws: "L" }, other], {
       p1: { ...allGrades(5), ...acePitching },
       p2: allGrades(3),
     });
-    const text = container.textContent || "";
-    const m = text.match(/Eval (\d+)\s*\+ (\d+) pitching\s*= (\d+) ranked/);
+    const m = (container.textContent || "").match(
+      /Eval (\d+)\s*\+ (\d+) pitching(?:\s*\+ (\d+) lefty)?\s*= (\d+) ranked/,
+    );
     expect(m).not.toBeNull();
-    const [, base, pitch, ranked] = (m as RegExpMatchArray).map(Number);
-    expect(ranked).toBe(100);
-    expect(base + pitch).toBe(100);
-    // Pinned below the full premium: the cap ate the rest, including every
-    // point of the lefty nudge, so no lefty term is claimed.
-    expect(pitch).toBeLessThan(15);
-    expect(text).not.toMatch(/lefty/);
+    const [, base, pitch, lefty, ranked] = (m as RegExpMatchArray).map((v) =>
+      v === undefined ? 0 : Number(v),
+    );
+    expect(ranked).toBeLessThanOrEqual(100);
+    expect(base + pitch + lefty).toBe(ranked);
   });
 });

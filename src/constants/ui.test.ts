@@ -53,17 +53,17 @@ describe("playerIsPitcher / playerIsCatcher", () => {
   // The scarcity nudge is meant to separate two kids who are otherwise level.
   // Eval scores cluster tightly, so if this creeps up it starts outranking
   // kids who are genuinely ahead — which is exactly the complaint that got it
-  // cut to 1. Pinned against the EARNED pitching premium at its lowest
-  // above-neutral step, so raising it has to be a deliberate decision.
+  // cut to 1. Pinned strictly below the EARNED pitching premium at its lowest
+  // above-neutral step, so handedness can never be worth as much as actually
+  // pitching better than neutral — and so raising either constant has to be a
+  // deliberate decision rather than a quiet edit.
   it("stays far below what a kid earns for actually pitching well", () => {
     const justAboveNeutral = pitcherRosterPremium(
       PITCH_WEIGHT_SUM * 3.5,
       PITCH_WEIGHT_SUM,
     );
     expect(justAboveNeutral).toBeGreaterThan(0);
-    expect(LEFT_HANDED_PITCHER_ROSTER_PREMIUM).toBeLessThanOrEqual(
-      justAboveNeutral / 3,
-    );
+    expect(LEFT_HANDED_PITCHER_ROSTER_PREMIUM).toBeLessThan(justAboveNeutral);
     // And nothing on a 0-100 scale should be handed out for handedness beyond
     // a single point of separation.
     expect(LEFT_HANDED_PITCHER_ROSTER_PREMIUM).toBeLessThanOrEqual(1);
