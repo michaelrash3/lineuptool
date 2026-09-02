@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Icons } from "../../icons";
 import { useTeam } from "../../contexts";
 import { isSubPlayer, subsForTournament } from "../../utils/subPlayers";
+import { playerSlug } from "../../utils/playerSlug";
 import { formatStat } from "../../utils/helpers";
 import type { Player, Tournament } from "../../types";
 
@@ -127,7 +128,7 @@ export const TournamentSubsPanel = memo(
                   {/* Their profile is the only place to fix a number, add a
                       position, or read the stats they have piled up. */}
                   <Link
-                    to={`/roster/${p.id}`}
+                    to={`/roster/${playerSlug(p, players)}`}
                     className="flex items-center gap-3 min-w-0 flex-1 group"
                   >
                     <span className="text-[11px] font-black uppercase tracking-widest text-ink-3 tabular-nums w-8 shrink-0">

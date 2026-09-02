@@ -18,9 +18,14 @@ import {
 } from "../utils/helpers";
 import { AGE_TIERS, isKidPitchFormat } from "../constants/ui";
 import { getCombinedGrades, suggestPrimaryPosition } from "../lineupEngine";
-import { useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useTeam, useUI, useToast } from "../contexts";
 import { useBackOrFallback } from "../hooks/usePageNav";
+import {
+  findPlayerByParam,
+  isCanonicalPlayerParam,
+  playerSlug,
+} from "../utils/playerSlug";
 import { PlayerAvatar } from "./shared";
 import { PlayerPager } from "./PlayerPager";
 
@@ -1460,7 +1465,9 @@ const PlayerProfile = memo(() => {
                               key={key}
                               type="button"
                               onClick={() =>
-                                navigate(`/roster/${player.id}/trend/${key}`)
+                                navigate(
+                                  `/roster/${playerSlug(player, players)}/trend/${key}`,
+                                )
                               }
                               className="group bg-app hover:bg-surface-2 border border-transparent rounded-lg p-2 text-center transition-colors cursor-pointer"
                             >
@@ -1628,7 +1635,9 @@ const PlayerProfile = memo(() => {
                 <button
                   type="button"
                   onClick={() =>
-                    navigate(`/roster/${player.id}/letter/returning`)
+                    navigate(
+                      `/roster/${playerSlug(player, players)}/letter/returning`,
+                    )
                   }
                   className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
                 >
@@ -1637,7 +1646,9 @@ const PlayerProfile = memo(() => {
                 <button
                   type="button"
                   onClick={() =>
-                    navigate(`/roster/${player.id}/letter/not-returning`)
+                    navigate(
+                      `/roster/${playerSlug(player, players)}/letter/not-returning`,
+                    )
                   }
                   className="text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line hover:opacity-90 text-loss px-3 py-1.5 rounded-lg shadow-sm transition-opacity inline-flex items-center gap-1.5"
                 >
@@ -1690,7 +1701,9 @@ const PlayerProfile = memo(() => {
 
         <div className="bg-surface border-t border-line p-4 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
           <button
-            onClick={() => navigate(`/roster/${player.id}/report`)}
+            onClick={() =>
+              navigate(`/roster/${playerSlug(player, players)}/report`)
+            }
             className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-opacity shadow-sm border border-line bg-surface hover:bg-surface-2 text-ink flex items-center gap-2"
           >
             <Icons.FileText className="w-3.5 h-3.5" /> Report
@@ -1722,12 +1735,27 @@ const PlayerProfile = memo(() => {
 // content from the URL param instead of an overlay, so each player has their
 // own page. Clears the viewing id on unmount so a stale overlay can't linger.
 export const PlayerProfilePage = memo(() => {
-  const { playerId } = useParams();
+  const { playerId: param } = useParams();
   const { setViewingPlayerId } = useUI();
+  const { team } = useTeam();
+  const players = team?.players;
+  // The URL segment is a name slug; everything downstream is keyed by id.
+  const player = findPlayerByParam(param, players);
+  const playerId = player ? String(player.id) : param;
+
   useEffect(() => {
     if (playerId) setViewingPlayerId(playerId);
     return () => setViewingPlayerId(null);
   }, [playerId, setViewingPlayerId]);
+
+  // Rewrite a non-canonical address to the player's slug: an old bookmark or
+  // texted link on a raw id, or a bare name that needed disambiguating after
+  // a second same-named kid joined. `replace` so it doesn't add a history
+  // entry the back button has to walk through.
+  const canonical = isCanonicalPlayerParam(param, player, players);
+  if (player && !canonical) {
+    return <Navigate to={`/roster/${playerSlug(player, players)}`} replace />;
+  }
   // Paging to the next player keeps this route mounted, so without the key the
   // previous kid's open section and half-finished inline edit would ride
   // along. Keying on the id remounts the profile clean. Scroll is not reset

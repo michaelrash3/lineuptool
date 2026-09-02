@@ -4,6 +4,7 @@ import { useTeam } from "../contexts";
 import { PageShell } from "../components/PageShell";
 import { ScreenLoader } from "../components/LoadingScreens";
 import { useBackOrFallback } from "../hooks/usePageNav";
+import { findPlayerByParam } from "../utils/playerSlug";
 import { OfferLetterView } from "../components/OfferLetterView";
 import { makeOfferLetterContext } from "../utils/offerContext";
 import {
@@ -99,7 +100,7 @@ export const RosterLetterPage = memo(() => {
   // No settle guard here, unlike the two signup pages below: players still
   // ride on the team doc, which is loaded before any route renders, so an
   // unknown id really is unknown.
-  const player = (team.players || []).find((p: any) => p.id === playerId);
+  const player = findPlayerByParam(playerId, team.players as any[]);
   const kind = KIND_SLUGS[kindSlug || ""];
   if (
     currentRole === "assistant" ||

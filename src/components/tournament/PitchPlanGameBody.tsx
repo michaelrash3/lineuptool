@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Icons } from "../../icons";
-import { useUI } from "../../contexts";
+import { PlayerNameLink } from "../PlayerNameLink";
 import type { PitcherAvailability, PitchRuleSet } from "../../lineupEngine";
 import {
   planEntryStatus,
@@ -142,7 +142,6 @@ export const PitchPlanGameBody = ({
   canEdit,
   onSetEntries,
 }: PitchPlanGameBodyProps) => {
-  const { openPlayerProfile } = useUI();
   const [adding, setAdding] = useState(false);
   // Only known players count as "taken" — an orphaned entry (its player since
   // removed) must not block re-adding a real arm.
@@ -248,16 +247,15 @@ export const PitchPlanGameBody = ({
         {ready.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
             {ready.map((a) => (
-              <button
+              <PlayerNameLink
                 key={a.id}
-                type="button"
-                onClick={() => openPlayerProfile(a.id)}
+                playerId={a.id}
                 className="t-chip px-2 py-0.5 rounded-md border bg-win-bg border-line text-win hover:bg-surface-2 transition-colors whitespace-nowrap"
                 title={`Up to ${a.maxPitches} pitches`}
               >
                 {a.number ? `#${a.number} ` : ""}
                 {a.name}
-              </button>
+              </PlayerNameLink>
             ))}
           </div>
         ) : (
@@ -268,33 +266,31 @@ export const PitchPlanGameBody = ({
         {resting.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {resting.map((a) => (
-              <button
+              <PlayerNameLink
                 key={a.id}
-                type="button"
-                onClick={() => openPlayerProfile(a.id)}
+                playerId={a.id}
                 className="t-chip px-2 py-0.5 rounded-md border bg-warn-bg border-line text-warnfg hover:bg-surface-2 transition-colors whitespace-nowrap"
                 title="Resting (planned or logged workload)"
               >
                 {a.number ? `#${a.number} ` : ""}
                 {a.name}
                 {a.daysUntilReady ? ` · ${a.daysUntilReady}d` : ""}
-              </button>
+              </PlayerNameLink>
             ))}
           </div>
         )}
         {maxed.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {maxed.map((a) => (
-              <button
+              <PlayerNameLink
                 key={a.id}
-                type="button"
-                onClick={() => openPlayerProfile(a.id)}
+                playerId={a.id}
                 className="t-chip px-2 py-0.5 rounded-md border bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 transition-colors whitespace-nowrap"
                 title="At the pitch ceiling until their next recorded outing"
               >
                 {a.number ? `#${a.number} ` : ""}
                 {a.name} · at limit
-              </button>
+              </PlayerNameLink>
             ))}
           </div>
         )}

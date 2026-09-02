@@ -28,6 +28,7 @@ import {
 import { useTeam } from "../../contexts";
 import { PageShell } from "../PageShell";
 import { useBackOrFallback } from "../../hooks/usePageNav";
+import { findPlayerByParam, playerPathFromId } from "../../utils/playerSlug";
 import { STAT_META, formatStatValue } from "./statTrend";
 import { rosterOnly } from "../../utils/subPlayers";
 
@@ -404,7 +405,7 @@ export const StatTrendPage = memo(() => {
   const { team } = useTeam();
   const back = useBackOrFallback(playerId ? `/roster/${playerId}` : "/roster");
   const players = useMemo(() => team.players || [], [team.players]);
-  const player = players.find((p: any) => p.id === playerId);
+  const player = findPlayerByParam(playerId, players as any[]);
   // Team-wide averages drive the dashed "Team avg" baseline.
   // Baseline is the season roster's average — a sub's one-weekend line
   // would skew it.
@@ -414,7 +415,9 @@ export const StatTrendPage = memo(() => {
   );
   if (!player) return <Navigate to="/roster" replace />;
   if (!statKey || !STAT_META[statKey]) {
-    return <Navigate to={`/roster/${player.id}`} replace />;
+    return (
+      <Navigate to={playerPathFromId(String(player.id), players)} replace />
+    );
   }
   return (
     <StatTrendView

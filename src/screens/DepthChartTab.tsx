@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
+import { PlayerNameLink } from "../components/PlayerNameLink";
 import { HelpTip } from "../components/help/HelpTip";
 import { useTeam, useToast, useUI } from "../contexts";
 import { downloadDepthChartPdf } from "../lineup/depthChartPdf";
@@ -139,7 +140,6 @@ const PositionCard = memo(
     onDropPlayer,
     onMove,
     onReset,
-    onOpen,
   }: {
     pos: string;
     ranked: Player[];
@@ -153,7 +153,6 @@ const PositionCard = memo(
     ) => void;
     onMove: (pos: string, ids: string[], idx: number, dir: -1 | 1) => void;
     onReset: (pos: string) => void;
-    onOpen?: (id: string) => void;
   }) => {
     const ids: string[] = ranked.map((p) => p.id);
     const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -254,10 +253,9 @@ const PositionCard = memo(
                 <span className="w-5 text-center font-black tabular-nums text-ink-3 text-[11px]">
                   {idx + 1}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => onOpen?.(p.id)}
-                  className="flex-1 min-w-0 text-left text-sm font-extrabold text-ink hover:text-team-primary truncate"
+                <PlayerNameLink
+                  player={p}
+                  className="flex-1 min-w-0 text-left text-sm font-extrabold text-ink truncate"
                 >
                   {p.name}
                   {p.number != null && p.number !== "" && (
@@ -265,7 +263,7 @@ const PositionCard = memo(
                       #{p.number}
                     </span>
                   )}
-                </button>
+                </PlayerNameLink>
                 {canEdit && (
                   <div
                     className="flex items-center gap-1 shrink-0"
@@ -302,7 +300,6 @@ const PositionCard = memo(
 
 export const DepthChartTab = memo(() => {
   const { team: teamRaw, currentRole, updateTeam } = useTeam();
-  const { openPlayerProfile } = useUI();
   const toast = useToast();
   // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
   // the known Team shape for this screen.
@@ -481,7 +478,6 @@ export const DepthChartTab = memo(() => {
               onDropPlayer={dropPlayer}
               onMove={move}
               onReset={reset}
-              onOpen={openPlayerProfile}
             />
           ))}
         </div>

@@ -44,6 +44,7 @@ const players = [
 
 const renderPanel = (over: any = {}, teamOver: any = {}) =>
   renderWithProviders(<PlayingTimePanel />, {
+    withRouter: true,
     team: {
       team: { players, games: [finalGame], ...over },
       currentRole: "head",
@@ -86,10 +87,12 @@ describe("PlayingTimePanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens the player profile from a name", () => {
-    const { uiValue } = renderPanel();
-    fireEvent.click(screen.getByRole("button", { name: "#3 Wes" }));
-    expect(uiValue.openPlayerProfile).toHaveBeenCalledWith("w");
+  it("links a name to that player's page", () => {
+    renderPanel();
+    expect(screen.getByRole("link", { name: "#3 Wes" })).toHaveAttribute(
+      "href",
+      "/roster/wes",
+    );
   });
 
   it("is head-coach only", () => {

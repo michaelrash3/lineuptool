@@ -17,7 +17,8 @@ const baseTeam = {
 
 const renderPanel = (over: Record<string, unknown> = {}) => {
   const updateTeam = jest.fn();
-  renderWithProviders(<RosterIntegrityPanel />, {
+  const { container } = renderWithProviders(<RosterIntegrityPanel />, {
+    withRouter: true,
     team: {
       team: { ...baseTeam, ...over },
       currentRole: "head",
@@ -25,16 +26,30 @@ const renderPanel = (over: Record<string, unknown> = {}) => {
       updateTeam,
     },
   });
-  return { updateTeam };
+  return { updateTeam, container };
 };
 
 describe("RosterIntegrityPanel", () => {
   it("flags duplicate numbers and age-ineligible players", () => {
+    const { container } = renderPanel();
+    // The names inside each warning are links now, so the sentence is split
+    // across elements — assert on the flattened text.
+    const text = container.textContent || "";
+    expect(text).toMatch(/#7 worn by\s*Alex\s*&\s*Sam/);
+    expect(text).toMatch(/TooOld\s*is 11 —\s*over the 10U division/);
+  });
+
+  // A flagged name is the moment you want to go look at that kid.
+  it("links each flagged player to their page", () => {
     renderPanel();
-    expect(screen.getByText(/#7 worn by Alex & Sam/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/TooOld is 11 — over the 10U division/),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Alex" })).toHaveAttribute(
+      "href",
+      "/roster/alex",
+    );
+    expect(screen.getByRole("link", { name: "TooOld" })).toHaveAttribute(
+      "href",
+      "/roster/tooold",
+    );
   });
 
   it("shows count over cap and toggles rosterLocked", async () => {
@@ -55,6 +70,7 @@ describe("RosterIntegrityPanel", () => {
 
   it("renders nothing for an assistant", () => {
     const { container } = renderWithProviders(<RosterIntegrityPanel />, {
+      withRouter: true,
       team: {
         team: baseTeam,
         currentRole: "assistant",

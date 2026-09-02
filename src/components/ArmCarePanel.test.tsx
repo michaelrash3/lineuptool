@@ -24,6 +24,7 @@ const ace = () => ({
 const renderPanel = (over: any = {}) => {
   const updatePlayer = jest.fn();
   const utils = renderWithProviders(<ArmCarePanel />, {
+    withRouter: true,
     team: {
       team: {
         players: [ace()],
@@ -168,6 +169,7 @@ describe("ArmCarePanel log editor", () => {
   it("hides entirely for assistants and non-kid-pitch formats", () => {
     const updatePlayer = jest.fn();
     const { container } = renderWithProviders(<ArmCarePanel />, {
+      withRouter: true,
       team: {
         team: {
           players: [ace()],
@@ -182,6 +184,7 @@ describe("ArmCarePanel log editor", () => {
     expect(container).toBeEmptyDOMElement();
 
     const assistant = renderWithProviders(<ArmCarePanel />, {
+      withRouter: true,
       team: {
         team: {
           players: [ace()],

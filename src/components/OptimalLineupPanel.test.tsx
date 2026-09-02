@@ -39,6 +39,7 @@ const baseTeam = (over: any = {}) => ({
 describe("OptimalLineupPanel", () => {
   it("shows the next game's recommended lineup for present players", () => {
     renderWithProviders(<OptimalLineupPanel />, {
+      withRouter: true,
       team: { team: baseTeam(), currentRole: "head" },
     });
     expect(screen.getByText("Optimal Lineup — Next Game")).toBeInTheDocument();
@@ -51,6 +52,7 @@ describe("OptimalLineupPanel", () => {
 
   it("hides for non-head coaches", () => {
     const { container } = renderWithProviders(<OptimalLineupPanel />, {
+      withRouter: true,
       team: { team: baseTeam(), currentRole: "assistant" },
     });
     expect(container).toBeEmptyDOMElement();
@@ -58,6 +60,7 @@ describe("OptimalLineupPanel", () => {
 
   it("hides when there is no upcoming game", () => {
     const { container } = renderWithProviders(<OptimalLineupPanel />, {
+      withRouter: true,
       team: {
         team: baseTeam({
           games: [

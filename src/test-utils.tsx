@@ -7,6 +7,7 @@
 
 import React, { ReactElement, ReactNode } from "react";
 import { render, RenderOptions } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import {
   ToastContext,
   TeamContext,
@@ -81,11 +82,15 @@ interface ProvidersOptions extends Omit<RenderOptions, "wrapper"> {
   toast?: Partial<ToastContextValue>;
   team?: Partial<TeamContextValue>;
   ui?: Partial<UIContextValue>;
+  // Wrap the tree in a MemoryRouter. Needed by anything rendering a <Link>
+  // (e.g. PlayerNameLink). Opt-in rather than always-on because a test that
+  // supplies its own router would then nest two, which react-router rejects.
+  withRouter?: boolean;
 }
 
 export const renderWithProviders = (
   ui: ReactElement,
-  { toast, team, ui: uiOverrides, ...rest }: ProvidersOptions = {},
+  { toast, team, ui: uiOverrides, withRouter, ...rest }: ProvidersOptions = {},
 ) => {
   const toastValue = makeToast(toast);
   const teamValue = makeTeam(team);
@@ -93,11 +98,15 @@ export const renderWithProviders = (
   // The same mock object backs both team contexts: production splits
   // data/actions, but a test's makeTeam value carries everything, so
   // useTeam() and useTeamActions() both resolve against it.
+  const Routed = ({ children }: { children: ReactNode }) =>
+    withRouter ? <MemoryRouter>{children}</MemoryRouter> : <>{children}</>;
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <ToastContext.Provider value={toastValue}>
       <TeamContext.Provider value={teamValue}>
         <TeamActionsContext.Provider value={teamValue}>
-          <UIContext.Provider value={uiValue}>{children}</UIContext.Provider>
+          <UIContext.Provider value={uiValue}>
+            <Routed>{children}</Routed>
+          </UIContext.Provider>
         </TeamActionsContext.Provider>
       </TeamContext.Provider>
     </ToastContext.Provider>

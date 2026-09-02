@@ -1,6 +1,7 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { useTeam, useToast, useUI } from "../contexts";
+import { useTeam, useToast } from "../contexts";
+import { PlayerNameLink } from "./PlayerNameLink";
 import { isRosterPlayer } from "../utils/helpers";
 import {
   buildPlayingTimeReportData,
@@ -19,7 +20,6 @@ import {
 // Read-only: nothing here writes.
 export const PlayingTimePanel = memo(() => {
   const { team, currentRole } = useTeam();
-  const { openPlayerProfile } = useUI();
   const toast = useToast();
   const { players, games } = team as {
     players?: Array<{ id?: string; name?: string; number?: string | number }>;
@@ -112,13 +112,12 @@ export const PlayingTimePanel = memo(() => {
         {data.rows.map((r) => (
           <div key={r.id} className="p-4 sm:px-5">
             <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
-              <button
-                type="button"
-                onClick={() => openPlayerProfile?.(r.id)}
-                className="font-extrabold text-ink hover:text-team-primary text-left"
+              <PlayerNameLink
+                playerId={r.id}
+                className="font-extrabold text-ink text-left"
               >
                 {r.label}
-              </button>
+              </PlayerNameLink>
               <div className="flex flex-wrap gap-1.5 justify-end">
                 {data.columns.map((col, i) => (
                   <span

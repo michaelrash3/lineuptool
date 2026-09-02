@@ -1,6 +1,7 @@
 import React, { memo, useMemo } from "react";
 import { Icons } from "../icons";
-import { useTeam, useUI } from "../contexts";
+import { useTeam } from "../contexts";
+import { PlayerNameLink } from "./PlayerNameLink";
 import { buildSeasonPositionVariety } from "../utils/helpers";
 
 // Season position-variety report: how many innings each player has logged at
@@ -10,7 +11,6 @@ import { buildSeasonPositionVariety } from "../utils/helpers";
 // an infield/outfield look. Renders nothing until there's finalized-game data.
 export const PositionVarietyPanel = memo(() => {
   const { team } = useTeam();
-  const { openPlayerProfile } = useUI();
   const { players, games } = team;
 
   const rows = useMemo(() => {
@@ -91,14 +91,10 @@ export const PositionVarietyPanel = memo(() => {
               return (
                 <tr key={id} className="border-t border-line/60">
                   <td className="px-3 py-2 font-bold text-ink whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => openPlayerProfile(id)}
-                      className="hover:text-team-primary transition-colors text-left"
-                    >
+                    <PlayerNameLink player={player} className="text-left">
                       {player.number ? `#${player.number} ` : ""}
                       {player.name}
-                    </button>
+                    </PlayerNameLink>
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1.5">

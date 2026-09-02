@@ -2,6 +2,7 @@ import React, { memo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icons } from "../icons";
 import { rosterNeighbors } from "../utils/rosterOrder";
+import { playerSlug } from "../utils/playerSlug";
 import type { Player } from "../types";
 
 // Prev/Next across the roster from inside a player's profile, so reviewing the
@@ -51,18 +52,21 @@ export const PlayerPager = memo(
         const target = e.key === "ArrowLeft" ? prev : next;
         if (!target) return;
         e.preventDefault();
-        navigate(`/roster/${target.id}`, { replace: true });
+        navigate(`/roster/${playerSlug(target, players)}`, {
+          replace: true,
+        });
       };
       document.addEventListener("keydown", onKey);
       return () => document.removeEventListener("keydown", onKey);
-    }, [prev, next, navigate]);
+    }, [prev, next, navigate, players]);
 
     // A player who isn't in the roster sequence (a tournament sub, or an id
     // that no longer resolves) has nothing to page through.
     if (position === 0 || total < 2) return null;
 
     const step = (target: Player | null) => {
-      if (target) navigate(`/roster/${target.id}`, { replace: true });
+      if (target)
+        navigate(`/roster/${playerSlug(target, players)}`, { replace: true });
     };
 
     return (

@@ -1,6 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { useTeam, useUI, useToast, useConfirm } from "../contexts";
+import { useTeam, useToast, useConfirm } from "../contexts";
 import { FinanceHero, MoneyMeter } from "../components/financeViz";
 import {
   formatCurrency,
@@ -77,7 +77,6 @@ import { Button } from "../components/shared";
 
 export const FinancesTab = memo(() => {
   const { team: teamRaw, updateFinances, user } = useTeam();
-  const { openPlayerProfile } = useUI();
   // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
   // the known Team shape for this screen.
   const team = teamRaw as Team;
@@ -1313,7 +1312,6 @@ export const FinancesTab = memo(() => {
             recordPayment={recordPayment}
             recordRefund={recordRefund}
             toggleFeeWaiver={toggleFeeWaiver}
-            openPlayerProfile={openPlayerProfile}
             feeInput={feeInput}
             setFeeInput={setFeeInput}
             depositInput={depositInput}
