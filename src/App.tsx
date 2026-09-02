@@ -92,6 +92,7 @@ import {
 import { WelcomePage } from "./screens/WelcomePage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { RouteAlias } from "./components/RouteAlias";
+import { ScrollRestoration } from "./components/ScrollRestoration";
 import { LoginScreen, AppHeader, OfflineBanner } from "./components/Chrome";
 import { AppLoadingScreen, ScreenLoader } from "./components/LoadingScreens";
 import { PlayerProfilePage } from "./components/PlayerProfilePage";
@@ -859,6 +860,7 @@ const MainShell = () => {
           />
         </div>
       )}
+      <ScrollRestoration />
       <OfflineBanner />
       <AppHeader navButtons={navButtons} />
       {/* Desktop "control-panel" canvas: cap and center the content column on
@@ -882,6 +884,19 @@ const MainShell = () => {
                 <Route path="/awards" element={<AwardsPage />} />
                 <Route
                   path="/stats"
+                  element={
+                    featureOff("stats") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <StatsTab />
+                    )
+                  }
+                />
+                {/* Overview / Season Trends / Development are three different
+                    screens, so each gets a URL instead of living in local
+                    state. /stats keeps rendering Overview. */}
+                <Route
+                  path="/stats/:view"
                   element={
                     featureOff("stats") ? (
                       <Navigate to="/" replace />
@@ -1107,6 +1122,16 @@ const MainShell = () => {
                 />
                 <Route
                   path="/settings"
+                  element={
+                    isAssistant ? <Navigate to="/" replace /> : <SettingsTab />
+                  }
+                />
+                {/* Each Settings category is its own URL, so it can be
+                    linked, bookmarked, and backed out of. Static siblings
+                    below (/settings/advance-season, …) out-rank this
+                    dynamic segment in the router's ranking. */}
+                <Route
+                  path="/settings/:section"
                   element={
                     isAssistant ? <Navigate to="/" replace /> : <SettingsTab />
                   }

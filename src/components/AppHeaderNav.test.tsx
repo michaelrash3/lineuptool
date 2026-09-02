@@ -67,9 +67,7 @@ describe("AppHeader → NavDrawer integration", () => {
       screen.getByRole("button", { name: /open navigation menu/i }),
     );
     NAV.forEach((b) =>
-      expect(
-        screen.getByRole("menuitem", { name: b.label }),
-      ).toBeInTheDocument(),
+      expect(screen.getByRole("link", { name: b.label })).toBeInTheDocument(),
     );
   });
 
@@ -81,7 +79,9 @@ describe("AppHeader → NavDrawer integration", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /open navigation menu/i }),
     );
-    const menu = screen.getByRole("menu", { name: /primary navigation/i });
+    const menu = screen.getByRole("navigation", {
+      name: /primary navigation/i,
+    });
     // Not a descendant of the <header> (it was portaled to document.body).
     expect(menu.closest("header")).toBeNull();
     expect(container.querySelector("header")).not.toBeNull();

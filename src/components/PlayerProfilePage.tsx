@@ -1729,12 +1729,12 @@ export const PlayerProfilePage = memo(() => {
     return () => setViewingPlayerId(null);
   }, [playerId, setViewingPlayerId]);
   // Paging to the next player keeps this route mounted, so without the key the
-  // previous kid's open section, half-finished inline edit and scroll offset
-  // would ride along. Keying on the id remounts the profile clean, and the
-  // scroll reset below puts the coach at the top of the new one.
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-  }, [playerId]);
+  // previous kid's open section and half-finished inline edit would ride
+  // along. Keying on the id remounts the profile clean. Scroll is not reset
+  // here: ScrollRestoration owns it app-wide, and it already puts a push or
+  // replace (which is how PlayerPager moves between kids) at the top — while
+  // a local reset here would also fire on POP and stomp the offset Back is
+  // supposed to restore.
   return (
     <div className="w-full py-2">
       <PlayerProfile key={playerId} />

@@ -1,5 +1,5 @@
 import React from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { screen, fireEvent, within } from "@testing-library/react";
 import { vi } from "vitest";
 import { StatsTab } from "./StatsTab";
@@ -325,5 +325,72 @@ describe("StatsTab", () => {
       },
     );
     expect(screen.getByText(/Arm Care/i)).toBeInTheDocument();
+  });
+});
+
+// Overview / Season Trends / Development used to be one useState inside the
+// screen, so all three shared the single /stats address. Each is its own URL
+// now: linkable, reload-safe, and steppable with the back button.
+describe("StatsTab — view URLs", () => {
+  const statsRoutes = (
+    <Routes>
+      <Route path="/stats" element={<StatsTab />} />
+      <Route path="/stats/:view" element={<StatsTab />} />
+    </Routes>
+  );
+
+  const renderAt = (path: string) =>
+    renderWithProviders(
+      <MemoryRouter initialEntries={[path]}>{statsRoutes}</MemoryRouter>,
+      { team: { team, currentRole: "head", realRole: "head" } },
+    );
+
+  it("opens Season Trends straight from its URL", () => {
+    renderAt("/stats/trends");
+    expect(screen.getByRole("link", { name: "Season Trends" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("opens Development straight from its URL", () => {
+    renderAt("/stats/development");
+    expect(screen.getByRole("link", { name: "Development" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("treats bare /stats as Overview", () => {
+    renderAt("/stats");
+    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("falls back to Overview for an unknown view segment", () => {
+    renderAt("/stats/not-a-view");
+    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("points each switcher pill at its own address", () => {
+    renderAt("/stats");
+    expect(screen.getByRole("link", { name: "Season Trends" })).toHaveAttribute(
+      "href",
+      "/stats/trends",
+    );
+    expect(screen.getByRole("link", { name: "Development" })).toHaveAttribute(
+      "href",
+      "/stats/development",
+    );
+    // Overview is the section root, not a segment.
+    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute(
+      "href",
+      "/stats",
+    );
   });
 });

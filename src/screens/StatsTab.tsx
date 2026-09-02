@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { Link, useParams } from "react-router-dom";
 import { Icons } from "../icons";
 import { useTeam, useUI, useConfirm, useToast } from "../contexts";
 import type {
@@ -348,6 +349,16 @@ const SectionCard = ({
   </div>
 );
 
+// The three top-level Stats screens, in switcher order. Also the whitelist
+// that validates the :view URL segment.
+const STATS_VIEWS = ["overview", "trends", "development"] as const;
+type StatsView = (typeof STATS_VIEWS)[number];
+const STATS_VIEW_LABELS: Record<StatsView, string> = {
+  overview: "Overview",
+  trends: "Season Trends",
+  development: "Development",
+};
+
 export const StatsTab = memo(() => {
   const {
     team: teamRaw,
@@ -379,10 +390,13 @@ export const StatsTab = memo(() => {
     "all",
   );
   // Top-level sub-view: the classic tables (Overview), team-level Season
-  // Trends charts, or the per-player Development table.
-  const [view, setView] = useState<"overview" | "trends" | "development">(
-    "overview",
-  );
+  // Trends charts, or the per-player Development table. These are three
+  // different screens, so the URL owns which one is showing — /stats/trends
+  // is linkable and the back button steps between them.
+  const { view: viewParam } = useParams();
+  const view: StatsView = STATS_VIEWS.includes(viewParam as StatsView)
+    ? (viewParam as StatsView)
+    : "overview";
   const teamAgeNum = ageFromTeamAge(team.teamAge);
   const statsFormatLockedToKidPitch = teamAgeNum >= 9;
   const effectiveStatFormat = statsFormatLockedToKidPitch ? "all" : statFormat;
@@ -675,20 +689,14 @@ export const StatsTab = memo(() => {
         role="group"
         aria-label="Stats view"
       >
-        {(
-          [
-            ["overview", "Overview"],
-            ["trends", "Season Trends"],
-            ["development", "Development"],
-          ] as const
-        ).map(([id, label]) => {
+        {STATS_VIEWS.map((id) => {
+          const label = STATS_VIEW_LABELS[id];
           const on = view === id;
           return (
-            <button
+            <Link
               key={id}
-              type="button"
-              onClick={() => setView(id)}
-              aria-pressed={on}
+              to={id === "overview" ? "/stats" : `/stats/${id}`}
+              aria-current={on ? "page" : undefined}
               className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-colors"
               style={
                 on
@@ -701,7 +709,7 @@ export const StatsTab = memo(() => {
               }
             >
               {label}
-            </button>
+            </Link>
           );
         })}
         <HelpTip

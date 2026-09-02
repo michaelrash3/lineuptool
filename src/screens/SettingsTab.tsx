@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { Icons } from "../icons";
 import { QRCodeImg } from "../components/QRCodeImg";
 import {
@@ -810,9 +810,15 @@ export const SettingsTab = memo(() => {
     currentSeason,
   } = team;
   const isDefenseLocked = !(leagueRuleSet === "NKB" && teamAge === "9U");
-  const [settingsMenu, setSettingsMenu] = useState("team");
-  // Mobile drill-in: false = show the category list, true = show the panel.
-  const [mobilePanel, setMobilePanel] = useState(false);
+  // Which category is open is the URL, not component state: /settings/staff
+  // is linkable, survives a reload, and — the part that made this screen feel
+  // like a stack of modals — makes the browser/Android back button walk back
+  // out of a category instead of leaving the app. /settings with no segment
+  // is the category index (the panel a phone drills into).
+  const { section: sectionParam } = useParams();
+  const settingsMenu = sectionParam || "team";
+  // Mobile drill-in: no segment = show the category list, a segment = the panel.
+  const mobilePanel = Boolean(sectionParam);
   // Wrap the existing uploadLogo: keep all its size-limit guards, then pull
   // the logo's dominant colors and (if any) hand them to the
   // /settings/logo-colors page via navigation state so the coach can assign
@@ -850,6 +856,10 @@ export const SettingsTab = memo(() => {
     { id: "imports", label: "Imports", icon: Icons.FileText },
     { id: "advanced", label: "Advanced", icon: Icons.Cloud },
   ];
+  // A hand-typed or stale /settings/<junk> falls back to the index rather
+  // than rendering a titleless empty panel.
+  const knownSection =
+    !sectionParam || settingsMenuItems.some((i) => i.id === sectionParam);
 
   // Past-season CSV import: parse the file, then hand the rows to the
   // /settings/import/past-season review page via navigation state (a file's
@@ -899,6 +909,8 @@ export const SettingsTab = memo(() => {
     [players, navigate, toast],
   );
 
+  if (!knownSection) return <Navigate to="/settings" replace />;
+
   return (
     <div className="max-w-5xl mx-auto">
       <div className="pb-4 mb-5 border-b border-line flex items-center gap-3">
@@ -920,13 +932,9 @@ export const SettingsTab = memo(() => {
               const Icon = item.icon;
               const active = settingsMenu === item.id;
               return (
-                <button
+                <Link
                   key={item.id}
-                  type="button"
-                  onClick={() => {
-                    setSettingsMenu(item.id);
-                    setMobilePanel(true);
-                  }}
+                  to={`/settings/${item.id}`}
                   aria-current={active ? "page" : undefined}
                   className={`flex items-center gap-3 px-3 py-3 text-left border-b border-line lg:border-b-0 lg:rounded-sm transition-colors ${
                     active ? "lg:bg-surface-2" : "hover:bg-surface-2"
@@ -946,7 +954,7 @@ export const SettingsTab = memo(() => {
                     {item.label}
                   </span>
                   <Icons.ChevronRight className="w-4 h-4 text-ink-3 lg:hidden" />
-                </button>
+                </Link>
               );
             })}
           </div>
@@ -956,13 +964,12 @@ export const SettingsTab = memo(() => {
         <div
           className={`flex-1 min-w-0 ${mobilePanel ? "block" : "hidden lg:block"}`}
         >
-          <button
-            type="button"
-            onClick={() => setMobilePanel(false)}
+          <Link
+            to="/settings"
             className="lg:hidden inline-flex items-center gap-1 text-xs font-black uppercase tracking-widest text-ink-2 hover:text-ink mb-4"
           >
             <Icons.ChevronRight className="w-4 h-4 rotate-180" /> All Settings
-          </button>
+          </Link>
           <h2 className="t-h2 mb-6">
             {settingsMenuItems.find((i) => i.id === settingsMenu)?.label}
           </h2>
