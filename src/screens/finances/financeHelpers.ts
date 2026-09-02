@@ -6,7 +6,15 @@ export const newId = (prefix: string) => genId(prefix);
 // Parse a dollars input; null when not a usable positive amount. Comma
 // handling, the sanity cap, and cent rounding live in parseMoneyInput
 // (utils/finances.ts, unit-tested).
-export const parseAmount = (raw: string): number | null => parseMoneyInput(raw);
+//
+// `allowZero` makes an explicit 0 parse as 0 instead of null. Callers whose
+// form treats a zero as "leave this row out" NEED it: without it a typed 0
+// is indistinguishable from unparseable junk, and a caller that bails on
+// null silently swallows the whole submit.
+export const parseAmount = (
+  raw: string,
+  opts?: { allowZero?: boolean },
+): number | null => parseMoneyInput(raw, opts);
 
 // "2026-03" → "March 2026" for the ledger month group headers.
 const MONTH_FULL = [

@@ -1174,10 +1174,29 @@ export const FinancesTab = memo(() => {
     rows: Array<{ playerId: string; name: string; amount: number }>,
   ): boolean => {
     const fundraiser = passThrough.fundraisers.find((f) => f.id === incomeId);
-    if (!fundraiser) return false;
+    if (!fundraiser) {
+      toast.push({
+        kind: "error",
+        title: "That fundraiser is gone",
+        message:
+          "It was edited or deleted while this editor was open. Reopen it and try again.",
+      });
+      return false;
+    }
     const total = round2(rows.reduce((sum, r) => sum + r.amount, 0));
-    if (total <= 0) return false;
-    if (total > fundraiser.remaining) {
+    if (total <= 0) {
+      toast.push({
+        kind: "error",
+        title: "Nothing to pay out",
+        message: "Enter an amount above zero for at least one family.",
+      });
+      return false;
+    }
+    // Compare in whole cents. Distributing the exact remaining balance is the
+    // common case (the editor pre-fills an even split of it), and a float
+    // comparison rejects that as "over" whenever the sum lands a fraction of
+    // a cent high.
+    if (Math.round(total * 100) > Math.round(fundraiser.remaining * 100)) {
       toast.push({
         kind: "error",
         title: "That's more than the fundraiser has left",
