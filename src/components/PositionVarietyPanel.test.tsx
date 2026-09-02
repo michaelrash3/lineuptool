@@ -24,6 +24,7 @@ const players = [
 describe("PositionVarietyPanel", () => {
   it("renders nothing until there is finalized-game data", () => {
     const { container } = renderWithProviders(<PositionVarietyPanel />, {
+      withRouter: true,
       team: { team: { players, games: [] } },
     });
     expect(container).toBeEmptyDOMElement();
@@ -31,6 +32,7 @@ describe("PositionVarietyPanel", () => {
 
   it("lists players with their positions and flags one-position players", () => {
     renderWithProviders(<PositionVarietyPanel />, {
+      withRouter: true,
       team: { team: { players, games: [finalGame] } },
     });
     expect(screen.getByText("Position Variety")).toBeInTheDocument();
@@ -42,11 +44,16 @@ describe("PositionVarietyPanel", () => {
     expect(screen.getByText("CF 1")).toBeInTheDocument();
   });
 
-  it("opens a player's profile when their name is tapped", async () => {
-    const { uiValue } = renderWithProviders(<PositionVarietyPanel />, {
+  // The name is a link, not a button with a handler: it previews on hover and
+  // opens in a new tab like any other link on the site.
+  it("links a player's name to their page", () => {
+    renderWithProviders(<PositionVarietyPanel />, {
+      withRouter: true,
       team: { team: { players, games: [finalGame] } },
     });
-    await userEvent.click(screen.getByText("#7 Ava Rivera"));
-    expect(uiValue.openPlayerProfile).toHaveBeenCalledWith("p1");
+    expect(screen.getByRole("link", { name: "#7 Ava Rivera" })).toHaveAttribute(
+      "href",
+      "/roster/ava-rivera",
+    );
   });
 });

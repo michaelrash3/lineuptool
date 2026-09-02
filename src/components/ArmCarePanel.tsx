@@ -1,6 +1,7 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { useTeam, useUI } from "../contexts";
+import { useTeam } from "../contexts";
+import { PlayerNameLink } from "./PlayerNameLink";
 import {
   analyzePitchingWorkload,
   buildPitchingPlan,
@@ -199,7 +200,6 @@ const OutingAddRow = ({
 // numbers come straight from each player's pitching.log, rule-set aware.
 export const ArmCarePanel = memo(() => {
   const { team, currentRole, updatePlayer } = useTeam();
-  const { openPlayerProfile } = useUI();
   const { players, pitchingFormat, teamAge } = team as any;
   const eligible = currentRole === "head" && isKidPitchFormat(pitchingFormat);
   const ruleSet = useMemo(() => resolvePitchRuleSet(team), [team]);
@@ -275,10 +275,9 @@ export const ArmCarePanel = memo(() => {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => openPlayerProfile?.(p.id)}
-                    className="font-extrabold text-ink hover:text-team-primary text-left"
+                  <PlayerNameLink
+                    player={p}
+                    className="font-extrabold text-ink text-left"
                   >
                     {p.name}
                     {p.number != null && p.number !== "" && (
@@ -286,7 +285,7 @@ export const ArmCarePanel = memo(() => {
                         #{p.number}
                       </span>
                     )}
-                  </button>
+                  </PlayerNameLink>
                   {avail && availabilityChip(avail)}
                 </div>
                 <div className="text-[11px] font-bold text-ink-2 mt-0.5 tabular-nums">

@@ -9,6 +9,7 @@ import {
   PlayerAvatar,
 } from "../../components/shared";
 import { MoneyMeter } from "../../components/financeViz";
+import { PlayerNameLink } from "../../components/PlayerNameLink";
 import {
   externalOrgFeeContext,
   financeSummary,
@@ -44,7 +45,6 @@ interface FeeCollectionSectionProps {
   recordPayment: (playerId: string, amount: number) => void;
   recordRefund: (playerId: string, name: string, paid: number) => void;
   toggleFeeWaiver: (playerId: string) => void;
-  openPlayerProfile: (id: string) => void;
   feeInput: string | null;
   setFeeInput: Dispatch<SetStateAction<string | null>>;
   depositInput: string | null;
@@ -91,7 +91,6 @@ export const FeeCollectionSection = ({
   recordPayment,
   recordRefund,
   toggleFeeWaiver,
-  openPlayerProfile,
   feeInput,
   setFeeInput,
   depositInput,
@@ -348,10 +347,9 @@ export const FeeCollectionSection = ({
                 className="py-2.5 flex flex-wrap items-center gap-2"
               >
                 <PlayerAvatar player={p} size={32} />
-                <button
-                  type="button"
-                  onClick={() => openPlayerProfile(p.id)}
-                  className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate flex-1 min-w-[8rem]"
+                <PlayerNameLink
+                  player={p}
+                  className="t-body-bold text-ink uppercase tracking-tight text-left truncate flex-1 min-w-[8rem]"
                 >
                   {p.name}
                   {!waived && playerFee > 0 && (
@@ -362,7 +360,7 @@ export const FeeCollectionSection = ({
                       ariaLabel={`${p.name}: fees paid`}
                     />
                   )}
-                </button>
+                </PlayerNameLink>
                 <span className="tabular-nums text-sm font-bold text-ink-2">
                   {formatCurrency(paid)} paid
                 </span>

@@ -1,6 +1,7 @@
 import React, { memo } from "react";
 import { useTeam } from "../../contexts";
 import { Icons } from "../../icons";
+import { PlayerNameLink } from "../../components/PlayerNameLink";
 import {
   jerseyConflicts,
   ageIneligiblePlayers,
@@ -77,7 +78,13 @@ export const RosterIntegrityPanel = memo(() => {
               className="text-[11px] font-bold text-loss flex items-center gap-1.5"
             >
               <Icons.Alert className="w-3.5 h-3.5 shrink-0" />#{c.number} worn
-              by {c.players.map((p) => p.name).join(" & ")}
+              by{" "}
+              {c.players.map((p, i) => (
+                <React.Fragment key={p.id}>
+                  {i > 0 && " & "}
+                  <PlayerNameLink player={p} className="underline" />
+                </React.Fragment>
+              ))}
             </p>
           ))}
           {overAge.map((p) => (
@@ -86,7 +93,8 @@ export const RosterIntegrityPanel = memo(() => {
               className="text-[11px] font-bold text-loss flex items-center gap-1.5"
             >
               <Icons.Alert className="w-3.5 h-3.5 shrink-0" />
-              {p.name} is {p.age} — over the {p.cap}U division
+              <PlayerNameLink player={p} className="underline" /> is {p.age} —
+              over the {p.cap}U division
             </p>
           ))}
         </div>

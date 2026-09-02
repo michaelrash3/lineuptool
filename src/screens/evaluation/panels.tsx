@@ -6,6 +6,7 @@
 import { memo, useMemo, useState } from "react";
 
 import { Icons } from "../../icons";
+import { PlayerNameLink } from "../../components/PlayerNameLink";
 import { evalRoundRecency } from "../../utils/helpers";
 import { EVAL_SCALE_LABELS, type EvalCategory } from "../../constants/ui";
 import {
@@ -418,7 +419,7 @@ export const AssistantSubmissionsPanel = memo(
                           className="border-t border-line pt-2 first:border-t-0 first:pt-0"
                         >
                           <div className="text-[12px] font-black uppercase tracking-tight text-ink mb-1">
-                            {p.name}
+                            <PlayerNameLink player={p} />
                           </div>
                           {Array.isArray(g.suggestedPositions) &&
                             g.suggestedPositions.length > 0 && (

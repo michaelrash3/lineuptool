@@ -1,6 +1,7 @@
 import React, { memo, useMemo } from "react";
 import { Icons } from "../icons";
-import { useTeam, useUI } from "../contexts";
+import { useTeam } from "../contexts";
+import { PlayerNameLink } from "./PlayerNameLink";
 import { generateLineup, buildCompetitiveLineup } from "../lineupEngine";
 import { isGameFinalized, formatGameDateDisplay } from "../utils/helpers";
 import { getLocalDateString, leagueRuleSetLabel } from "../constants/ui";
@@ -12,7 +13,6 @@ import { getLocalDateString, leagueRuleSetLabel } from "../constants/ui";
 // rested under the age rules (last-thrown date + pitches thrown). Head-coach only.
 export const OptimalLineupPanel = memo(() => {
   const { team, currentRole } = useTeam();
-  const { openPlayerProfile } = useUI();
   const {
     players,
     games,
@@ -158,14 +158,13 @@ export const OptimalLineupPanel = memo(() => {
                   >
                     {pos}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => openPlayerProfile(b.id)}
-                    className="font-bold text-ink hover:text-team-primary transition-colors text-left truncate"
+                  <PlayerNameLink
+                    playerId={b.id}
+                    className="font-bold text-ink text-left truncate"
                   >
                     {b.number ? `#${b.number} ` : ""}
                     {b.name}
-                  </button>
+                  </PlayerNameLink>
                 </div>
               );
             })}

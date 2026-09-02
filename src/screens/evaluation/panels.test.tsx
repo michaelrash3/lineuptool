@@ -1,4 +1,6 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render as rtlRender, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import type { ReactElement } from "react";
 import { vi } from "vitest";
 import {
   InsightsPanel,
@@ -8,6 +10,10 @@ import {
 import { EVAL_CATEGORIES } from "../../constants/ui";
 import type { EvalRound } from "../../utils/evalScoring";
 import type { Player } from "../../types";
+
+// These panels render player-name links now, which need router context.
+const render = (ui: ReactElement) =>
+  rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
 
 // "approach" is a real universal (non-add-on) category, so avgUniversal picks
 // it up — a one-category grade record has that category as its whole average.

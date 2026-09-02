@@ -52,7 +52,7 @@ describe("TournamentPitchPlanPanel", () => {
           g1: [{ playerId: "p1", role: "start", plannedPitches: 60 }],
         })}
       />,
-      { team: { team: baseTeam(), currentRole: "head" } },
+      { withRouter: true, team: { team: baseTeam(), currentRole: "head" } },
     );
     // Saturday shows the planned chip; Sunday shows Ace resting (60p → 3 days).
     expect(screen.getByText(/#1 Ace · start · 60p/)).toBeInTheDocument();
@@ -69,7 +69,7 @@ describe("TournamentPitchPlanPanel", () => {
           g2: [{ playerId: "p1", role: "start", plannedPitches: 20 }],
         })}
       />,
-      { team: { team: baseTeam(), currentRole: "head" } },
+      { withRouter: true, team: { team: baseTeam(), currentRole: "head" } },
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
       /Ace threw 60 .* isn't rested/,
@@ -81,6 +81,7 @@ describe("TournamentPitchPlanPanel", () => {
     renderWithProviders(
       <TournamentPitchPlanPanel tournament={tournament()} />,
       {
+        withRouter: true,
         team: { team: baseTeam(), currentRole: "head", setPlannedOutings },
       },
     );
@@ -102,7 +103,10 @@ describe("TournamentPitchPlanPanel", () => {
           ],
         })}
       />,
-      { team: { team: baseTeam(), currentRole: "head", setPlannedOutings } },
+      {
+        withRouter: true,
+        team: { team: baseTeam(), currentRole: "head", setPlannedOutings },
+      },
     );
     await userEvent.click(
       screen.getByLabelText("Remove Ace from this game's plan"),
@@ -128,7 +132,10 @@ describe("TournamentPitchPlanPanel", () => {
           g1: [{ playerId: "p1", role: "start", plannedPitches: 60 }],
         })}
       />,
-      { team: { team: baseTeam({ players: logged }), currentRole: "head" } },
+      {
+        withRouter: true,
+        team: { team: baseTeam({ players: logged }), currentRole: "head" },
+      },
     );
     expect(screen.getByText("logged")).toBeInTheDocument();
     expect(
@@ -143,7 +150,10 @@ describe("TournamentPitchPlanPanel", () => {
           g1: [{ playerId: "p1", role: "start", plannedPitches: 40 }],
         })}
       />,
-      { team: { team: baseTeam(), currentRole: "assistant" } },
+      {
+        withRouter: true,
+        team: { team: baseTeam(), currentRole: "assistant" },
+      },
     );
     expect(screen.getByText(/#1 Ace · start · 40p/)).toBeInTheDocument();
     expect(screen.queryByText(/Add arm/)).not.toBeInTheDocument();
@@ -156,6 +166,7 @@ describe("TournamentPitchPlanPanel", () => {
     const { container } = renderWithProviders(
       <TournamentPitchPlanPanel tournament={tournament()} />,
       {
+        withRouter: true,
         team: {
           team: baseTeam({ pitchingFormat: "Machine Pitch" }),
           currentRole: "head",
