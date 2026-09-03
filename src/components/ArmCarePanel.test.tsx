@@ -2,6 +2,7 @@ import React from "react";
 import { fireEvent, screen } from "@testing-library/react";
 import { ArmCarePanel } from "./ArmCarePanel";
 import { renderWithProviders } from "../test-utils";
+import { getLocalDateString } from "../constants/ui";
 
 // The pure log math (dedupe, recency mirrors, cap) is covered in
 // utils/helpers.test.ts. These tests cover the editor wiring: that the coach
@@ -39,6 +40,35 @@ const renderPanel = (over: any = {}) => {
   });
   return { ...utils, updatePlayer };
 };
+
+// Same-day standing: a doubleheader is one shared budget, so a kid who
+// already worked today is still available with the remainder — the chip has to
+// say so rather than reading like a full tank.
+describe("ArmCarePanel same-day availability", () => {
+  const today = getLocalDateString();
+  const threwToday = (pitches: number) => ({
+    id: "p1",
+    name: "Ace",
+    number: "1",
+    comfortablePositions: ["P"],
+    pitching: {
+      recentPitches: pitches,
+      lastPitchDate: today,
+      log: [{ date: today, pitches, gameId: "g1" }],
+    },
+  });
+
+  it("stays ready for a second game today, showing what's left of the daily max", () => {
+    // 10U daily max is 75; 40 thrown in game 1 leaves 35 for the nightcap.
+    renderPanel({ players: [threwToday(40)] });
+    expect(screen.getByText("Ready · 35 left")).toBeInTheDocument();
+  });
+
+  it("reads as day-maxed once today's pitches are gone", () => {
+    renderPanel({ players: [threwToday(75)] });
+    expect(screen.getByText("Day maxed")).toBeInTheDocument();
+  });
+});
 
 describe("ArmCarePanel log editor", () => {
   it("opens the outing log from the Edit log button", () => {

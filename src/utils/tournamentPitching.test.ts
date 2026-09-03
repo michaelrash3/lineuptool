@@ -137,7 +137,7 @@ describe("orderedTournamentGames", () => {
 });
 
 describe("assessTournamentPlan", () => {
-  it("a planned Saturday outing blocks the same arm for Saturday-PM and Sunday", () => {
+  it("a planned Saturday outing spends the day's budget and rests the arm Sunday", () => {
     const players = [pitcher("p1", "Ace"), pitcher("p2", "Lefty")];
     const t = tournament({
       g1: [{ playerId: "p1", role: "start", plannedPitches: 60 }],
@@ -155,9 +155,16 @@ describe("assessTournamentPlan", () => {
     expect(a1.violations).toEqual([]);
     expect(a1.arms.map((a) => a.status)).toEqual(["ready", "ready"]);
 
-    // Game 2 (same day, Ace not planned): the folded 60 still takes him off
-    // the ready list — the core flaw this module fixes.
-    expect(a2.arms.find((a) => a.id === "p1")?.status).not.toBe("ready");
+    // Game 2 (same day, Ace not planned): a doubleheader shares ONE budget, so
+    // Ace can still take the nightcap — with the folded 60 already deducted.
+    const aceG2 = a2.arms.find((a) => a.id === "p1");
+    expect(aceG2?.status).toBe("ready");
+    expect(aceG2?.pitchedToday).toBe(60);
+    expect(aceG2?.remainingToday).toBe(15); // 75 daily max − 60 planned
+    // Lefty, untouched, still has the whole day.
+    expect(a2.arms.find((a) => a.id === "p2")?.remainingToday).toBe(75);
+    // A spent arm sorts below a full one even though both are ready.
+    expect(a2.arms.map((a) => a.id)).toEqual(["p2", "p1"]);
     expect(a2.violations).toEqual([]);
 
     // Game 3 (next day): 60 pitches → 3 rest days → not rested by Sunday.
@@ -194,8 +201,101 @@ describe("assessTournamentPlan", () => {
     });
   });
 
-  it("a small same-day repeat under the daily max still violates (one appearance per day)", () => {
+  it("allows the same arm in both games of a doubleheader while the day's budget holds", () => {
     const players = [pitcher("p1", "Ace")];
+    const t = tournament({
+      g1: [{ playerId: "p1", role: "start", plannedPitches: 20 }],
+      g2: [{ playerId: "p1", role: "relief", plannedPitches: 20 }],
+      // 20 + 20 = 40 on Saturday → 2 rest days → Sunday is still too soon.
+      g3: [{ playerId: "p1", role: "start", plannedPitches: 20 }],
+    });
+    const [, a2, a3] = assessTournamentPlan({
+      tournament: t,
+      games: GAMES,
+      players,
+      teamAge: AGE,
+      ruleSet: RULES,
+    });
+    // Game 2 the same day: legal, with game 1's 20 already deducted.
+    expect(a2.violations).toEqual([]);
+    expect(a2.arms.find((a) => a.id === "p1")).toMatchObject({
+      status: "ready",
+      pitchedToday: 20,
+      remainingToday: 55,
+    });
+    // Sunday: rest is owed on the DAY's cumulative 40, not on either outing.
+    expect(a3.violations).toHaveLength(1);
+    expect(a3.violations[0].kind).toBe("insufficientRest");
+    expect(a3.violations[0].message).toContain("40");
+  });
+
+  it("flags the doubleheader entry that would push the day past the daily max", () => {
+    const players = [pitcher("p1", "Ace")];
+    const t = tournament({
+      g1: [{ playerId: "p1", role: "start", plannedPitches: 50 }],
+      g2: [{ playerId: "p1", role: "relief", plannedPitches: 30 }],
+    });
+    const [, a2] = assessTournamentPlan({
+      tournament: t,
+      games: GAMES,
+      players,
+      teamAge: AGE,
+      ruleSet: RULES,
+    });
+    expect(a2.violations).toHaveLength(1);
+    expect(a2.violations[0].kind).toBe("dailyMax");
+    // The copy names what's actually left, so the fix is to trim the budget.
+    expect(a2.violations[0].message).toContain("25 left today");
+  });
+
+  it("a logged first game of a doubleheader leaves the real remainder for game 2", () => {
+    // The box-score import wrote game 1's real 45 pitches; game 2 must offer
+    // the arm with 30 left, not lock him out for the day.
+    const players = [
+      pitcher("p1", "Ace", {
+        pitching: { log: [{ date: "2026-06-06", pitches: 45, gameId: "g1" }] },
+      }),
+    ];
+    const [, a2] = assessTournamentPlan({
+      tournament: tournament({}),
+      games: GAMES,
+      players,
+      teamAge: AGE,
+      ruleSet: RULES,
+    });
+    expect(a2.arms.find((a) => a.id === "p1")).toMatchObject({
+      status: "ready",
+      pitchedToday: 45,
+      remainingToday: 30,
+    });
+  });
+
+  it("marks an arm maxed once the day's pitches are gone", () => {
+    const players = [pitcher("p1", "Ace")];
+    const t = tournament({
+      g1: [{ playerId: "p1", role: "start" }], // default budget = the 75 max
+    });
+    const [, a2] = assessTournamentPlan({
+      tournament: t,
+      games: GAMES,
+      players,
+      teamAge: AGE,
+      ruleSet: RULES,
+    });
+    expect(a2.arms.find((a) => a.id === "p1")).toMatchObject({
+      status: "maxed",
+      remainingToday: 0,
+    });
+  });
+
+  it("names the day the rest is owed to, not something thrown the same day", () => {
+    // Friday's real 60 owes 3 days. Saturday's nightcap already carries the
+    // opener's planned 20 — the violation still has to point at Friday.
+    const players = [
+      pitcher("p1", "Ace", {
+        pitching: { log: [{ date: "2026-06-05", pitches: 60 }] },
+      }),
+    ];
     const t = tournament({
       g1: [{ playerId: "p1", role: "start", plannedPitches: 20 }],
       g2: [{ playerId: "p1", role: "relief", plannedPitches: 20 }],
@@ -208,7 +308,8 @@ describe("assessTournamentPlan", () => {
       ruleSet: RULES,
     });
     expect(a2.violations).toHaveLength(1);
-    expect(a2.violations[0].kind).toBe("notEligibleToday");
+    expect(a2.violations[0].kind).toBe("insufficientRest");
+    expect(a2.violations[0].message).toContain("threw 60 on 2026-06-05");
   });
 
   it("consumed entries are not double-counted against the real log", () => {

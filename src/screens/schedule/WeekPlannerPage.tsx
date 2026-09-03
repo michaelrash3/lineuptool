@@ -40,7 +40,9 @@ const shortDate = (iso: string): string => {
 // classification chip and its pitching plan, where planned outings fold
 // forward chronologically ACROSS THE WHOLE WEEK: plan an arm for Wednesday's
 // rec game and Saturday's card immediately shows him resting — the same
-// engine math the tournament panel and game day run (assessGamesPlan).
+// engine math the tournament panel and game day run (assessGamesPlan). Games
+// sharing a DATE share one cumulative pitch count instead: the second game
+// offers the same arm with the first game's pitches already taken off.
 export const WeekPlannerPage = memo(() => {
   const { team, currentRole, setPlannedOutings, updateGame } = useTeam();
   const back = useBackOrFallback("/schedule");
@@ -209,7 +211,7 @@ export const WeekPlannerPage = memo(() => {
     <PageShell eyebrow="Schedule" title="Week Planner" onBack={back}>
       <p className="text-xs font-bold text-ink-3 -mt-2 mb-4">
         {applies
-          ? "Every game, rec and tournament, week by week. Planned pitches in any game count against daily max and rest rules for every later game that week — plan Wednesday and Saturday shows the cost."
+          ? "Every game, rec and tournament, week by week. Planned pitches in any game count against daily max and rest rules for every later game that week — plan Wednesday and Saturday shows the cost. Two games on one day share one pitch count: an arm can work both, with the opener already deducted."
           : "Every game, rec and tournament, week by week. Pitch-count planning turns on for Kid Pitch, 9U and up."}
       </p>
       {weeks.length === 0 ? (

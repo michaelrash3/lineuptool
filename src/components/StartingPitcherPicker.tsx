@@ -2,9 +2,9 @@ import React, { memo, useMemo } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
 import {
-  checkPitchEligibility,
   getCombinedGrades,
   calcPitcherScore,
+  pitchBudgetFor,
   resolvePitchRuleSet,
 } from "../lineupEngine";
 import {
@@ -140,19 +140,23 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
         });
         // Eligibility sees earlier games' planned outings — tournament or
         // standalone — as if already thrown (hypothetical fold; nothing is
-        // persisted).
+        // persisted). On the second game of a doubleheader that fold is what
+        // makes the budget below shrink instead of the arm disappearing.
         const eligibilityPlayer = priorPlanned?.size
           ? withPlannedOutings(p, priorPlanned.get(p.id) || [])
           : p;
+        const budget = pitchBudgetFor(
+          eligibilityPlayer.pitching,
+          dateStr,
+          teamAge,
+          pitchRules,
+          { excludeGameId: game.id },
+        );
         return {
           p,
           score,
-          eligible: checkPitchEligibility(
-            eligibilityPlayer,
-            dateStr,
-            teamAge,
-            pitchRules,
-          ),
+          eligible: budget.eligible,
+          budget,
           recent: p.pitching?.recentPitches || 0,
         };
       })
@@ -269,10 +273,20 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
                     </span>
                   )}
                 </span>
-                {r.recent > 0 && (
+                {/* On the back half of a doubleheader the day's remaining
+                    budget is the number that matters, not the season-recent
+                    count — both games draw on one daily max. */}
+                {r.budget.thrownToday > 0 ? (
                   <span className="block text-[10px] font-bold text-ink-3 tabular-nums">
-                    {r.recent} recent pitches
+                    {r.budget.thrownToday} thrown today · {r.budget.remaining}{" "}
+                    left
                   </span>
+                ) : (
+                  r.recent > 0 && (
+                    <span className="block text-[10px] font-bold text-ink-3 tabular-nums">
+                      {r.recent} recent pitches
+                    </span>
+                  )
                 )}
               </span>
               {isRec &&
@@ -307,7 +321,7 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
                 )
               ) : (
                 <span className="t-chip px-2 py-0.5 rounded-sm bg-warn-bg text-warnfg border border-line shrink-0">
-                  Rest
+                  {r.budget.remaining <= 0 ? "Day maxed" : "Rest"}
                 </span>
               )}
             </button>

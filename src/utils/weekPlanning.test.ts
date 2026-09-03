@@ -179,9 +179,10 @@ describe("assessWeekPlan", () => {
     });
     // Saturday: Lefty resting from Wednesday's 55p (3rd rest day).
     expect(aSat.arms.find((a) => a.id === "p2")?.status).toBe("resting");
-    // Sunday: Ace off the board from Saturday's full-budget tournament plan
-    // (75p reads as maxed); Lefty is past his 3 rest days and back.
-    expect(aSun.arms.find((a) => a.id === "p1")?.status).toBe("maxed");
+    // Sunday: Ace off the board from Saturday's full-budget tournament plan —
+    // 75p owes 4 rest days, so he is RESTING (Sunday's own budget is
+    // untouched; the debt is Saturday's). Lefty is past his 3 rest days.
+    expect(aSun.arms.find((a) => a.id === "p1")?.status).toBe("resting");
     expect(aSun.arms.find((a) => a.id === "p2")?.status).toBe("ready");
     expect(aWed.violations).toEqual([]);
   });

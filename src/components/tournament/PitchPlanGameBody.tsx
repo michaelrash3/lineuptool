@@ -12,16 +12,22 @@ import type { Game, PlannedOuting, Player } from "../../types";
 // Inline "+ Add arm" editor for one game's pitching plan: pick a cleared
 // pitcher, start/relief, and an optional pitch budget (blank = the age daily
 // max, the conservative default so later games never over-promise).
+//
+// The pitch-count field shows the SELECTED arm's pitches left for that date —
+// on the back half of a doubleheader that is the daily max minus whatever the
+// opener already spent, so the coach plans against the real remainder.
 const AddArmRow = ({
   pitchers,
   taken,
   dailyMax,
+  armById,
   onAdd,
   onCancel,
 }: {
   pitchers: Player[];
   taken: Set<string>;
   dailyMax: number;
+  armById: Map<string, PitcherAvailability>;
   onAdd: (entry: PlannedOuting) => void;
   onCancel: () => void;
 }) => {
@@ -29,6 +35,9 @@ const AddArmRow = ({
   const [playerId, setPlayerId] = useState(available[0]?.id || "");
   const [role, setRole] = useState<"start" | "relief">("start");
   const [budget, setBudget] = useState("");
+  const arm = armById.get(playerId);
+  const left = arm ? arm.remainingToday : dailyMax;
+  const spentToday = arm?.pitchedToday || 0;
 
   if (available.length === 0)
     return (
@@ -74,9 +83,13 @@ const AddArmRow = ({
         inputMode="numeric"
         value={budget}
         onChange={(e) => setBudget(e.target.value)}
-        placeholder={`${dailyMax}p`}
+        placeholder={`${left}p`}
         aria-label="Planned pitches"
-        title={`Planned pitch budget (blank = daily max ${dailyMax})`}
+        title={
+          spentToday > 0
+            ? `Planned pitch budget — ${spentToday} already on this day, ${left} of the ${dailyMax}-pitch daily max left`
+            : `Planned pitch budget (blank = daily max ${dailyMax})`
+        }
         className="w-20 p-1.5 bg-surface border border-line rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] tabular-nums"
       />
       <button
@@ -151,6 +164,7 @@ export const PitchPlanGameBody = ({
   const ready = arms.filter((a) => a.status === "ready");
   const resting = arms.filter((a) => a.status === "resting");
   const maxed = arms.filter((a) => a.status === "maxed");
+  const armById = new Map(arms.map((a) => [a.id, a]));
 
   return (
     <>
@@ -221,6 +235,7 @@ export const PitchPlanGameBody = ({
           pitchers={pitchers}
           taken={taken}
           dailyMax={dailyMax}
+          armById={armById}
           onAdd={(entry) => {
             onSetEntries([...entries, entry]);
             setAdding(false);
@@ -241,7 +256,10 @@ export const PitchPlanGameBody = ({
         </div>
       ))}
 
-      {/* Arms remaining with earlier planned outings deducted */}
+      {/* Arms remaining with earlier planned outings deducted. An arm that
+          already worked earlier THIS date (the front half of a doubleheader,
+          logged or planned) stays available and carries its remaining count —
+          the day is one shared budget, not one appearance. */}
       <div className="mt-3">
         <div className="t-eyebrow text-ink-3 mb-1.5">Arms for this game</div>
         {ready.length > 0 ? (
@@ -251,10 +269,17 @@ export const PitchPlanGameBody = ({
                 key={a.id}
                 playerId={a.id}
                 className="t-chip px-2 py-0.5 rounded-md border bg-win-bg border-line text-win hover:bg-surface-2 transition-colors whitespace-nowrap"
-                title={`Up to ${a.maxPitches} pitches`}
+                title={
+                  a.pitchedToday > 0
+                    ? `${a.pitchedToday} already thrown or planned this day — up to ${a.remainingToday} more of the ${a.maxPitches}-pitch daily max`
+                    : `Up to ${a.remainingToday} pitches`
+                }
               >
                 {a.number ? `#${a.number} ` : ""}
                 {a.name}
+                {a.pitchedToday > 0 && (
+                  <span className="tabular-nums">{` · ${a.remainingToday} left`}</span>
+                )}
               </PlayerNameLink>
             ))}
           </div>
@@ -286,10 +311,10 @@ export const PitchPlanGameBody = ({
                 key={a.id}
                 playerId={a.id}
                 className="t-chip px-2 py-0.5 rounded-md border bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 transition-colors whitespace-nowrap"
-                title="At the pitch ceiling until their next recorded outing"
+                title={`${a.pitchedToday} pitches already on this date — the ${a.maxPitches}-pitch daily max is spent`}
               >
                 {a.number ? `#${a.number} ` : ""}
-                {a.name} · at limit
+                {a.name} · day maxed
               </PlayerNameLink>
             ))}
           </div>

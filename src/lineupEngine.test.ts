@@ -14,6 +14,8 @@ import {
   resolveCatcherPolicy,
   maxPitchesForAge,
   checkPitchEligibility,
+  pitchBudgetFor,
+  pitchesOnDate,
   buildPitchingPlan,
   resolvePitchRuleSet,
   mostRecentDayPitches,
@@ -2629,8 +2631,8 @@ describe("buildPitchingPlan", () => {
       P("ready", { recent: 0 }),
       // 60 pitches needs 3 days rest; only 2 days before the game -> resting.
       P("resting", { recent: 60, last: "2026-05-08" }),
-      // 80 >= 10U limit (75) -> maxed.
-      P("maxed", { recent: 80, last: "2026-05-01" }),
+      // 80 already thrown ON the game date -> the day's budget is gone.
+      P("maxed", { recent: 80, last: "2026-05-10" }),
       // Not cleared to pitch -> excluded from the pool.
       P("fielder", { positions: ["SS"] }),
     ];
@@ -3136,10 +3138,14 @@ describe("configurable pitch-count rule sets", () => {
     const p = {
       pitching: { recentPitches: 60, lastPitchDate: "2026-05-10" },
     } as any;
-    // Far enough out that rest is satisfied: under LL (75) they're eligible,
-    // but over a custom 50 max they're maxed out.
+    // Game 2 of a doubleheader: 60 already thrown THAT DAY. Under LL (75) the
+    // day still has 15 pitches in it; a custom 50 max is already spent.
+    expect(checkPitchEligibility(p, "2026-05-10", "9U", ll)).toBe(true);
+    expect(checkPitchEligibility(p, "2026-05-10", "9U", custom)).toBe(false);
+    // A day's max is a DAY's max: once the rest tier is served, both rule sets
+    // hand the arm a fresh budget rather than locking it out for good.
     expect(checkPitchEligibility(p, "2026-06-01", "9U", ll)).toBe(true);
-    expect(checkPitchEligibility(p, "2026-06-01", "9U", custom)).toBe(false);
+    expect(checkPitchEligibility(p, "2026-06-01", "9U", custom)).toBe(true);
   });
 
   test("custom rest tiers extend the required rest", () => {
@@ -3172,9 +3178,16 @@ describe("configurable pitch-count rule sets", () => {
       pitchRuleSet: "custom",
       customPitchLimit: 50,
     });
-    const plan = buildPitchingPlan(players, "2026-06-01", "9U", custom);
+    // 60 thrown on the game date is already past a custom 50 max -> nothing
+    // left for a second game that day.
+    const plan = buildPitchingPlan(players, "2026-05-10", "9U", custom);
     expect(plan[0].status).toBe("maxed");
     expect(plan[0].maxPitches).toBe(50);
+    expect(plan[0].remainingToday).toBe(0);
+    // Under Little League's 75 the same day still has 15 pitches left.
+    const ll = buildPitchingPlan(players, "2026-05-10", "9U");
+    expect(ll[0].status).toBe("ready");
+    expect(ll[0].remainingToday).toBe(15);
   });
 });
 
@@ -3220,6 +3233,80 @@ describe("doubleheader / same-day cumulative rest", () => {
     expect(checkPitchEligibility(dh, "2026-05-14", "9U")).toBe(true); // 4 days
   });
 
+  test("a kid may throw in BOTH games of a doubleheader while budget remains", () => {
+    // 9U daily max 75. Game 1 logged 30 -> game 2 the same day is legal, and
+    // the second game's budget is what's left, not a fresh 75.
+    const g1 = {
+      pitching: { log: [{ date: "2026-05-10", pitches: 30, gameId: "g1" }] },
+    } as any;
+    expect(checkPitchEligibility(g1, "2026-05-10", "9U")).toBe(true);
+    const budget = pitchBudgetFor(g1.pitching, "2026-05-10", "9U");
+    expect(budget).toMatchObject({
+      dailyMax: 75,
+      thrownToday: 30,
+      remaining: 45,
+      eligible: true,
+    });
+    // Once the day's max is gone, so is the arm — for that day only.
+    const spent = {
+      pitching: { log: [{ date: "2026-05-10", pitches: 75, gameId: "g1" }] },
+    } as any;
+    expect(checkPitchEligibility(spent, "2026-05-10", "9U")).toBe(false);
+    expect(pitchBudgetFor(spent.pitching, "2026-05-10", "9U").remaining).toBe(
+      0,
+    );
+  });
+
+  test("rest is owed to earlier days only — today's own outing never blocks today", () => {
+    // 66+ on the 8th needs 4 days: still unpaid on the 10th, even though the
+    // 10th's own budget is untouched.
+    const heavy = {
+      pitching: { log: [{ date: "2026-05-08", pitches: 70 }] },
+    } as any;
+    const debt = pitchBudgetFor(heavy.pitching, "2026-05-10", "9U");
+    expect(debt).toMatchObject({
+      thrownToday: 0,
+      remaining: 75,
+      priorDate: "2026-05-08",
+      priorPitches: 70,
+      restRequired: 4,
+      restSatisfied: false,
+      eligible: false,
+    });
+    // A light outing earlier the SAME day owes nothing yet — the day is still
+    // in progress and only its total will matter tomorrow.
+    const today = {
+      pitching: { log: [{ date: "2026-05-10", pitches: 20, gameId: "g1" }] },
+    } as any;
+    expect(pitchBudgetFor(today.pitching, "2026-05-10", "9U")).toMatchObject({
+      priorDate: null,
+      restRequired: 0,
+      eligible: true,
+    });
+  });
+
+  test("pitchesOnDate sums a date and can drop one game's own outing", () => {
+    const pitching = {
+      log: [
+        { date: "2026-05-10", pitches: 30, gameId: "g1" },
+        { date: "2026-05-10", pitches: 25, gameId: "g2" },
+        { date: "2026-05-08", pitches: 40, gameId: "g0" },
+      ],
+    } as any;
+    expect(pitchesOnDate(pitching, "2026-05-10")).toBe(55);
+    // What game 2 carried INTO the game: game 1's 30 only.
+    expect(pitchesOnDate(pitching, "2026-05-10", "g2")).toBe(30);
+    expect(pitchesOnDate(pitching, "2026-05-09")).toBe(0);
+    expect(pitchesOnDate(pitching, null)).toBe(0);
+    // Legacy data with no log still reports its one day.
+    expect(
+      pitchesOnDate(
+        { recentPitches: 35, lastPitchDate: "2026-05-09" } as any,
+        "2026-05-09",
+      ),
+    ).toBe(35);
+  });
+
   test("buildPitchingPlan reflects the summed same-day total", () => {
     const players = [
       {
@@ -3234,10 +3321,17 @@ describe("doubleheader / same-day cumulative rest", () => {
         },
       } as any,
     ];
-    // 80 >= 9U max (75) -> maxed, and the displayed count is the 80 total.
-    const plan = buildPitchingPlan(players, "2026-05-20", "9U");
+    // 80 >= 9U max (75) on that date -> nothing left for a third game that
+    // day, and the displayed count is the 80 total.
+    const plan = buildPitchingPlan(players, "2026-05-10", "9U");
     expect(plan[0].status).toBe("maxed");
+    expect(plan[0].pitchedToday).toBe(80);
+    expect(plan[0].remainingToday).toBe(0);
     expect(plan[0].recentPitches).toBe(80);
+    // Ten days on, the rest is long served and the budget is whole again.
+    const later = buildPitchingPlan(players, "2026-05-20", "9U");
+    expect(later[0].status).toBe("ready");
+    expect(later[0].remainingToday).toBe(75);
   });
 });
 

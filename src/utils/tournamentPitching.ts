@@ -10,14 +10,15 @@
 // math.
 //
 // The wrapper inherits the engine's semantics deliberately, including its
-// "most recent day only" reading of the log and its one-mound-appearance-
-// per-day rule (a same-day prior outing always fails checkPitchEligibility).
+// per-DAY budget: two games on one date share one cumulative pitch count, so a
+// planned 30 in Saturday's opener leaves the nightcap showing the same arm as
+// available with 30 fewer pitches — not unavailable.
 
 import {
   buildPitchingPlan,
-  checkPitchEligibility,
   maxPitchesForAge,
-  mostRecentDayPitches,
+  pitchBudgetFor,
+  pitchesOnDate,
   type PitcherAvailability,
   type PitchRuleSet,
 } from "../lineupEngine";
@@ -53,7 +54,10 @@ export interface PlanViolation {
   gameId: string;
   playerId: string;
   playerName: string;
-  kind: "dailyMax" | "insufficientRest" | "notEligibleToday";
+  // dailyMax: this game's planned pitches, stacked on whatever the arm already
+  // carries that DATE, pass the day's ceiling. insufficientRest: the day's
+  // budget is fine but an earlier day's workload still owes rest.
+  kind: "dailyMax" | "insufficientRest";
   message: string;
 }
 
@@ -187,17 +191,6 @@ export const orderedTournamentGames = (
   );
 };
 
-// Total pitches a hypothetical player carries on one date (real log entries
-// plus any folded planned outings) — the doubleheader daily-max input.
-const pitchesOnDate = (player: Player, date: string): number => {
-  const log = player.pitching?.log;
-  if (!Array.isArray(log)) return 0;
-  return log.reduce(
-    (s, o) => (o?.date === date ? s + (Number(o.pitches) || 0) : s),
-    0,
-  );
-};
-
 // First date (within 14 days after `fromDate`) the player becomes eligible —
 // mirrors buildPitchingPlan's probe so violation copy can say "ready Tue 6/9".
 const firstEligibleDate = (
@@ -209,7 +202,8 @@ const firstEligibleDate = (
   const base = new Date(fromDate).getTime();
   for (let d = 1; d <= 14; d++) {
     const probe = new Date(base + d * 86_400_000).toISOString().slice(0, 10);
-    if (checkPitchEligibility(player, probe, teamAge, ruleSet)) return probe;
+    if (pitchBudgetFor(player.pitching, probe, teamAge, ruleSet).eligible)
+      return probe;
   }
   return null;
 };
@@ -266,7 +260,11 @@ export function assessGamesPlan({
       const hyp = hypById.get(entry.playerId) || real;
       const planned = plannedPitchesOf(entry, teamAge, ruleSet);
       const name = real.name || "This pitcher";
-      const sameDay = pitchesOnDate(hyp, date);
+      // Everything this arm already carries on this DATE — a logged outing or
+      // an earlier game's plan. Two games in one day share one budget, so this
+      // is what the entry's own pitches stack on top of.
+      const sameDay = pitchesOnDate(hyp.pitching, date);
+      const budget = pitchBudgetFor(hyp.pitching, date, teamAge, ruleSet);
 
       if (sameDay + planned > maxP) {
         violations.push({
@@ -274,32 +272,27 @@ export function assessGamesPlan({
           playerId: entry.playerId,
           playerName: name,
           kind: "dailyMax",
-          message: `${name}: ${sameDay} same-day + ${planned} planned pitches passes the ${maxP}-pitch daily max.`,
+          // Same-day load is called out explicitly: with a doubleheader the
+          // fix is usually to trim this game's budget, not to drop the arm.
+          message: sameDay
+            ? `${name}: ${sameDay} already on the day + ${planned} planned = ${
+                sameDay + planned
+              }, past the ${maxP}-pitch daily max (${budget.remaining} left today).`
+            : `${name}: ${planned} planned pitches passes the ${maxP}-pitch daily max.`,
         });
-      } else if (!checkPitchEligibility(hyp, date, teamAge, ruleSet)) {
-        const { pitches: recent, date: lastDate } = mostRecentDayPitches(
-          hyp.pitching,
-        );
-        if (lastDate === date) {
-          violations.push({
-            gameId: game.id,
-            playerId: entry.playerId,
-            playerName: name,
-            kind: "notEligibleToday",
-            message: `${name} already has a mound appearance that day — one per day.`,
-          });
-        } else {
-          const ready = firstEligibleDate(hyp, date, teamAge, ruleSet);
-          violations.push({
-            gameId: game.id,
-            playerId: entry.playerId,
-            playerName: name,
-            kind: recent >= maxP ? "notEligibleToday" : "insufficientRest",
-            message: `${name} threw ${recent} on ${lastDate} and isn't rested by ${date}${
-              ready ? ` (ready ${ready})` : ""
-            }.`,
-          });
-        }
+      } else if (!budget.restSatisfied) {
+        // The day's budget is fine; the debt is to an EARLIER day's workload,
+        // so the copy names that day and not anything thrown today.
+        const ready = firstEligibleDate(hyp, date, teamAge, ruleSet);
+        violations.push({
+          gameId: game.id,
+          playerId: entry.playerId,
+          playerName: name,
+          kind: "insufficientRest",
+          message: `${name} threw ${budget.priorPitches} on ${budget.priorDate} and isn't rested by ${date}${
+            ready ? ` (ready ${ready})` : ""
+          }.`,
+        });
       }
 
       // Fold this entry forward for the games after this one.

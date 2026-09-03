@@ -121,6 +121,71 @@ describe("StartingPitcherPicker", () => {
     expect(screen.getByText("Lefty").closest("button")).toBeEnabled();
   });
 
+  it("keeps an arm pickable for game 2 of a doubleheader, on the day's remainder", () => {
+    // Both games on 2099-06-05. Ace is planned for 40 in the opener; 10U's
+    // daily max is 75, so he is still a legal starter here with 35 left.
+    const dhEarly = { ...g1, startUtc: "2099-06-05T14:00:00Z" };
+    const dhLate = {
+      ...g2,
+      date: "2099-06-05",
+      startUtc: "2099-06-05T18:00:00Z",
+      pitchingFormat: "Kid Pitch",
+    };
+    renderWithProviders(<StartingPitcherPicker game={dhLate} />, {
+      team: {
+        team: baseTeam({
+          games: [dhEarly, dhLate],
+          tournaments: [
+            {
+              id: "t1",
+              name: "Bash",
+              gameIds: ["g1", "g2"],
+              pitchPlan: {
+                g1: [{ playerId: "p1", role: "start", plannedPitches: 40 }],
+              },
+            },
+          ],
+        }),
+        currentRole: "head",
+        generateLineup: jest.fn(),
+      },
+    });
+    expect(screen.getByText("Ace").closest("button")).toBeEnabled();
+    expect(screen.getByText(/40 thrown today · 35 left/)).toBeInTheDocument();
+    expect(screen.queryByText("Rest")).not.toBeInTheDocument();
+  });
+
+  it("drops an arm out of game 2 once the opener spends the whole day", () => {
+    const dhEarly = { ...g1, startUtc: "2099-06-05T14:00:00Z" };
+    const dhLate = {
+      ...g2,
+      date: "2099-06-05",
+      startUtc: "2099-06-05T18:00:00Z",
+      pitchingFormat: "Kid Pitch",
+    };
+    renderWithProviders(<StartingPitcherPicker game={dhLate} />, {
+      team: {
+        team: baseTeam({
+          games: [dhEarly, dhLate],
+          tournaments: [
+            {
+              id: "t1",
+              name: "Bash",
+              gameIds: ["g1", "g2"],
+              pitchPlan: {
+                g1: [{ playerId: "p1", role: "start", plannedPitches: 75 }],
+              },
+            },
+          ],
+        }),
+        currentRole: "head",
+        generateLineup: jest.fn(),
+      },
+    });
+    expect(screen.getByText("Day maxed")).toBeInTheDocument();
+    expect(screen.getByText("Ace").closest("button")).toBeDisabled();
+  });
+
   it("keeps the heuristic recommendation when the game has no tournament plan", () => {
     renderWithProviders(
       <StartingPitcherPicker game={{ ...g1, pitchingFormat: "Kid Pitch" }} />,

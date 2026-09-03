@@ -35,7 +35,7 @@ import {
   collectParentEmails,
 } from "../utils/reminderDraft";
 import { StaggerList, StaggerItem, AnimatedNumber } from "../components/motion";
-import { checkPitchEligibility, resolvePitchRuleSet } from "../lineupEngine";
+import { pitchBudgetFor, resolvePitchRuleSet } from "../lineupEngine";
 
 /* ============================================================================
    Dashboard overhaul — info-rich, intuitive command center.
@@ -595,7 +595,10 @@ const InsightTile = memo(
 
 /* ===========================================================================
    PitcherAvailabilityTile — Kid Pitch only. Counts how many rostered
-   pitchers are eligible today by the engine's checkPitchEligibility rules.
+   pitchers can take the mound today under the engine's day-budget rules.
+   A kid who already threw in an earlier game TODAY still counts as eligible
+   while the daily max leaves him something — two games in one day share one
+   cumulative pitch count.
 =========================================================================== */
 interface PitcherAvailabilityTileProps {
   players: Player[];
@@ -621,18 +624,20 @@ const PitcherAvailabilityTile = memo(
         const restricted =
           Array.isArray(p.restrictions) && p.restrictions.includes("P");
         if (restricted) continue;
-        const isEligible = checkPitchEligibility(p, todayStr, teamAge ?? "");
+        const budget = pitchBudgetFor(p.pitching, todayStr, teamAge ?? "");
         const recent = p.pitching?.recentPitches || 0;
-        if (isEligible && recent === 0) {
+        if (budget.eligible) {
           eligible++;
-        } else if (isEligible) {
-          // Has recent activity but rest days satisfied
-          eligible++;
-        } else if (recent >= 50) {
-          // Heuristic: 50+ recent pitches = "at the limit" until more rest
+        } else if (budget.remaining <= 0) {
+          // Today's pitches are spent — no arm left for another game today.
           maxed++;
-          resters.push({ name: p.name, recent, label: "limit" });
+          resters.push({
+            name: p.name,
+            recent: budget.thrownToday,
+            label: "limit",
+          });
         } else {
+          // Budget is there; an earlier day's workload still owes rest.
           resting++;
           resters.push({ name: p.name, recent, label: "rest" });
         }

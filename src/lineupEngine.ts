@@ -58,13 +58,18 @@ export {
   PITCH_RULE_SETS,
   resolvePitchRuleSet,
   maxPitchesForAge,
+  requiredRestDays,
   mostRecentDayPitches,
+  pitchesOnDate,
+  pitchBudgetFor,
   checkPitchEligibility,
   buildPitchingPlan,
   analyzePitchingWorkload,
 } from "./lineupEngine/pitchRules";
 export type {
   PitchRuleSet,
+  PitchBudget,
+  PitchingRecord,
   PitcherAvailability,
   PitchingWorkloadAnalysis,
 } from "./lineupEngine/pitchRules";
