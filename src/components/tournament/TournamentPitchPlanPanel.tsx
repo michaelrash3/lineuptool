@@ -16,9 +16,11 @@ const ageNumOf = (age: string | undefined): number => {
 // The cross-game pitching plan for one stored tournament: per game, the
 // planned outings (greyed once reality logs them), rule violations, and the
 // arms-remaining view where every EARLIER game's plan is already deducted —
-// the fix for "the ace shows ready for all three weekend games". Only
-// rendered for Kid-Pitch 9U+ teams (pitch limits don't exist elsewhere).
-// Heads edit; assistants read. The per-game body is shared with the week
+// the fix for "the ace shows ready for all three weekend games". A same-day
+// doubleheader deducts rather than excludes: the opener's planned pitches come
+// off the nightcap's budget and the arm stays offerable until the day's max is
+// gone. Only rendered for Kid-Pitch 9U+ teams (pitch limits don't exist
+// elsewhere). Heads edit; assistants read. The per-game body is shared with the week
 // planner (PitchPlanGameBody) so both surfaces render plans identically.
 export const TournamentPitchPlanPanel = memo(
   ({ tournament }: { tournament: Tournament }) => {
@@ -71,7 +73,7 @@ export const TournamentPitchPlanPanel = memo(
               backgroundColor: "var(--team-primary-15)",
               color: "var(--team-ink)",
             }}
-            title="Planned pitches in earlier games count against daily max and rest rules for every later game."
+            title="Planned pitches in earlier games count against daily max and rest rules for every later game. Two games on one date share one cumulative count — an arm can work both, with the opener's pitches already deducted."
           >
             cross-game
           </span>

@@ -27,6 +27,22 @@ const games = [
   { id: "g2", date: "2099-06-06", opponent: "Cubs" },
 ];
 
+// A Saturday doubleheader: both games on one date, opener first.
+const dhGames = [
+  {
+    id: "g1",
+    date: "2099-06-05",
+    opponent: "Rays",
+    startUtc: "2099-06-05T14:00:00Z",
+  },
+  {
+    id: "g2",
+    date: "2099-06-05",
+    opponent: "Cubs",
+    startUtc: "2099-06-05T18:00:00Z",
+  },
+];
+
 const tournament = (pitchPlan: any = {}) => ({
   id: "t1",
   name: "Memorial Bash",
@@ -141,6 +157,57 @@ describe("TournamentPitchPlanPanel", () => {
     expect(
       screen.queryByLabelText("Remove Ace from this game's plan"),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps an arm available for game 2 of a doubleheader, minus game 1's plan", () => {
+    // 10U daily max is 75. Ace is penciled for 40 in the opener, so the
+    // nightcap must still offer him — with 35 left, not a fresh 75.
+    renderWithProviders(
+      <TournamentPitchPlanPanel
+        tournament={tournament({
+          g1: [{ playerId: "p1", role: "start", plannedPitches: 40 }],
+        })}
+      />,
+      {
+        withRouter: true,
+        team: { team: baseTeam({ games: dhGames }), currentRole: "head" },
+      },
+    );
+    expect(screen.getByText(/#1 Ace · start · 40p/)).toBeInTheDocument();
+    expect(screen.getByText(/· 35 left/)).toBeInTheDocument();
+    // Untouched arms carry no remainder label — nothing has been spent.
+    expect(screen.getAllByText("#2 Lefty")).toHaveLength(2);
+  });
+
+  it("shows the day as maxed once game 1 spends the whole budget", () => {
+    renderWithProviders(
+      <TournamentPitchPlanPanel
+        tournament={tournament({
+          g1: [{ playerId: "p1", role: "start", plannedPitches: 75 }],
+        })}
+      />,
+      {
+        withRouter: true,
+        team: { team: baseTeam({ games: dhGames }), currentRole: "head" },
+      },
+    );
+    expect(screen.getByText(/#1 Ace · day maxed/)).toBeInTheDocument();
+  });
+
+  it("flags a doubleheader pair that would pass the daily max, naming what's left", () => {
+    renderWithProviders(
+      <TournamentPitchPlanPanel
+        tournament={tournament({
+          g1: [{ playerId: "p1", role: "start", plannedPitches: 50 }],
+          g2: [{ playerId: "p1", role: "relief", plannedPitches: 40 }],
+        })}
+      />,
+      {
+        withRouter: true,
+        team: { team: baseTeam({ games: dhGames }), currentRole: "head" },
+      },
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(/25 left today/);
   });
 
   it("assistants see the plan read-only", () => {

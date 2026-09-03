@@ -164,7 +164,11 @@ export interface Player {
   // legacy here — velocity moved to PlayerStats.pTopMph and this field
   // remains as a read fallback.
   pitching?: {
-    log?: Array<{ date?: string; pitches?: number }>;
+    // One entry per OUTING, not per day: a doubleheader keeps both games, and
+    // every rest/eligibility rule sums a date's entries into one day's
+    // workload. `gameId` is set by the box-score import (and is what a
+    // re-import dedupes on); hand-entered outings have none.
+    log?: Array<{ date?: string; pitches?: number; gameId?: string }>;
     recentPitches?: number;
     // null (not just absent) is the stored "hasn't pitched" state — addPlayer
     // writes it as null explicitly.

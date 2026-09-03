@@ -6,7 +6,7 @@ import {
   playsGame,
 } from "../utils/helpers";
 import {
-  checkPitchEligibility,
+  pitchBudgetFor,
   generateLineup,
   generateTournamentLineup,
   resolvePitchRuleSet,
@@ -1057,11 +1057,18 @@ export const InGameView = memo(() => {
             // use it directly so this view can't drift from the canonical rules.
             // Also drop kids who can't pitch today on dual-role grounds (slated
             // to catch this game, or caught earlier the same day).
+            //
+            // The budget is per DATE, and THIS game's own logged outing is
+            // excluded: on the back half of a doubleheader a kid who threw in
+            // game 1 is still an arm here, carrying whatever the day's max
+            // leaves him. He drops off only when that remainder hits zero.
             const pitchRules = resolvePitchRuleSet(team);
+            const dayBudget = (p: any) =>
+              pitchBudgetFor(p.pitching, targetDate, ageGroup, pitchRules, {
+                excludeGameId: game.id,
+              });
             const availablePitchers = presentPlayers.filter(
-              (p: any) =>
-                checkPitchEligibility(p, targetDate, ageGroup, pitchRules) &&
-                canPitchDual(p.id),
+              (p: any) => dayBudget(p).eligible && canPitchDual(p.id),
             );
             // Advisory only: an arm penciled into a LATER game — a stored
             // tournament's plan OR a standalone game's week-planner plan —
@@ -1141,6 +1148,10 @@ export const InGameView = memo(() => {
                     <div className="flex flex-wrap gap-1.5">
                       {availablePitchers.map((player: any) => {
                         const later = laterPlannedFor(player.id);
+                        // Pitches this kid already threw earlier TODAY (an
+                        // earlier game the same date) — what's left of the
+                        // daily max is all he has for this one.
+                        const budget = dayBudget(player);
                         return (
                           <button
                             key={player.id}
@@ -1153,13 +1164,21 @@ export const InGameView = memo(() => {
                                       ? `vs ${later.opponent} `
                                       : ""
                                   }${formatGameDateDisplay(later.date)} — pitching now may burn that plan`
-                                : `Make ${player.name} the pitcher for inning ${
-                                    currentInning + 1
-                                  }`
+                                : budget.thrownToday > 0
+                                  ? `${player.name} threw ${budget.thrownToday} earlier today — ${budget.remaining} of the ${budget.dailyMax}-pitch daily max left`
+                                  : `Make ${player.name} the pitcher for inning ${
+                                      currentInning + 1
+                                    }`
                             }
                             className="text-[11px] font-bold text-win bg-surface border border-line rounded-md px-2 py-1 hover:bg-win-bg hover:border-line-strong active:scale-[0.97] transition-all cursor-pointer"
                           >
                             {player.name}
+                            {budget.thrownToday > 0 && (
+                              <span className="text-ink-3 font-black tabular-nums">
+                                {" "}
+                                · {budget.remaining} left
+                              </span>
+                            )}
                             {later && (
                               <span className="text-warnfg font-black">
                                 {" "}

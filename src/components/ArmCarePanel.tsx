@@ -19,12 +19,12 @@ import {
 } from "../utils/helpers";
 
 // Dates whose log carries BOTH a hand-entered outing (no gameId) and a
-// game-import outing (gameId). Rest math is deliberately conservative — it
-// SUMS the whole day — so such a pair may be the same real outing counted
-// twice (e.g. a manual entry added before the CSV landed, which the import's
-// gameId dedupe can never match). The log editor flags these dates so the
-// coach sees the double count and can delete/edit one side; nothing is ever
-// merged silently.
+// game-import outing (gameId). Two outings on one date are normal and expected
+// — that is a doubleheader, and the day's totals are supposed to add up — but a
+// manual/import PAIR may instead be one real outing counted twice (e.g. a
+// manual entry added before the CSV landed, which the import's gameId dedupe
+// can never match). The log editor flags these dates so the coach sees the
+// double count and can delete/edit one side; nothing is ever merged silently.
 export const doubleCountedDates = (
   log: PitchingOuting[],
 ): Array<{ date: string; total: number }> => {
@@ -50,19 +50,34 @@ export const doubleCountedDates = (
     .sort((a, b) => b.date.localeCompare(a.date));
 };
 
-// Current rest standing for a pitcher, as a small color-coded chip.
+// Current rest standing for a pitcher, as a small color-coded chip. A kid who
+// already worked earlier today is still Ready — a day is one shared budget and
+// he may throw again — but the chip carries what's left of it rather than a
+// bare "Ready" that reads like a full tank.
 const availabilityChip = (avail: PitcherAvailability) => {
   if (avail.status === "ready") {
     return (
-      <span className="t-chip px-1.5 py-0.5 rounded-md border bg-win-bg border-line text-win text-[10px] font-black">
-        Ready
+      <span
+        className="t-chip px-1.5 py-0.5 rounded-md border bg-win-bg border-line text-win text-[10px] font-black tabular-nums"
+        title={
+          avail.pitchedToday > 0
+            ? `${avail.pitchedToday} thrown today — ${avail.remainingToday} of the ${avail.maxPitches}-pitch daily max left`
+            : undefined
+        }
+      >
+        {avail.pitchedToday > 0
+          ? `Ready · ${avail.remainingToday} left`
+          : "Ready"}
       </span>
     );
   }
   if (avail.status === "maxed") {
     return (
-      <span className="t-chip px-1.5 py-0.5 rounded-md border bg-loss-bg border-loss text-loss text-[10px] font-black">
-        At limit
+      <span
+        className="t-chip px-1.5 py-0.5 rounded-md border bg-loss-bg border-loss text-loss text-[10px] font-black"
+        title={`${avail.pitchedToday} thrown today — the ${avail.maxPitches}-pitch daily max is spent`}
+      >
+        Day maxed
       </span>
     );
   }
@@ -330,8 +345,9 @@ export const ArmCarePanel = memo(() => {
             {editingId === p.id && (
               <div className="mt-2.5 rounded-lg border border-line bg-surface-2 p-2.5 flex flex-col gap-2">
                 <div className="text-[9px] font-bold uppercase tracking-widest text-ink-3">
-                  Outing log — fix a count or move pitches to the day they were
-                  thrown (e.g. split a suspended game across its two dates)
+                  Outing log — one row per outing, so a doubleheader keeps both
+                  games and the day counts as their sum. Fix a count or move
+                  pitches to the day they were thrown.
                 </div>
                 {/* Manual + game entries on one date read as one big day to
                     the rest rules — flag it, never silently merge it. */}

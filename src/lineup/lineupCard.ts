@@ -6,7 +6,11 @@
 
 import { Game, SlimPlayer, Team, Toast } from "../types";
 import { countsTowardStats } from "../utils/helpers";
-import { maxPitchesForAge, resolvePitchRuleSet } from "../lineupEngine";
+import {
+  maxPitchesForAge,
+  pitchesOnDate,
+  resolvePitchRuleSet,
+} from "../lineupEngine";
 
 // Compute the team's W-L-T record from finalized games, for the share
 // card header. Uses the shared isGameFinalized() so it matches the
@@ -245,12 +249,17 @@ const buildLineupCanvasInternal = ({
     for (const entry of byId.values()) {
       const rosterP = (team?.players || []).find(
         (rp) => rp.id === entry.player.id,
-      ) as { pitching?: { recentPitches?: number } } | undefined;
+      );
+      // Pitches this kid is already carrying INTO this game: everything logged
+      // on the game's own date minus this game's own outing (present only on a
+      // re-print after the box score lands). On the back half of a
+      // doubleheader that is game 1's count, so the printed budget is what he
+      // actually has left today rather than a fresh daily max.
       pitcherEntries.push({
         player: entry.player,
         innings: entry.innings,
         limit,
-        recent: rosterP?.pitching?.recentPitches || 0,
+        recent: pitchesOnDate(rosterP?.pitching, game.date, game.id),
       });
     }
   }
