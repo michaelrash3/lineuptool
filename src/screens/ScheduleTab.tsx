@@ -16,7 +16,7 @@ import {
 } from "../utils/helpers";
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useTeam, useUI, useToast, useConfirm } from "../contexts";
 import { RecordBadge, EmptyState } from "../components/shared";
 import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
@@ -1992,6 +1992,22 @@ export const ScheduleTab = memo(() => {
                                 : "Plan Game"}
                           </button>
                         )}
+                        {game.lineup && (
+                          <Link
+                            to={`/schedule/game/${game.id}/lineup`}
+                            title="Open the saved lineup read-only — nothing here can change it"
+                            className="flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm whitespace-nowrap"
+                          >
+                            <Icons.Eye className="w-4 h-4" />{" "}
+                            {/* Three actions already compete for this row on
+                                a phone; the short label keeps each of them
+                                readable instead of squeezing out the icons. */}
+                            <span className="sm:hidden">View</span>
+                            <span className="hidden sm:inline">
+                              View Lineup
+                            </span>
+                          </Link>
+                        )}
                         {canStartInGame && (
                           <button
                             onClick={() => {
@@ -2271,6 +2287,15 @@ export const ScheduleTab = memo(() => {
                                 ? "Edit Game"
                                 : "Plan Game"}
                           </button>
+                        )}
+                        {pg.lineup && (
+                          <Link
+                            to={`/schedule/game/${pg.id}/lineup`}
+                            title="Open the saved lineup read-only — nothing here can change it"
+                            className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm border border-line bg-surface text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
+                          >
+                            <Icons.Eye className="w-4 h-4" /> View Lineup
+                          </Link>
                         )}
                         {pgCanStartInGame && (
                           <button

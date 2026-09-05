@@ -2,7 +2,7 @@ import React from "react";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ScheduleTab } from "./ScheduleTab";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { renderWithProviders } from "../test-utils";
 
 const baseTeam = {
@@ -254,6 +254,71 @@ describe("ScheduleTab", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Delete game" }));
     expect(teamValue.deleteSavedGame).toHaveBeenCalledWith("g1");
+  });
+
+  it("offers a read-only View Lineup door beside Edit Game once a lineup is set", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/schedule"]}>
+        <Routes>
+          <Route path="/schedule" element={<ScheduleTab />} />
+          <Route
+            path="/schedule/game/:gameId/lineup"
+            element={<div>LINEUP VIEW</div>}
+          />
+        </Routes>
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...baseTeam,
+            players,
+            games: [
+              {
+                id: "g1",
+                date: "2026-05-01",
+                opponent: "Rays",
+                status: "scheduled",
+                lineup,
+              },
+            ],
+          },
+          record: { wins: 0, losses: 0, ties: 0 },
+          currentRole: "head",
+        },
+      },
+    );
+    expect(screen.getByText("Edit Game")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("link", { name: /view lineup/i }));
+    expect(screen.getByText("LINEUP VIEW")).toBeInTheDocument();
+  });
+
+  it("hides View Lineup on a game nobody has planned yet", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <ScheduleTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...baseTeam,
+            games: [
+              {
+                id: "g1",
+                date: "2026-05-01",
+                opponent: "Rays",
+                status: "scheduled",
+              },
+            ],
+          },
+          record: { wins: 0, losses: 0, ties: 0 },
+          currentRole: "head",
+        },
+      },
+    );
+    expect(screen.getByText("Plan Game")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /view lineup/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the Starting Lineup in tournament game edit view when a lineup exists", () => {

@@ -302,6 +302,11 @@ const GameFinalizePage = lazy(() =>
     default: m.GameFinalizePage,
   })),
 );
+const GameLineupViewPage = lazy(() =>
+  import("./screens/schedule/GameLineupViewPage").then((m) => ({
+    default: m.GameLineupViewPage,
+  })),
+);
 const EvalRoundsPage = lazy(() =>
   import("./screens/evaluation/EvalRoundsPage").then((m) => ({
     default: m.EvalRoundsPage,
@@ -1014,6 +1019,10 @@ const MainShell = () => {
                 <Route
                   path="/schedule/game/:gameId/final"
                   element={<GameFinalizePage />}
+                />
+                <Route
+                  path="/schedule/game/:gameId/lineup"
+                  element={<GameLineupViewPage />}
                 />
                 <Route
                   path="/practices"

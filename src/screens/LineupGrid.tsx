@@ -21,8 +21,11 @@ import { Icons } from "../icons";
  */
 export const LineupGrid = memo(
   ({ lineup, positions, swapSelection, onCellClick }: any) => {
-    // When onCellClick is omitted (assistant role), cells become no-op
-    // taps — visuals unchanged, swaps short-circuit.
+    // When onCellClick is omitted (assistant role, or the read-only lineup
+    // view), the grid is presentational: cells stop being controls, lose their
+    // press affordances, and empty slots read as unassigned instead of
+    // inviting a tap that will never do anything.
+    const readOnly = !onCellClick;
     const safeCellClick = onCellClick || (() => {});
     const totalInnings = lineup.length;
     const [mobileInning, setMobileInning] = useState(0);
@@ -105,16 +108,19 @@ export const LineupGrid = memo(
                     key={`m-${pos}`}
                     type="button"
                     onClick={() => safeCellClick(safeMobileInning, pos, pAtPos)}
-                    aria-pressed={sel}
+                    disabled={readOnly}
+                    aria-pressed={readOnly ? undefined : sel}
                     aria-label={`Inning ${safeMobileInning + 1}, ${pos}: ${
                       pAtPos ? pAtPos.name : "unassigned"
                     }`}
                     className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl border text-left transition-all min-h-[56px] ${
+                      readOnly ? "cursor-default" : ""
+                    } ${
                       sel
                         ? "ring-2 ring-warnfg bg-warn-bg text-warnfg border-warnfg shadow-md"
                         : pAtPos
-                          ? "bg-surface border-line text-ink active:bg-app"
-                          : "bg-surface border-dashed border-line-strong text-ink-3 active:bg-surface"
+                          ? `bg-surface border-line text-ink${readOnly ? "" : " active:bg-app"}`
+                          : `bg-surface border-dashed border-line-strong text-ink-3${readOnly ? "" : " active:bg-surface"}`
                     }`}
                   >
                     <span
@@ -131,7 +137,7 @@ export const LineupGrid = memo(
                         pAtPos.name
                       ) : (
                         <span className="italic font-medium text-ink-3">
-                          Tap to assign
+                          {readOnly ? "Unassigned" : "Tap to assign"}
                         </span>
                       )}
                     </span>
@@ -159,11 +165,14 @@ export const LineupGrid = memo(
                         onClick={() =>
                           safeCellClick(safeMobileInning, "BENCH", p)
                         }
-                        aria-pressed={sel}
+                        disabled={readOnly}
+                        aria-pressed={readOnly ? undefined : sel}
                         className={`px-3 py-2 text-sm font-bold border rounded-lg transition-all min-h-[44px] ${
+                          readOnly ? "cursor-default" : ""
+                        } ${
                           sel
                             ? "ring-2 ring-warnfg bg-warn-bg text-warnfg border-warnfg shadow-md"
-                            : "bg-surface border-line text-ink active:bg-app"
+                            : `bg-surface border-line text-ink${readOnly ? "" : " active:bg-app"}`
                         }`}
                       >
                         {p.name}
@@ -218,22 +227,27 @@ export const LineupGrid = memo(
                         <button
                           type="button"
                           onClick={() => safeCellClick(idx, pos, pAtPos)}
-                          aria-pressed={isSelected}
+                          disabled={readOnly}
+                          aria-pressed={readOnly ? undefined : isSelected}
                           aria-label={`Inning ${idx + 1}, ${pos}: ${
                             pAtPos ? pAtPos.name : "unassigned"
                           }`}
-                          className={`w-full p-3 text-xs font-bold text-center rounded-lg cursor-pointer transition-all border ${
+                          className={`w-full p-3 text-xs font-bold text-center rounded-lg transition-all border ${
+                            readOnly ? "cursor-default" : "cursor-pointer"
+                          } ${
                             isSelected
                               ? "ring-2 ring-warnfg bg-warn-bg text-warnfg border-warnfg shadow-md scale-105 z-20 relative"
                               : pAtPos
-                                ? "bg-surface border-line text-ink hover:bg-surface-2 hover:border-line-strong"
-                                : "bg-surface border-dashed border-line-strong text-ink-3 hover:bg-surface"
+                                ? `bg-surface border-line text-ink${readOnly ? "" : " hover:bg-surface-2 hover:border-line-strong"}`
+                                : `bg-surface border-dashed border-line-strong text-ink-3${readOnly ? "" : " hover:bg-surface"}`
                           }`}
                         >
                           {pAtPos ? (
                             pAtPos.name
                           ) : (
-                            <span className="italic font-medium">Assign</span>
+                            <span className="italic font-medium">
+                              {readOnly ? "—" : "Assign"}
+                            </span>
                           )}
                         </button>
                       </td>
@@ -258,11 +272,14 @@ export const LineupGrid = memo(
                             key={p.id}
                             type="button"
                             onClick={() => safeCellClick(idx, "BENCH", p)}
-                            aria-pressed={isSelected}
-                            className={`text-[11px] print:p-0 px-3 py-2 border font-bold w-full text-center truncate rounded-lg shadow-sm transition-all cursor-pointer ${
+                            disabled={readOnly}
+                            aria-pressed={readOnly ? undefined : isSelected}
+                            className={`text-[11px] print:p-0 px-3 py-2 border font-bold w-full text-center truncate rounded-lg shadow-sm transition-all ${
+                              readOnly ? "cursor-default" : "cursor-pointer"
+                            } ${
                               isSelected
                                 ? "ring-2 ring-warnfg bg-warn-bg text-warnfg border-warnfg scale-105 z-20 relative"
-                                : "bg-surface border-line text-ink-2 hover:bg-surface-2 hover:border-line-strong"
+                                : `bg-surface border-line text-ink-2${readOnly ? "" : " hover:bg-surface-2 hover:border-line-strong"}`
                             }`}
                           >
                             {p.name}
