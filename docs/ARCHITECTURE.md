@@ -114,6 +114,7 @@ The top level is deliberately concentrated rather than scattered: `src/App.tsx` 
 2. **Screen components live in `src/screens/`** and consume `useTeam()` / `useUI()`. Each tab is a single file:
    - `HomeTab.tsx`, `RosterTab.tsx`, `ScheduleTab.tsx`, `LineupGrid.tsx`, `EvaluationTab.tsx`, `SettingsTab.tsx`, `TryoutsTab.tsx`, `AssistantEvalTab.tsx`
    - `InGameView.tsx` is a full-bleed overlay (not a route) — opened when the user enters game-day mode
+   - Routed schedule sub-pages live in `src/screens/schedule/` — among them `GameLineupViewPage.tsx` (`/schedule/game/:gameId/lineup`), the read-only companion to the Game Command Center: same defense grid and batting order, no control that can rewrite them. `LineupGrid` renders itself inert whenever `onCellClick` is omitted, which is also what an assistant coach sees
    - `TryoutsPortal.tsx` is mounted on a separate route that bypasses `TeamProvider` entirely (anonymous-auth public surface)
 
 3. **Hooks under `src/hooks/`** carry extracted concern sets that don't need to live in `App.tsx`:
