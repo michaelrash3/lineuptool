@@ -47,9 +47,10 @@ import { downloadStatsReportPdf } from "../stats/statsReportPdf";
 
 // Stats — the performance page, and only that: hitting, pitching and fielding
 // numbers already imported from GameChanger, plus eval data:
-//   • recent form (who's hot / cold over their last imported game lines)
-//   • a sortable per-player table across Batting / Pitching / Fielding, each row
-//     also showing the eval Total Score, tap-through to the full profile
+//   • the season lines first: a sortable per-player table across Batting /
+//     Pitching / Fielding, each row also showing the eval Total Score,
+//     tap-through to the full profile
+//   • below it, recent form (who's hot / cold over their last imported lines)
 //   • arm care, which is pitching workload rather than playing time
 // Playing time, bench equity and position variety are fairness questions, not
 // performance ones — they live on their own page at /playing-time.
@@ -660,107 +661,9 @@ export const StatsTab = memo(() => {
 
       {view === "overview" && (
         <>
-          {/* Desktop control-panel: two-column layout.
-          Left col (8/12): Recent Form + Player Stats — the dense data tables.
-          Right col (4/12): Arm Care — pitching-workload context rail.
-          Mobile/tablet: single-column stack, unchanged. */}
-          <div className="lg:grid lg:grid-cols-12 lg:gap-6 space-y-6 lg:space-y-0">
-            <div className="lg:col-span-8 space-y-6">
-              {/* Recent form — who's hot / cold over their last imported game lines. */}
-              {recentForm.length > 0 && (
-                <SectionCard icon={Icons.Chart} title="Recent Form">
-                  <div className="overflow-x-auto custom-scrollbar">
-                    <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
-                      <thead className="bg-surface-2 text-ink-2">
-                        <tr>
-                          <th className="p-2.5 t-eyebrow text-left">Player</th>
-                          <th className="p-2.5 t-eyebrow text-center">Games</th>
-                          <th className="p-2.5 t-eyebrow text-center">AB</th>
-                          <th className="p-2.5 t-eyebrow text-center">H</th>
-                          <th className="p-2.5 t-eyebrow text-center">AVG</th>
-                          <th className="p-2.5 t-eyebrow text-center">QAB%</th>
-                          <th className="p-2.5 t-eyebrow text-center">Hard%</th>
-                          <th className="p-2.5 t-eyebrow text-center">Form</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-line">
-                        {recentForm.map(
-                          ({ p, agg, games: n, delta, basis }) => (
-                            <tr key={p.id} className="hover:bg-surface-2">
-                              <td className="p-2">
-                                <button
-                                  type="button"
-                                  onClick={() => openPlayerProfile(p.id)}
-                                  className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
-                                >
-                                  {p.name}
-                                </button>
-                              </td>
-                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                                {n}
-                              </td>
-                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                                {fmt(numOf(agg.ab), "int")}
-                              </td>
-                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                                {fmt(numOf(agg.h), "int")}
-                              </td>
-                              <td className="p-2 text-center tabular-nums font-black text-ink">
-                                {fmt(numOf(agg.avg), "dec3")}
-                              </td>
-                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                                {fmt(numOf(agg.qab), "pct")}
-                              </td>
-                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                                {fmt(numOf(agg.hard), "pct")}
-                              </td>
-                              <td className="p-2 text-center">
-                                {delta == null ? (
-                                  <span className="text-ink-3 font-bold">
-                                    —
-                                  </span>
-                                ) : delta > 0.02 ? (
-                                  <span
-                                    className="text-xs font-black uppercase tracking-widest text-win"
-                                    title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} above season`}
-                                  >
-                                    Hot ↑
-                                  </span>
-                                ) : delta < -0.02 ? (
-                                  <span
-                                    className="text-xs font-black uppercase tracking-widest text-loss"
-                                    title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} below season`}
-                                  >
-                                    Cold ↓
-                                  </span>
-                                ) : (
-                                  <span className="text-xs font-black uppercase tracking-widest text-ink-3">
-                                    Steady
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          ),
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </SectionCard>
-              )}
-            </div>
-            {/* end left col */}
-
-            {/* Right rail: arm care — pitching workload, the one health
-            signal that belongs next to the pitching numbers. */}
-            <div className="lg:col-span-4 space-y-6">
-              <ArmCarePanel />
-            </div>
-            {/* end right col */}
-          </div>
-          {/* end desktop grid */}
-
-          {/* Per-player stats table with category toggle — full width so the wide
-          batting/pitching columns have room to breathe. */}
+          {/* The stats themselves, first and full width: opening Stats should
+          land on the season lines, not on a derived read of them. Full width
+          because the batting/pitching columns are wide. */}
           <SectionCard
             icon={Icons.Bat}
             title="Player Stats"
@@ -878,6 +781,105 @@ export const StatsTab = memo(() => {
               seriesById={stripped ? null : seriesById}
             />
           </SectionCard>
+
+          {/* Below the table, the reads derived from it: two-column on desktop.
+          Left col (8/12): Recent Form. Right col (4/12): Arm Care —
+          pitching-workload context rail.
+          Mobile/tablet: single-column stack, unchanged. */}
+          <div className="lg:grid lg:grid-cols-12 lg:gap-6 space-y-6 lg:space-y-0">
+            <div className="lg:col-span-8 space-y-6">
+              {/* Recent form — who's hot / cold over their last imported game lines. */}
+              {recentForm.length > 0 && (
+                <SectionCard icon={Icons.Chart} title="Recent Form">
+                  <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+                      <thead className="bg-surface-2 text-ink-2">
+                        <tr>
+                          <th className="p-2.5 t-eyebrow text-left">Player</th>
+                          <th className="p-2.5 t-eyebrow text-center">Games</th>
+                          <th className="p-2.5 t-eyebrow text-center">AB</th>
+                          <th className="p-2.5 t-eyebrow text-center">H</th>
+                          <th className="p-2.5 t-eyebrow text-center">AVG</th>
+                          <th className="p-2.5 t-eyebrow text-center">QAB%</th>
+                          <th className="p-2.5 t-eyebrow text-center">Hard%</th>
+                          <th className="p-2.5 t-eyebrow text-center">Form</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-line">
+                        {recentForm.map(
+                          ({ p, agg, games: n, delta, basis }) => (
+                            <tr key={p.id} className="hover:bg-surface-2">
+                              <td className="p-2">
+                                <button
+                                  type="button"
+                                  onClick={() => openPlayerProfile(p.id)}
+                                  className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
+                                >
+                                  {p.name}
+                                </button>
+                              </td>
+                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                                {n}
+                              </td>
+                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                                {fmt(numOf(agg.ab), "int")}
+                              </td>
+                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                                {fmt(numOf(agg.h), "int")}
+                              </td>
+                              <td className="p-2 text-center tabular-nums font-black text-ink">
+                                {fmt(numOf(agg.avg), "dec3")}
+                              </td>
+                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                                {fmt(numOf(agg.qab), "pct")}
+                              </td>
+                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                                {fmt(numOf(agg.hard), "pct")}
+                              </td>
+                              <td className="p-2 text-center">
+                                {delta == null ? (
+                                  <span className="text-ink-3 font-bold">
+                                    —
+                                  </span>
+                                ) : delta > 0.02 ? (
+                                  <span
+                                    className="text-xs font-black uppercase tracking-widest text-win"
+                                    title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} above season`}
+                                  >
+                                    Hot ↑
+                                  </span>
+                                ) : delta < -0.02 ? (
+                                  <span
+                                    className="text-xs font-black uppercase tracking-widest text-loss"
+                                    title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} below season`}
+                                  >
+                                    Cold ↓
+                                  </span>
+                                ) : (
+                                  <span className="text-xs font-black uppercase tracking-widest text-ink-3">
+                                    Steady
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ),
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </SectionCard>
+              )}
+            </div>
+            {/* end left col */}
+
+            {/* Right rail: arm care — pitching workload, the one health
+            signal that belongs next to the pitching numbers. */}
+            <div className="lg:col-span-4 space-y-6">
+              <ArmCarePanel />
+            </div>
+            {/* end right col */}
+          </div>
+          {/* end desktop grid */}
         </>
       )}
     </div>

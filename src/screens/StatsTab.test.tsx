@@ -373,6 +373,17 @@ describe("StatsTab — performance only", () => {
     expect(screen.queryByText("Position Variety")).toBeNull();
   });
 
+  it("leads with the stat table, with Recent Form beneath it", () => {
+    const { container } = renderOverview();
+    const headings = Array.from(container.querySelectorAll("h2")).map(
+      (h) => h.textContent,
+    );
+    expect(headings.indexOf("Player Stats")).toBeGreaterThanOrEqual(0);
+    expect(headings.indexOf("Player Stats")).toBeLessThan(
+      headings.indexOf("Recent Form"),
+    );
+  });
+
   it("still shows the performance sections it owns", () => {
     renderOverview();
     expect(screen.getByText("Player Stats")).toBeInTheDocument();
