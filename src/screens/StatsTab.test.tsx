@@ -328,6 +328,70 @@ describe("StatsTab", () => {
   });
 });
 
+// Stats is the performance page: hitting, pitching and fielding. Playing time,
+// bench equity and position variety are fairness questions and live on
+// /playing-time, so none of them may reappear here.
+describe("StatsTab — performance only", () => {
+  // A finalized game with an imported box score: enough data that bench equity
+  // and position variety WOULD render if they were still on this screen.
+  const withBoxScore = {
+    ...team,
+    games: [
+      {
+        id: "g1",
+        date: "2026-04-04",
+        opponent: "Hawks",
+        status: "final",
+        teamScore: 5,
+        opponentScore: 3,
+        // A saved lineup as well as a box score, so the head-coach Playing
+        // Time card would have everything it needs to render.
+        lineup: [
+          { P: { id: "a", name: "Apex" }, C: { id: "b", name: "Bolt" } },
+          { P: { id: "b", name: "Bolt" }, BENCH: [{ id: "a", name: "Apex" }] },
+        ],
+        playerStats: {
+          a: { fInnSS: 2, fInnTotal: 2, ab: 3, h: 2, avg: 0.667 },
+          b: { fInnTotal: 0, ab: 3, h: 0, avg: 0 },
+        },
+      },
+    ],
+  };
+
+  const renderOverview = (role: "head" | "assistant" = "head") =>
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      { team: { team: withBoxScore, currentRole: role, realRole: role } },
+    );
+
+  it("keeps playing time, bench equity and position variety off the Overview", () => {
+    renderOverview();
+    expect(screen.queryByText("Playing Time")).toBeNull();
+    expect(screen.queryByText("Bench Equity & Attendance")).toBeNull();
+    expect(screen.queryByText("Position Variety")).toBeNull();
+  });
+
+  it("still shows the performance sections it owns", () => {
+    renderOverview();
+    expect(screen.getByText("Player Stats")).toBeInTheDocument();
+    expect(screen.getByText("Recent Form")).toBeInTheDocument();
+  });
+
+  it("keeps position variety off the Development view too", () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/stats/development"]}>
+        <Routes>
+          <Route path="/stats/:view" element={<StatsTab />} />
+        </Routes>
+      </MemoryRouter>,
+      { team: { team: withBoxScore, currentRole: "head", realRole: "head" } },
+    );
+    expect(screen.queryByText("Position Variety")).toBeNull();
+  });
+});
+
 // Overview / Season Trends / Development used to be one useState inside the
 // screen, so all three shared the single /stats address. Each is its own URL
 // now: linkable, reload-safe, and steppable with the back button.

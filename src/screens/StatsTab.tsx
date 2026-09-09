@@ -16,9 +16,7 @@ import type {
   PlayerStats,
   Team,
 } from "../types";
-import { PositionVarietyPanel } from "../components/PositionVarietyPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
-import { PlayingTimePanel } from "../components/PlayingTimePanel";
 import { ImportCsvButton } from "../components/ImportCsvButton";
 import { SeasonTrendsPanel } from "../components/analytics/SeasonTrendsPanel";
 import { DevelopmentTrendsPanel } from "../components/analytics/DevelopmentTrendsPanel";
@@ -30,12 +28,10 @@ import {
   resolvePitchRuleSet,
 } from "../lineupEngine";
 import {
-  buildSeasonBenchImbalance,
   recentGameLines,
   aggregateGameLines,
   isRosterPlayer,
 } from "../utils/helpers";
-import type { BenchImbalanceEntry } from "../utils/helpers";
 import { ageFromTeamAge, isKidPitchFormat } from "../constants/ui";
 import { Sparkline } from "../components/charts/Sparkline";
 import {
@@ -49,12 +45,14 @@ import {
 import { statsCsvFilename, statsTableCsv } from "../stats/statsCsv";
 import { downloadStatsReportPdf } from "../stats/statsReportPdf";
 
-// Stats & Dashboard — one place that pulls together everything already imported
-// (GameChanger batting/pitching/fielding) plus eval data:
+// Stats — the performance page, and only that: hitting, pitching and fielding
+// numbers already imported from GameChanger, plus eval data:
+//   • recent form (who's hot / cold over their last imported game lines)
 //   • a sortable per-player table across Batting / Pitching / Fielding, each row
 //     also showing the eval Total Score, tap-through to the full profile
-//   • bench equity & attendance (who's sitting more than their share)
-//   • position variety
+//   • arm care, which is pitching workload rather than playing time
+// Playing time, bench equity and position variety are fairness questions, not
+// performance ones — they live on their own page at /playing-time.
 // Read-only and additive — nothing here writes. All numbers come from data the
 // coach already imported, so there's no new manual entry.
 
@@ -239,76 +237,6 @@ const StatsTable = memo(
   },
 );
 
-// Bench equity & attendance — who's sitting more (or less) than their fair share
-// across finalized games. extraSits > 0 means benched beyond the even split.
-interface BenchEquityRow {
-  p: Player;
-  e: BenchImbalanceEntry;
-}
-
-const BenchEquityTable = memo(
-  ({
-    rows,
-    onOpen,
-  }: {
-    rows: BenchEquityRow[];
-    onOpen?: (id: string) => void;
-  }) => {
-    if (rows.length === 0) return null;
-    return (
-      <div className="overflow-x-auto custom-scrollbar">
-        <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
-          <thead className="bg-surface-2 text-ink-2">
-            <tr>
-              <th className="p-2.5 t-eyebrow text-left">Player</th>
-              <th className="p-2.5 t-eyebrow text-center">GP</th>
-              <th className="p-2.5 t-eyebrow text-center">Def Inn</th>
-              <th className="p-2.5 t-eyebrow text-center">Bench Inn</th>
-              <th className="p-2.5 t-eyebrow text-center">Sits +/−</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {rows.map(({ p, e }) => {
-              const over = e.extraSits > 0.5;
-              const under = e.extraSits < -0.5;
-              return (
-                <tr key={p.id} className="hover:bg-surface-2">
-                  <td className="p-2">
-                    <button
-                      type="button"
-                      onClick={() => onOpen?.(p.id)}
-                      className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
-                    >
-                      {p.name}
-                    </button>
-                  </td>
-                  <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                    {e.gamesAttended}
-                  </td>
-                  <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                    {Math.round(e.totalDefense)}
-                  </td>
-                  <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                    {Math.round(e.totalBench)}
-                  </td>
-                  <td
-                    className={`p-2 text-center tabular-nums font-black ${
-                      over ? "text-loss" : under ? "text-win" : "text-ink-3"
-                    }`}
-                  >
-                    {e.extraSits > 0 ? "+" : ""}
-                    {e.extraSits.toFixed(1)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    );
-  },
-);
-
 const SectionCard = ({
   icon: Icon,
   title,
@@ -450,14 +378,6 @@ export const StatsTab = memo(() => {
       };
     });
   }, [players, evaluationEvents, team, games, scopedStatsForPlayer]);
-
-  const benchRows = useMemo(() => {
-    const m = buildSeasonBenchImbalance(games, "", players);
-    return players
-      .map((p) => ({ p, e: m.get(p.id) }))
-      .filter((x): x is BenchEquityRow => !!x.e && x.e.gamesAttended > 0)
-      .sort((a, b) => b.e.extraSits - a.e.extraSits);
-  }, [games, players]);
 
   // Recent form — from per-game imported stat lines (Schedule → Import Stats
   // on a finalized game). Aggregates each player's last 3 game lines and
@@ -729,27 +649,20 @@ export const StatsTab = memo(() => {
       )}
 
       {view === "development" && (
-        <div className="lg:grid lg:grid-cols-12 lg:gap-6 space-y-6 lg:space-y-0">
-          <div className="lg:col-span-8 space-y-6">
-            <DevelopmentTrendsPanel
-              players={players}
-              games={games}
-              evaluationEvents={evaluationEvents}
-              stripped={stripped}
-              onOpenPlayer={openPlayerProfile}
-            />
-          </div>
-          <div className="lg:col-span-4 space-y-6">
-            <PositionVarietyPanel />
-          </div>
-        </div>
+        <DevelopmentTrendsPanel
+          players={players}
+          games={games}
+          evaluationEvents={evaluationEvents}
+          stripped={stripped}
+          onOpenPlayer={openPlayerProfile}
+        />
       )}
 
       {view === "overview" && (
         <>
           {/* Desktop control-panel: two-column layout.
           Left col (8/12): Recent Form + Player Stats — the dense data tables.
-          Right col (4/12): Bench Equity + Position/Arm-Care panels — context rail.
+          Right col (4/12): Arm Care — pitching-workload context rail.
           Mobile/tablet: single-column stack, unchanged. */}
           <div className="lg:grid lg:grid-cols-12 lg:gap-6 space-y-6 lg:space-y-0">
             <div className="lg:col-span-8 space-y-6">
@@ -837,30 +750,14 @@ export const StatsTab = memo(() => {
             </div>
             {/* end left col */}
 
-            {/* Right rail: Bench Equity + Position/Arm-Care panels */}
+            {/* Right rail: arm care — pitching workload, the one health
+            signal that belongs next to the pitching numbers. */}
             <div className="lg:col-span-4 space-y-6">
-              {benchRows.length > 0 && (
-                <SectionCard
-                  icon={Icons.Clock}
-                  title="Bench Equity & Attendance"
-                >
-                  <BenchEquityTable
-                    rows={benchRows}
-                    onOpen={openPlayerProfile}
-                  />
-                </SectionCard>
-              )}
-              <PositionVarietyPanel />
               <ArmCarePanel />
             </div>
             {/* end right col */}
           </div>
           {/* end desktop grid */}
-
-          {/* Playing-time receipts (head coach only, self-gating like
-          ArmCarePanel). Full width rather than in the right rail because each
-          row carries a full sentence a coach reads aloud to a parent. */}
-          <PlayingTimePanel />
 
           {/* Per-player stats table with category toggle — full width so the wide
           batting/pitching columns have room to breathe. */}

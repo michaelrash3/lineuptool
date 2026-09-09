@@ -531,6 +531,30 @@ export const HELP_TOPICS: HelpTopic[] = [
     ],
     related: ["batting-order", "in-game-mode"],
   },
+  {
+    id: "bench-equity-variety",
+    category: "lineups",
+    title: "Playing time, bench equity and position variety",
+    summary:
+      "Who has sat more than their share, and who's been stuck at one position.",
+    keywords:
+      "playing time bench equity extra sits fairness position variety rotation stuck innings",
+    sections: [
+      {
+        body: 'Playing time is its own page — open it from the Bench Equity tile on Home. It answers what every parent eventually asks — "is my kid playing enough?" — which is a different thing from how well anyone hit, pitched or fielded, so it lives apart from the Stats tab.',
+      },
+      {
+        heading: "Bench equity",
+        body: "Computed from imported box scores — actual innings, not planned ones. It counts each player's extra sits beyond the game's fair minimum, so you can spot (and fix) a kid quietly riding the bench.",
+      },
+      {
+        heading: "Position variety",
+        body: "Innings logged per position, grouped into infield, outfield, and battery. Surfaces who's never seen the infield and who's been parked in right field, so the rotation can be evened out.",
+      },
+    ],
+    related: ["lineup-generator", "gamechanger-import"],
+    cta: { label: "Open Home", tab: "home" },
+  },
 
   // ---------------------------------------------------------------- in-game
   {
@@ -727,7 +751,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     keywords: "stats table leaders sort avg obp ops hot cold recent form",
     sections: [
       {
-        body: "The Stats tab shows every player's season line — batting, fielding, and pitching — sortable by any column, plus leaderboards for the headline stats.",
+        body: "The Stats tab shows every player's season line — batting, fielding, and pitching — sortable by any column, plus leaderboards for the headline stats. It's performance only: innings, bench time and rotation live on the Playing Time page instead.",
       },
       {
         heading: "Recent form",
@@ -735,28 +759,6 @@ export const HELP_TOPICS: HelpTopic[] = [
       },
     ],
     related: ["gamechanger-import", "season-trends"],
-    featureId: "stats",
-    cta: { label: "Open Stats", tab: "stats" },
-  },
-  {
-    id: "bench-equity-variety",
-    category: "stats-analytics",
-    title: "Bench equity and position variety",
-    summary:
-      "Who has sat more than their share, and who's been stuck at one position.",
-    keywords:
-      "bench equity extra sits fairness position variety rotation stuck",
-    sections: [
-      {
-        heading: "Bench equity",
-        body: "Computed from imported box scores — actual innings, not planned ones. It counts each player's extra sits beyond the game's fair minimum, so you can spot (and fix) a kid quietly riding the bench.",
-      },
-      {
-        heading: "Position variety",
-        body: "Innings logged per position, grouped into infield, outfield, and battery. Surfaces who's never seen the infield and who's been parked in right field, so the rotation can be evened out.",
-      },
-    ],
-    related: ["lineup-generator", "gamechanger-import"],
     featureId: "stats",
     cta: { label: "Open Stats", tab: "stats" },
   },
