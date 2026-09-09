@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 import React from "react";
-import { screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { HomeTab } from "./HomeTab";
 import { renderWithProviders } from "../test-utils";
 
@@ -298,5 +298,51 @@ describe("HomeTab", () => {
     expect(
       screen.queryByText((_, el) => el?.textContent === "3 Out"),
     ).toBeNull();
+  });
+  it("routes the Bench Equity tile to the Playing Time page", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<HomeTab />} />
+          <Route path="/playing-time" element={<div>PLAYING TIME PAGE</div>} />
+        </Routes>
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...emptyTeam,
+            players: [
+              { id: "a1", name: "Ava", stats: {} },
+              { id: "a2", name: "Mia", stats: {} },
+            ],
+            games: [
+              {
+                id: "g1",
+                date: "2026-06-10",
+                status: "final",
+                opponent: "Bears",
+                teamScore: 5,
+                opponentScore: 3,
+                playerStats: {
+                  a1: { fInnTotal: 4 },
+                  a2: { fInnTotal: 0 },
+                },
+              },
+            ],
+          },
+          teams: [{ id: "t1", name: "Hawks" }],
+          activeTeamId: "t1",
+          record: { wins: 1, losses: 0, ties: 0 },
+          user: { uid: "u1" },
+          currentRole: "head",
+        },
+        ui: {
+          setIsAddingGame: jest.fn(),
+          openAddPlayer: jest.fn(),
+        },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Playing time/i }));
+    expect(await screen.findByText("PLAYING TIME PAGE")).toBeInTheDocument();
   });
 });

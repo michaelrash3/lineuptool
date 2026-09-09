@@ -984,9 +984,15 @@ interface BenchEquityTileProps {
   players: Player[];
   games: Game[];
   onPlayerClick?: (id: string) => void;
+  onOpenPlayingTime?: () => void;
 }
 const BenchEquityTile = memo(
-  ({ players, games, onPlayerClick }: BenchEquityTileProps) => {
+  ({
+    players,
+    games,
+    onPlayerClick,
+    onOpenPlayingTime,
+  }: BenchEquityTileProps) => {
     const rows = React.useMemo(() => {
       const imbalance = buildSeasonBenchImbalance(games, "", players);
       return (players || [])
@@ -1008,7 +1014,13 @@ const BenchEquityTile = memo(
     const anyImbalance = rows.some((r) => Math.abs(r.delta) >= 1);
     if (rows.length === 0) {
       return (
-        <InsightTile icon={Icons.Users} title="Bench Equity" accent="slate">
+        <InsightTile
+          icon={Icons.Users}
+          title="Bench Equity"
+          accent="slate"
+          onClick={onOpenPlayingTime}
+          ctaLabel={onOpenPlayingTime ? "Playing time" : undefined}
+        >
           <p className="t-body text-ink-3 italic text-xs">
             No finalized games yet. Once you finalize a game, each kid's
             season-wide bench vs play balance will surface here.
@@ -1018,7 +1030,13 @@ const BenchEquityTile = memo(
     }
     if (!anyImbalance) {
       return (
-        <InsightTile icon={Icons.Users} title="Bench Equity" accent="success">
+        <InsightTile
+          icon={Icons.Users}
+          title="Bench Equity"
+          accent="success"
+          onClick={onOpenPlayingTime}
+          ctaLabel={onOpenPlayingTime ? "Playing time" : undefined}
+        >
           <p className="t-body text-win text-xs font-bold">
             Everyone's within 1 inning of their fair share across the season.
             Keep it up.
@@ -1074,7 +1092,13 @@ const BenchEquityTile = memo(
       );
     };
     return (
-      <InsightTile icon={Icons.Users} title="Bench Equity" accent="warn">
+      <InsightTile
+        icon={Icons.Users}
+        title="Bench Equity"
+        accent="warn"
+        onClick={onOpenPlayingTime}
+        ctaLabel={onOpenPlayingTime ? "Playing time" : undefined}
+      >
         <div className="space-y-2">
           {underPlayed.length > 0 && (
             <div>
@@ -2238,6 +2262,7 @@ export const HomeTab = memo(() => {
               players={players}
               games={games}
               onPlayerClick={openPlayerProfile}
+              onOpenPlayingTime={() => navigate("/playing-time")}
             />
           </StaggerItem>
           <StaggerItem>

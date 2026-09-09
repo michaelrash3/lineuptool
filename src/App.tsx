@@ -352,6 +352,11 @@ const AwardsPage = lazy(() =>
     default: m.AwardsPage,
   })),
 );
+const PlayingTimePage = lazy(() =>
+  import("./screens/home/PlayingTimePage").then((m) => ({
+    default: m.PlayingTimePage,
+  })),
+);
 const TryoutAddPage = lazy(() =>
   import("./screens/tryouts/TryoutAddPage").then((m) => ({
     default: m.TryoutAddPage,
@@ -887,6 +892,9 @@ const MainShell = () => {
                 <Route path="/" element={<HomeTab />} />
                 <Route path="/season-report" element={<SeasonReportPage />} />
                 <Route path="/awards" element={<AwardsPage />} />
+                {/* Playing time & bench equity — the fairness page, kept
+                    off Stats so Stats stays about batting/pitching/fielding. */}
+                <Route path="/playing-time" element={<PlayingTimePage />} />
                 <Route
                   path="/stats"
                   element={

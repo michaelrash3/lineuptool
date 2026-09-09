@@ -8,7 +8,8 @@ import {
   downloadPlayingTimeReportPdf,
 } from "../stats/playingTimeReportPdf";
 
-// Stats-tab playing-time card — the receipts for "is my kid playing enough?".
+// The playing-time receipts card for "is my kid playing enough?" — the body of
+// the /playing-time page, which supplies the "Playing Time" heading above it.
 //
 // Head coach only, and hidden until at least one finalized, non-scrimmage game
 // has a saved lineup. Every number is the SAME number the rotation engine used
@@ -60,9 +61,9 @@ export const PlayingTimePanel = memo(() => {
             />
           </div>
           <div className="min-w-0">
-            <h2 className="t-h2">Playing Time</h2>
+            <h2 className="t-h2">Kid by Kid</h2>
             <p className="t-eyebrow text-ink-3 mt-0.5">
-              Innings, positions &amp; bench time, kid by kid
+              Innings, positions &amp; bench time, straight off the lineups
             </p>
           </div>
         </div>

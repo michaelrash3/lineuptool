@@ -55,7 +55,7 @@ const renderPanel = (over: any = {}, teamOver: any = {}) =>
 describe("PlayingTimePanel", () => {
   it("shows a read-aloud line and the position breakdown for each kid", () => {
     renderPanel();
-    expect(screen.getByText("Playing Time")).toBeInTheDocument();
+    expect(screen.getByText("Kid by Kid")).toBeInTheDocument();
     expect(
       screen.getByText(
         "Xan: 1 defensive inning, 1 position, sat 2 innings, sat back-to-back 1 time.",
