@@ -2,6 +2,7 @@
 // modal and the automatic on-open sync in ScheduleTab. Keeping the fetch +
 // upsert logic in one place means both paths de-dupe games identically.
 
+import { dateToIsoLocal } from "./dates";
 import { parseGameChangerIcs, type GcEvent } from "./icsParse";
 import { genId } from "./id";
 
@@ -129,21 +130,71 @@ export interface GcPracticeMergeResult {
   practices: any[];
   added: number;
   updated: number;
+  removed: number;
 }
+
+// The feed-sourced practices a sync would drop: ones GameChanger no longer
+// publishes, because the coach deleted the practice (or retitled it out of
+// practice-hood, which makes it a game instead). Deleting a practice in
+// GameChanger should delete it here, but a calendar feed is a poor witness for
+// "this no longer exists" — it is equally silent about anything outside the
+// window it publishes — so the prune is fenced to what the feed can actually
+// speak to:
+//   - manual practices are the coach's own, so a feed sync never touches one
+//     (gcUid + source both required, not either);
+//   - a practice dated before today stays. It is a record, not a plan: its
+//     attendance feeds the attendance report and development check-ins, and
+//     feeds roll old events off, which would otherwise read as "the whole
+//     season was cancelled" on the first sync after the roll-off;
+//   - a practice dated after the feed's last event is beyond the horizon the
+//     feed covers, not missing from it;
+//   - an empty feed (a publish that failed, an off-season feed) prunes
+//     nothing, for the same reason.
+// Exported so the import preview can warn before the coach commits the write.
+export const gcPracticesToPrune = (
+  existingPractices: any[],
+  events: GcEvent[],
+  todayIso: string = dateToIsoLocal(new Date()),
+): any[] => {
+  const base = Array.isArray(existingPractices) ? existingPractices : [];
+  if (base.length === 0 || events.length === 0) return [];
+
+  const feedPracticeUids = new Set<string>();
+  let lastFeedDate = "";
+  for (const ev of events) {
+    if (isPracticeEvent(ev) && ev.uid) feedPracticeUids.add(ev.uid);
+    if (ev.startDate > lastFeedDate) lastFeedDate = ev.startDate;
+  }
+
+  return base.filter((p) => {
+    if (!p?.gcUid || p.source !== "gamechanger") return false;
+    if (feedPracticeUids.has(p.gcUid)) return false;
+    const date = String(p.date || "");
+    // A practice with no usable date fails both comparisons and is kept.
+    return date >= todayIso && date <= lastFeedDate;
+  });
+};
 
 // Upsert parsed feed events into the existing practices array, matched by the
 // feed UID (practice.gcUid). Mirrors mergeGcEventsIntoGames: only PRACTICE
 // events (see isPracticeEvent) are considered; existing practices are refreshed
 // only when a schedule field changed (so a no-op sync writes nothing), and
 // attendance / drills / environment / planNotes on existing practices are
-// preserved. When both counts are 0 the returned `practices` is reference-equal
-// to the input so callers can skip the write.
+// preserved. Unlike games, the sync also PRUNES — practices GameChanger has
+// dropped go with it (see gcPracticesToPrune for the fences on that). When all
+// three counts are 0 the returned `practices` is reference-equal to the input
+// so callers can skip the write.
 export const mergeGcEventsIntoPractices = (
   existingPractices: any[],
   events: GcEvent[],
+  todayIso?: string,
 ): GcPracticeMergeResult => {
   const base = Array.isArray(existingPractices) ? existingPractices : [];
-  const next = [...base];
+  // Identity, not id: the prune list is filtered out of `base` itself, so a
+  // duplicated id can't take an innocent practice down with it.
+  const doomed = new Set(gcPracticesToPrune(base, events, todayIso));
+  const next = base.filter((p) => !doomed.has(p));
+  const removed = doomed.size;
   const idxByUid = new Map<string, number>();
   next.forEach((p, i) => {
     if (p?.gcUid) idxByUid.set(p.gcUid, i);
@@ -188,8 +239,9 @@ export const mergeGcEventsIntoPractices = (
   }
 
   return {
-    practices: added > 0 || updated > 0 ? next : base,
+    practices: added > 0 || updated > 0 || removed > 0 ? next : base,
     added,
     updated,
+    removed,
   };
 };
