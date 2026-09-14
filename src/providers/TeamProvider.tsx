@@ -409,6 +409,17 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // writer that needs proof of what the server holds. Re-derives on
   // signupSubsProgressTick, which is bumped the moment confirmation lands.
   const gamesServerConfirmed = signupSubsServerConfirmedRef.current.games;
+  // The same bar for the TEAM DOC, which is where the practices array still
+  // lives. The GameChanger sync writes practices too, and it reasons the same
+  // way: it creates what it does not find and now DELETES what the feed
+  // dropped, so off a cache-only view of the doc it would mint a duplicate of
+  // a practice the server already has and rewrite the array from a stale
+  // picture. The team-doc listener runs with includeMetadataChanges, so the
+  // cache -> server transition is delivered even when the payload is
+  // byte-identical and this flips on its own (a snapshot that also re-renders,
+  // which is what re-derives this value).
+  const teamDocServerConfirmed =
+    teamDocServerConfirmedRef.current === activeTeamId;
 
   // "Has the SERVER confirmed this team's roster is really empty?" — the
   // question the roster-wipe guard asks before letting an empty players write
@@ -3239,6 +3250,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       signupsReady,
       signupsDenied,
       gamesServerConfirmed,
+      teamDocServerConfirmed,
     }),
     [
       teamData,
@@ -3262,6 +3274,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       signupsReady,
       signupsDenied,
       gamesServerConfirmed,
+      teamDocServerConfirmed,
       dismissLineupUndoToast,
     ],
   );

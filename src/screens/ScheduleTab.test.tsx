@@ -1,5 +1,5 @@
 import React from "react";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ScheduleTab } from "./ScheduleTab";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -568,5 +568,134 @@ describe("ScheduleTab — tournament subs in Game Day Attendance", () => {
     ]);
     expect(screen.queryByText(/Guest Arm/)).not.toBeInTheDocument();
     expect(screen.queryByText("Sub")).not.toBeInTheDocument();
+  });
+});
+
+// The on-open GameChanger sync. It covers BOTH halves of the feed, so a
+// practice the coach deleted in GameChanger disappears without anyone
+// re-running the manual import. The throttle is a module-level Map keyed by
+// team id, so every case here uses its own activeTeamId.
+describe("ScheduleTab GameChanger auto-sync", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    (globalThis as any).fetch = realFetch;
+  });
+
+  const isoInDays = (days: number): string => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  // All-day VEVENTs: a literal feed date, no timezone conversion in play.
+  const icsFeed = (events: { uid: string; date: string; summary: string }[]) =>
+    [
+      "BEGIN:VCALENDAR",
+      ...events.flatMap((e) => [
+        "BEGIN:VEVENT",
+        `UID:${e.uid}`,
+        `DTSTART;VALUE=DATE:${e.date.replace(/-/g, "")}`,
+        `SUMMARY:${e.summary}`,
+        "END:VEVENT",
+      ]),
+      "END:VCALENDAR",
+    ].join("\r\n");
+
+  const stubFeed = (ics: string) => {
+    (globalThis as any).fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: true, text: async () => ics });
+  };
+
+  const renderSync = (teamId: string, over: any = {}, ctx: any = {}) => {
+    const updateTeamArrays = jest.fn();
+    const utils = renderWithProviders(
+      <MemoryRouter>
+        <ScheduleTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...baseTeam,
+            gcCalendarUrl: "webcal://gc.com/f.ics",
+            ...over,
+          },
+          record: { wins: 0, losses: 0, ties: 0 },
+          currentRole: "head",
+          activeTeamId: teamId,
+          gamesServerConfirmed: true,
+          teamDocServerConfirmed: true,
+          updateTeamArrays,
+          ...ctx,
+        },
+      },
+    );
+    return { ...utils, updateTeamArrays };
+  };
+
+  const droppedPractice = {
+    id: "pr-gone",
+    gcUid: "gone",
+    date: isoInDays(7),
+    source: "gamechanger",
+    status: "scheduled",
+  };
+  // A game further out, so the dropped practice sits inside the window the
+  // feed demonstrably covers.
+  const feedWithOneGame = () =>
+    icsFeed([
+      { uid: "g-new", date: isoInDays(14), summary: "Trash Pandas vs Rays" },
+    ]);
+
+  it("deletes a practice the feed no longer carries, and says so", async () => {
+    stubFeed(feedWithOneGame());
+    const { updateTeamArrays, toastValue } = renderSync("t-prune", {
+      practices: [droppedPractice],
+    });
+
+    await waitFor(() => expect(updateTeamArrays).toHaveBeenCalled());
+    const ops = updateTeamArrays.mock.calls[0][0];
+    expect(ops.map((o: any) => o.key).sort()).toEqual(["games", "practices"]);
+    expect(
+      ops.find((o: any) => o.key === "practices").map([droppedPractice]),
+    ).toEqual([]);
+    expect(toastValue.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("Practices: 1 removed"),
+      }),
+    );
+  });
+
+  it("writes only the games op when no practice changed", async () => {
+    stubFeed(feedWithOneGame());
+    const { updateTeamArrays, toastValue } = renderSync("t-games-only", {
+      practices: [],
+    });
+
+    await waitFor(() => expect(updateTeamArrays).toHaveBeenCalled());
+    const ops = updateTeamArrays.mock.calls[0][0];
+    expect(ops).toHaveLength(1);
+    expect(ops[0].key).toBe("games");
+    expect(toastValue.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.not.stringContaining("Practices:"),
+      }),
+    );
+  });
+
+  it("stays put until the team doc is server-confirmed", async () => {
+    stubFeed(feedWithOneGame());
+    const { updateTeamArrays } = renderSync(
+      "t-unconfirmed",
+      { practices: [droppedPractice] },
+      { teamDocServerConfirmed: false },
+    );
+
+    // Nothing may be written off a cache-only view of the doc the practices
+    // live on — and the throttle stamp must stay unspent for the real pass.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(updateTeamArrays).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });

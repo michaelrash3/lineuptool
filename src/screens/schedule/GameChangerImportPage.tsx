@@ -4,6 +4,7 @@ import { Icons } from "../../icons";
 import { type GcEvent } from "../../utils/icsParse";
 import {
   fetchGcEvents,
+  gcPracticesToPrune,
   mergeGcEventsIntoGames,
   mergeGcEventsIntoPractices,
 } from "../../utils/gcSync";
@@ -19,7 +20,9 @@ import type { Game, Practice } from "../../types";
 // CORS-less calendar host) → review the parsed games → Import. Games match
 // existing ones by the feed's stable UID (game.gcUid), so re-syncing updates
 // dates/opponents in place instead of duplicating, and never touches scores
-// or lineups on games already played.
+// or lineups on games already played. Practices sync the same way and also
+// prune: one the coach deleted in GameChanger is deleted here too, which the
+// preview names before the coach commits (see gcPracticesToPrune).
 
 interface Candidate {
   event: GcEvent;
@@ -42,6 +45,10 @@ export const GameChangerImportPage = memo(() => {
     () => (Array.isArray(team?.games) ? team.games : []),
     [team?.games],
   );
+  const existingPractices: any[] = useMemo(
+    () => (Array.isArray(team?.practices) ? team.practices : []),
+    [team?.practices],
+  );
   const [url, setUrl] = useState<string>(team?.gcCalendarUrl || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +59,19 @@ export const GameChangerImportPage = memo(() => {
     for (const g of existingGames) if (g?.gcUid) m.set(g.gcUid, g);
     return m;
   }, [existingGames]);
+
+  // Practices this import would drop, so the coach sees the deletions before
+  // pressing Import rather than discovering them afterwards.
+  const pruned = useMemo(
+    () =>
+      candidates
+        ? gcPracticesToPrune(
+            existingPractices,
+            candidates.map((c) => c.event),
+          )
+        : [],
+    [candidates, existingPractices],
+  );
 
   if (currentRole === "assistant") return <Navigate to="/schedule" replace />;
 
@@ -108,11 +128,11 @@ export const GameChangerImportPage = memo(() => {
       events,
       defaults,
     );
-    const existingPractices: any[] = Array.isArray(team?.practices)
-      ? team.practices
-      : [];
-    const { added: practicesAdded, updated: practicesUpdated } =
-      mergeGcEventsIntoPractices(existingPractices, events);
+    const {
+      added: practicesAdded,
+      updated: practicesUpdated,
+      removed: practicesRemoved,
+    } = mergeGcEventsIntoPractices(existingPractices, events);
 
     updateTeamArrays([
       {
@@ -137,6 +157,9 @@ export const GameChangerImportPage = memo(() => {
         `${gamesAdded} game${gamesAdded === 1 ? "" : "s"}, ` +
         `${practicesAdded} practice${practicesAdded === 1 ? "" : "s"} added` +
         (updatedTotal > 0 ? ` · ${updatedTotal} updated` : "") +
+        (practicesRemoved > 0
+          ? ` · ${practicesRemoved} practice${practicesRemoved === 1 ? "" : "s"} removed`
+          : "") +
         ` from GameChanger.`,
     });
     back();
@@ -217,6 +240,24 @@ export const GameChangerImportPage = memo(() => {
               {candidates.length} game{candidates.length === 1 ? "" : "s"} ·{" "}
               {newCount} new · {dupCount} already imported
             </div>
+            {pruned.length > 0 && (
+              <div className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                {pruned.length} upcoming practice
+                {pruned.length === 1 ? " is" : "s are"} no longer in this feed
+                and will be removed on import, along with anything logged on
+                {pruned.length === 1 ? " it" : " them"}:
+                <ul className="mt-1.5 font-normal list-disc pl-4 space-y-0.5">
+                  {pruned.map((p: any) => (
+                    <li key={p.id} className="tabular-nums">
+                      {p.date}
+                      {p.location
+                        ? ` · ${String(p.location).split("\n")[0]}`
+                        : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="border border-line rounded-xl divide-y divide-line max-h-72 overflow-y-auto">
               {candidates.map((c) => (
                 <div
