@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
-  gcPracticesToPrune,
+  gcPracticesVsFeed,
   mergeGcEventsIntoGames,
   mergeGcEventsIntoPractices,
+  practiceHasLoggedWork,
 } from "./gcSync";
 import type { GcEvent } from "./icsParse";
 
@@ -245,9 +246,8 @@ describe("mergeGcEventsIntoPractices", () => {
       ...over,
     });
 
-  // A practice as the merge stores one. TODAY is the fixed "now" the prune
-  // fences compare against, so these tests never drift with the wall clock.
-  const TODAY = "2026-06-01";
+  // A practice as the merge stores one. Every fence here is measured against
+  // the FEED's own span, never the wall clock, so these dates are fixed.
   const stored = (over: Record<string, any> = {}) => ({
     id: "pr1",
     gcUid: "p1",
@@ -263,17 +263,38 @@ describe("mergeGcEventsIntoPractices", () => {
     ...over,
   });
 
-  it("removes an upcoming practice the feed no longer carries", () => {
+  // A feed that still publishes May 1 -> July 1 but no longer lists p1.
+  const feedWithoutP1 = () => [
+    ev({ uid: "g-early", startDate: "2026-05-01" }),
+    ev({ uid: "g-late", startDate: "2026-07-01" }),
+  ];
+
+  it("removes a practice the feed no longer carries", () => {
     const { practices, removed, added, updated } = mergeGcEventsIntoPractices(
       [stored()],
-      // The feed still publishes a game, so it is live — it just no longer
-      // has that practice.
-      [ev({ uid: "g1", startDate: "2026-06-20" })],
-      TODAY,
+      feedWithoutP1(),
     );
     expect(removed).toBe(1);
     expect(added).toBe(0);
     expect(updated).toBe(0);
+    expect(practices).toHaveLength(0);
+  });
+
+  it("removes one already PLAYED, attendance and all", () => {
+    // The fence is the feed's span, not today: a practice the feed covers and
+    // no longer lists was deleted upstream, whether or not it has happened.
+    const played = stored({
+      id: "old",
+      gcUid: "gone",
+      date: "2026-05-04",
+      attendance: { p1: "present", p2: "absent" },
+      drills: [{ id: "d1", name: "Tee work" }],
+    });
+    const { practices, removed } = mergeGcEventsIntoPractices(
+      [played],
+      feedWithoutP1(),
+    );
+    expect(removed).toBe(1);
     expect(practices).toHaveLength(0);
   });
 
@@ -282,15 +303,14 @@ describe("mergeGcEventsIntoPractices", () => {
     // now, so it must not linger on the Practices tab as well.
     const { practices, removed } = mergeGcEventsIntoPractices(
       [stored()],
-      [ev({ uid: "p1", startDate: "2026-06-10" })],
-      TODAY,
+      [ev({ uid: "p1", startDate: "2026-06-10" }), ...feedWithoutP1()],
     );
     expect(removed).toBe(1);
     expect(practices).toHaveLength(0);
   });
 
   it("keeps a practice the feed still carries", () => {
-    const res = mergeGcEventsIntoPractices([stored()], [practiceEv()], TODAY);
+    const res = mergeGcEventsIntoPractices([stored()], [practiceEv()]);
     expect(res.removed).toBe(0);
     expect(res.added).toBe(0);
     expect(res.updated).toBe(0);
@@ -304,53 +324,51 @@ describe("mergeGcEventsIntoPractices", () => {
     const unstamped = stored({ id: "u1", gcUid: "legacy", source: undefined });
     const { practices, removed } = mergeGcEventsIntoPractices(
       [manual, unstamped],
-      [ev({ uid: "g1", startDate: "2026-06-20" })],
-      TODAY,
+      feedWithoutP1(),
     );
     expect(removed).toBe(0);
     expect(practices).toHaveLength(2);
   });
 
-  it("keeps a practice already played, attendance and all", () => {
-    // Feeds roll old events off; a past practice is a record, not a plan.
-    const past = stored({
-      id: "old",
-      gcUid: "gone",
-      date: "2026-05-02",
-      attendance: { p1: "present", p2: "absent" },
-    });
+  it("keeps a practice older than the feed reaches", () => {
+    // This is what a feed that rolls old events off looks like. Its silence
+    // about April is not evidence, so a season of attendance survives.
+    const ancient = stored({ id: "old", gcUid: "gone", date: "2026-04-02" });
     const { practices, removed } = mergeGcEventsIntoPractices(
-      [past],
-      [ev({ uid: "g1", startDate: "2026-06-20" })],
-      TODAY,
-    );
-    expect(removed).toBe(0);
-    expect(practices[0].attendance).toEqual({ p1: "present", p2: "absent" });
-  });
-
-  it("keeps a practice dated past the feed's last event", () => {
-    // Beyond the window the feed publishes, so its silence proves nothing.
-    const far = stored({ id: "far", gcUid: "far-uid", date: "2026-08-30" });
-    const { practices, removed } = mergeGcEventsIntoPractices(
-      [far],
-      [ev({ uid: "g1", startDate: "2026-06-20" })],
-      TODAY,
+      [ancient],
+      feedWithoutP1(),
     );
     expect(removed).toBe(0);
     expect(practices).toHaveLength(1);
   });
 
+  it("keeps a practice dated past the feed's last event", () => {
+    const far = stored({ id: "far", gcUid: "far-uid", date: "2026-08-30" });
+    const { practices, removed } = mergeGcEventsIntoPractices(
+      [far],
+      feedWithoutP1(),
+    );
+    expect(removed).toBe(0);
+    expect(practices).toHaveLength(1);
+  });
+
+  it("keeps a practice whose date is unusable", () => {
+    const broken = stored({ id: "bad", gcUid: "bad-uid", date: "" });
+    const res = mergeGcEventsIntoPractices([broken], feedWithoutP1());
+    expect(res.removed).toBe(0);
+  });
+
   it("an empty feed removes nothing", () => {
     // A feed that failed to publish must not read as "everything was cancelled".
     const existing = [stored()];
-    const res = mergeGcEventsIntoPractices(existing, [], TODAY);
+    const res = mergeGcEventsIntoPractices(existing, []);
     expect(res.removed).toBe(0);
     expect(res.practices).toBe(existing);
   });
 
   it("returns the SAME array reference when nothing changed", () => {
     const existing = [stored()];
-    const res = mergeGcEventsIntoPractices(existing, [practiceEv()], TODAY);
+    const res = mergeGcEventsIntoPractices(existing, [practiceEv()]);
     expect(res.practices).toBe(existing); // reference-equal: no write
   });
 
@@ -369,7 +387,6 @@ describe("mergeGcEventsIntoPractices", () => {
         }),
         practiceEv({ uid: "p3", startDate: "2026-06-18" }),
       ],
-      TODAY,
     );
     expect({ added, updated, removed }).toEqual({
       added: 1,
@@ -396,7 +413,6 @@ describe("mergeGcEventsIntoPractices", () => {
           startUtc: "2026-06-11T23:00:00.000Z",
         }),
       ],
-      TODAY,
     );
     expect(updated).toBe(1);
     expect(practices[0]).toMatchObject({
@@ -406,15 +422,66 @@ describe("mergeGcEventsIntoPractices", () => {
       planNotes: "Infield focus",
     });
   });
+});
 
-  it("gcPracticesToPrune names the practices the merge would drop", () => {
-    const doomed = stored({ id: "pr2", gcUid: "p2", date: "2026-06-12" });
-    const list = gcPracticesToPrune(
-      [stored(), doomed],
-      // A later event puts the dropped practice inside the feed's window.
-      [practiceEv({ uid: "p1" }), ev({ uid: "g1", startDate: "2026-06-20" })],
-      TODAY,
+describe("gcPracticesVsFeed", () => {
+  const stored = (over: Record<string, any>) => ({
+    source: "gamechanger",
+    attendance: {},
+    drills: [],
+    planNotes: "",
+    ...over,
+  });
+  const feed = [
+    ev({ uid: "g-early", startDate: "2026-05-01" }),
+    ev({ uid: "g-late", startDate: "2026-07-01" }),
+  ];
+
+  it("splits the missing practices by whether the feed covers their date", () => {
+    const inside = stored({ id: "in", gcUid: "a", date: "2026-06-10" });
+    const tooOld = stored({ id: "old", gcUid: "b", date: "2026-04-01" });
+    const tooNew = stored({ id: "new", gcUid: "c", date: "2026-08-01" });
+    const diff = gcPracticesVsFeed([inside, tooOld, tooNew], feed);
+    expect(diff.prune).toEqual([inside]);
+    expect(diff.outsideWindow).toEqual([tooOld, tooNew]);
+  });
+
+  it("reports the span so the preview can explain what it skipped", () => {
+    const diff = gcPracticesVsFeed(
+      [stored({ id: "old", gcUid: "b", date: "2026-04-01" })],
+      feed,
     );
-    expect(list).toEqual([doomed]);
+    expect(diff.firstFeedDate).toBe("2026-05-01");
+    expect(diff.lastFeedDate).toBe("2026-07-01");
+  });
+
+  it("reports an empty span for an empty feed", () => {
+    const diff = gcPracticesVsFeed(
+      [stored({ id: "in", gcUid: "a", date: "2026-06-10" })],
+      [],
+    );
+    expect(diff).toMatchObject({
+      prune: [],
+      outsideWindow: [],
+      firstFeedDate: "",
+      lastFeedDate: "",
+    });
+  });
+});
+
+describe("practiceHasLoggedWork", () => {
+  it("is false for an untouched practice", () => {
+    expect(
+      practiceHasLoggedWork({ attendance: {}, drills: [], planNotes: "" }),
+    ).toBe(false);
+    expect(practiceHasLoggedWork({})).toBe(false);
+  });
+
+  it("is true once a coach has put anything into it", () => {
+    expect(practiceHasLoggedWork({ attendance: { p1: "absent" } })).toBe(true);
+    expect(practiceHasLoggedWork({ drills: [{ id: "d1", name: "Tee" }] })).toBe(
+      true,
+    );
+    expect(practiceHasLoggedWork({ planNotes: "Infield" })).toBe(true);
   });
 });

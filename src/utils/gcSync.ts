@@ -2,7 +2,6 @@
 // modal and the automatic on-open sync in ScheduleTab. Keeping the fetch +
 // upsert logic in one place means both paths de-dupe games identically.
 
-import { dateToIsoLocal } from "./dates";
 import { parseGameChangerIcs, type GcEvent } from "./icsParse";
 import { genId } from "./id";
 
@@ -133,47 +132,81 @@ export interface GcPracticeMergeResult {
   removed: number;
 }
 
-// The feed-sourced practices a sync would drop: ones GameChanger no longer
-// publishes, because the coach deleted the practice (or retitled it out of
-// practice-hood, which makes it a game instead). Deleting a practice in
-// GameChanger should delete it here, but a calendar feed is a poor witness for
-// "this no longer exists" — it is equally silent about anything outside the
-// window it publishes — so the prune is fenced to what the feed can actually
-// speak to:
-//   - manual practices are the coach's own, so a feed sync never touches one
+// What a sync would drop, and what it deliberately would not.
+//
+// Deleting a practice in GameChanger should delete it here — including one
+// already played, whose row is no longer a record of anything the team did.
+// But a calendar feed is a poor witness for "this no longer exists": it is
+// equally silent about an event the coach deleted and about any date outside
+// the window it publishes. The only thing separating those two is the feed's
+// OWN span, so that is the fence:
+//   - manual practices are the coach's own and a feed sync never touches one
 //     (gcUid + source both required, not either);
-//   - a practice dated before today stays. It is a record, not a plan: its
-//     attendance feeds the attendance report and development check-ins, and
-//     feeds roll old events off, which would otherwise read as "the whole
-//     season was cancelled" on the first sync after the roll-off;
-//   - a practice dated after the feed's last event is beyond the horizon the
-//     feed covers, not missing from it;
-//   - an empty feed (a publish that failed, an off-season feed) prunes
-//     nothing, for the same reason.
-// Exported so the import preview can warn before the coach commits the write.
-export const gcPracticesToPrune = (
+//   - a practice inside [first feed event, last feed event] that the feed does
+//     not carry was deleted upstream — the feed demonstrably covers that date
+//     and still does not list it. It goes, past or future;
+//   - a practice outside that span is reported as `outsideWindow` and kept:
+//     the feed simply does not reach it, which is what a roll-off of old
+//     events looks like. Silently keeping those is how a coach ends up filing
+//     "it didn't delete the old ones" with nothing to look at, so the import
+//     preview names them and the span that excluded them;
+//   - an empty feed (a publish that failed, an off-season feed) drops nothing,
+//     for the same reason: no span, no evidence.
+export interface GcPracticeFeedDiff {
+  /** Missing from the feed and inside its span — these get deleted. */
+  prune: any[];
+  /** Missing from the feed but outside its span — kept, and worth explaining. */
+  outsideWindow: any[];
+  /** The feed's own span, "" / "" when it carried no events. */
+  firstFeedDate: string;
+  lastFeedDate: string;
+}
+
+export const gcPracticesVsFeed = (
   existingPractices: any[],
   events: GcEvent[],
-  todayIso: string = dateToIsoLocal(new Date()),
-): any[] => {
+): GcPracticeFeedDiff => {
   const base = Array.isArray(existingPractices) ? existingPractices : [];
-  if (base.length === 0 || events.length === 0) return [];
+  const empty: GcPracticeFeedDiff = {
+    prune: [],
+    outsideWindow: [],
+    firstFeedDate: "",
+    lastFeedDate: "",
+  };
+  if (base.length === 0 || events.length === 0) return empty;
 
   const feedPracticeUids = new Set<string>();
+  let firstFeedDate = "";
   let lastFeedDate = "";
   for (const ev of events) {
     if (isPracticeEvent(ev) && ev.uid) feedPracticeUids.add(ev.uid);
+    if (!firstFeedDate || ev.startDate < firstFeedDate)
+      firstFeedDate = ev.startDate;
     if (ev.startDate > lastFeedDate) lastFeedDate = ev.startDate;
   }
 
-  return base.filter((p) => {
-    if (!p?.gcUid || p.source !== "gamechanger") return false;
-    if (feedPracticeUids.has(p.gcUid)) return false;
+  const prune: any[] = [];
+  const outsideWindow: any[] = [];
+  for (const p of base) {
+    if (!p?.gcUid || p.source !== "gamechanger") continue;
+    if (feedPracticeUids.has(p.gcUid)) continue;
     const date = String(p.date || "");
-    // A practice with no usable date fails both comparisons and is kept.
-    return date >= todayIso && date <= lastFeedDate;
-  });
+    // A practice with no usable date fails both comparisons, so it lands in
+    // outsideWindow and is kept — the safe side of unparseable data.
+    if (date >= firstFeedDate && date <= lastFeedDate) prune.push(p);
+    else outsideWindow.push(p);
+  }
+  return { prune, outsideWindow, firstFeedDate, lastFeedDate };
 };
+
+// True when a coach has put something into a practice that deleting it would
+// destroy. The prune still takes it — GameChanger is the schedule's authority
+// and the coach asked for that — but the import preview flags these rows so a
+// deletion that costs an attendance record is never a surprise.
+export const practiceHasLoggedWork = (p: any): boolean =>
+  Object.keys(p?.attendance || {}).length > 0 ||
+  (Array.isArray(p?.drills) && p.drills.length > 0) ||
+  String(p?.planNotes || "").trim().length > 0;
 
 // Upsert parsed feed events into the existing practices array, matched by the
 // feed UID (practice.gcUid). Mirrors mergeGcEventsIntoGames: only PRACTICE
@@ -181,18 +214,17 @@ export const gcPracticesToPrune = (
 // only when a schedule field changed (so a no-op sync writes nothing), and
 // attendance / drills / environment / planNotes on existing practices are
 // preserved. Unlike games, the sync also PRUNES — practices GameChanger has
-// dropped go with it (see gcPracticesToPrune for the fences on that). When all
+// dropped go with it (see gcPracticesVsFeed for the fences on that). When all
 // three counts are 0 the returned `practices` is reference-equal to the input
 // so callers can skip the write.
 export const mergeGcEventsIntoPractices = (
   existingPractices: any[],
   events: GcEvent[],
-  todayIso?: string,
 ): GcPracticeMergeResult => {
   const base = Array.isArray(existingPractices) ? existingPractices : [];
   // Identity, not id: the prune list is filtered out of `base` itself, so a
   // duplicated id can't take an innocent practice down with it.
-  const doomed = new Set(gcPracticesToPrune(base, events, todayIso));
+  const doomed = new Set(gcPracticesVsFeed(base, events).prune);
   const next = base.filter((p) => !doomed.has(p));
   const removed = doomed.size;
   const idxByUid = new Map<string, number>();

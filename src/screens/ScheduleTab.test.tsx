@@ -581,13 +581,6 @@ describe("ScheduleTab GameChanger auto-sync", () => {
     (globalThis as any).fetch = realFetch;
   });
 
-  const isoInDays = (days: number): string => {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, "0")}`;
-  };
-
   // All-day VEVENTs: a literal feed date, no timezone conversion in play.
   const icsFeed = (events: { uid: string; date: string; summary: string }[]) =>
     [
@@ -634,22 +627,26 @@ describe("ScheduleTab GameChanger auto-sync", () => {
     return { ...utils, updateTeamArrays };
   };
 
+  // Already played, with attendance on it — the case the wall-clock fence used
+  // to protect and the coach asked us to stop protecting.
   const droppedPractice = {
     id: "pr-gone",
     gcUid: "gone",
-    date: isoInDays(7),
+    date: "2026-05-09",
     source: "gamechanger",
     status: "scheduled",
+    attendance: { p1: "absent" },
   };
-  // A game further out, so the dropped practice sits inside the window the
-  // feed demonstrably covers.
-  const feedWithOneGame = () =>
+  // Spans May 1 -> Jul 1, so the dropped practice sits inside the window the
+  // feed demonstrably covers. Fixed dates: no fence reads the wall clock.
+  const feedWithGames = () =>
     icsFeed([
-      { uid: "g-new", date: isoInDays(14), summary: "Trash Pandas vs Rays" },
+      { uid: "g-early", date: "2026-05-01", summary: "Trash Pandas vs Rays" },
+      { uid: "g-late", date: "2026-07-01", summary: "Trash Pandas vs Dobbers" },
     ]);
 
-  it("deletes a practice the feed no longer carries, and says so", async () => {
-    stubFeed(feedWithOneGame());
+  it("deletes a played practice the feed no longer carries, and says so", async () => {
+    stubFeed(feedWithGames());
     const { updateTeamArrays, toastValue } = renderSync("t-prune", {
       practices: [droppedPractice],
     });
@@ -668,7 +665,7 @@ describe("ScheduleTab GameChanger auto-sync", () => {
   });
 
   it("writes only the games op when no practice changed", async () => {
-    stubFeed(feedWithOneGame());
+    stubFeed(feedWithGames());
     const { updateTeamArrays, toastValue } = renderSync("t-games-only", {
       practices: [],
     });
@@ -685,7 +682,7 @@ describe("ScheduleTab GameChanger auto-sync", () => {
   });
 
   it("stays put until the team doc is server-confirmed", async () => {
-    stubFeed(feedWithOneGame());
+    stubFeed(feedWithGames());
     const { updateTeamArrays } = renderSync(
       "t-unconfirmed",
       { practices: [droppedPractice] },

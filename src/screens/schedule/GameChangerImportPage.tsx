@@ -4,9 +4,10 @@ import { Icons } from "../../icons";
 import { type GcEvent } from "../../utils/icsParse";
 import {
   fetchGcEvents,
-  gcPracticesToPrune,
+  gcPracticesVsFeed,
   mergeGcEventsIntoGames,
   mergeGcEventsIntoPractices,
+  practiceHasLoggedWork,
 } from "../../utils/gcSync";
 import { useTeam, useToast } from "../../contexts";
 import { PageShell } from "../../components/PageShell";
@@ -21,8 +22,11 @@ import type { Game, Practice } from "../../types";
 // existing ones by the feed's stable UID (game.gcUid), so re-syncing updates
 // dates/opponents in place instead of duplicating, and never touches scores
 // or lineups on games already played. Practices sync the same way and also
-// prune: one the coach deleted in GameChanger is deleted here too, which the
-// preview names before the coach commits (see gcPracticesToPrune).
+// prune: one the coach deleted in GameChanger is deleted here too, played or
+// not. The preview names every practice the import would delete — flagging any
+// whose attendance or drill log goes with it — and names the ones it is
+// leaving alone because they fall outside the span this feed publishes (see
+// gcPracticesVsFeed).
 
 interface Candidate {
   event: GcEvent;
@@ -60,16 +64,14 @@ export const GameChangerImportPage = memo(() => {
     return m;
   }, [existingGames]);
 
-  // Practices this import would drop, so the coach sees the deletions before
-  // pressing Import rather than discovering them afterwards.
-  const pruned = useMemo(
+  // What this import would delete, and what it would leave behind — both shown
+  // before the coach presses Import rather than discovered afterwards.
+  const diff = useMemo(
     () =>
-      candidates
-        ? gcPracticesToPrune(
-            existingPractices,
-            candidates.map((c) => c.event),
-          )
-        : [],
+      gcPracticesVsFeed(
+        existingPractices,
+        candidates ? candidates.map((c) => c.event) : [],
+      ),
     [candidates, existingPractices],
   );
 
@@ -240,19 +242,45 @@ export const GameChangerImportPage = memo(() => {
               {candidates.length} game{candidates.length === 1 ? "" : "s"} ·{" "}
               {newCount} new · {dupCount} already imported
             </div>
-            {pruned.length > 0 && (
+            {diff.prune.length > 0 && (
               <div className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
-                {pruned.length} upcoming practice
-                {pruned.length === 1 ? " is" : "s are"} no longer in this feed
-                and will be removed on import, along with anything logged on
-                {pruned.length === 1 ? " it" : " them"}:
+                {diff.prune.length} practice
+                {diff.prune.length === 1 ? " is" : "s are"} no longer in this
+                feed and will be deleted on import:
                 <ul className="mt-1.5 font-normal list-disc pl-4 space-y-0.5">
-                  {pruned.map((p: any) => (
+                  {diff.prune.map((p: any) => (
                     <li key={p.id} className="tabular-nums">
                       {p.date}
                       {p.location
                         ? ` · ${String(p.location).split("\n")[0]}`
                         : ""}
+                      {practiceHasLoggedWork(p) && (
+                        <span className="font-bold">
+                          {" "}
+                          — attendance / drills logged, and they go with it
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {diff.outsideWindow.length > 0 && (
+              <div className="text-xs text-ink-3 bg-surface-2 border border-line rounded-xl p-3">
+                <span className="font-bold text-ink-2">
+                  {diff.outsideWindow.length} practice
+                  {diff.outsideWindow.length === 1 ? "" : "s"} kept.
+                </span>{" "}
+                This feed isn't in them either, but it only publishes{" "}
+                <span className="tabular-nums">{diff.firstFeedDate}</span> to{" "}
+                <span className="tabular-nums">{diff.lastFeedDate}</span> — it
+                says nothing either way about dates it doesn't reach, so they
+                stay. Delete them from the Practices tab if they're gone for
+                good.
+                <ul className="mt-1.5 list-disc pl-4 space-y-0.5">
+                  {diff.outsideWindow.map((p: any) => (
+                    <li key={p.id} className="tabular-nums">
+                      {p.date}
                     </li>
                   ))}
                 </ul>
