@@ -1764,6 +1764,34 @@ describe("TeamProvider gamesServerConfirmed (Phase 3a)", () => {
   });
 });
 
+// The same bar for the TEAM DOC, which is where practices still live. The
+// GameChanger sync now writes practices too — creating what the feed adds and
+// DELETING what it dropped — so a cache-only view of the doc is the wrong
+// picture to reason from in either direction.
+describe("TeamProvider teamDocServerConfirmed", () => {
+  it("stays false for a cache-served team doc and flips on server confirmation", async () => {
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc({ games: [] }), /* fromCache */ true);
+    expect(teamApi.teamDocServerConfirmed).toBe(false);
+
+    // A byte-identical payload, this time with the server's word behind it —
+    // delivered only because the listener runs with includeMetadataChanges.
+    await emitDoc(teamPath("t1"), teamDoc({ games: [] }));
+    expect(teamApi.teamDocServerConfirmed).toBe(true);
+  });
+
+  it("does not carry the previous team's confirmation into the next team", async () => {
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc({ games: [] }));
+    expect(teamApi.teamDocServerConfirmed).toBe(true);
+
+    await act(async () => {
+      await teamApi.switchTeam("t2");
+    });
+    expect(teamApi.teamDocServerConfirmed).toBe(false);
+  });
+});
+
 // Phase 3b — the roster is the last array off the team doc, and the one whose
 // loss hurts most, so these lean on the failure modes rather than the happy
 // path: a silent no-op eating an edit, and an empty roster reaching the server.

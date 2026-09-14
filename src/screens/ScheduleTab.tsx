@@ -23,8 +23,13 @@ import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
 import { TournamentsSection } from "../components/tournament/TournamentsSection";
 import { GameStakesPanel } from "../components/tournament/GameStakesPanel";
 import { featureEnabled } from "../constants/features";
-import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
-import type { Game, Player } from "../types";
+import {
+  fetchGcEvents,
+  mergeGcEventsIntoGames,
+  mergeGcEventsIntoPractices,
+} from "../utils/gcSync";
+import type { Game, Player, Practice } from "../types";
+import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 import {
   isoInstantToLocalTime,
   isoInstantToLocalTimeInput,
@@ -214,6 +219,7 @@ export const ScheduleTab = memo(() => {
     currentRole,
     uploadScheduleCsv,
     gamesServerConfirmed,
+    teamDocServerConfirmed,
   } = useTeam();
   const canEdit = currentRole !== "assistant";
   const {
@@ -274,21 +280,35 @@ export const ScheduleTab = memo(() => {
 
   // Auto-sync the GameChanger schedule when the Schedule tab opens. Runs only
   // when a feed URL is saved and the user can edit, throttled per team so
-  // re-opening the tab doesn't refetch constantly. Writes ONLY when something
-  // actually changed (mergeGcEventsIntoGames returns the same array otherwise),
-  // toasts only on a real change, and stays silent on errors so it never nags —
-  // the manual "Import from GameChanger" button still surfaces problems.
+  // re-opening the tab doesn't refetch constantly. Covers BOTH halves of the
+  // feed — games and practices — off one fetch, so a practice the coach
+  // deleted in GameChanger disappears here without waiting for someone to
+  // re-run the manual import. Writes ONLY when something actually changed (the
+  // merges return the same array otherwise), toasts only on a real change, and
+  // stays silent on errors so it never nags — the manual "Import from
+  // GameChanger" button still surfaces problems.
   const gcFeedUrl = team?.gcCalendarUrl;
   useEffect(() => {
-    // gamesServerConfirmed, not merely "the lane landed": this sync creates
-    // games from what it does NOT find in the union, and the first games
-    // snapshot is cache-served — EMPTY on a device that never cached the
-    // collection. On a migrated team that empty view would make every feed
-    // event look new and duplicate the whole schedule. Checked BEFORE the
-    // throttle stamp below, so a pre-confirmation pass doesn't burn the
-    // 5-minute window; the effect re-runs and syncs for real once
-    // confirmation lands (it is in the deps).
-    if (!canEdit || !gcFeedUrl || !activeTeamId || !gamesServerConfirmed)
+    // Server confirmation for BOTH homes, not merely "the lane landed": this
+    // sync creates games from what it does NOT find in the union, and the
+    // first games snapshot is cache-served — EMPTY on a device that never
+    // cached the collection. On a migrated team that empty view would make
+    // every feed event look new and duplicate the whole schedule. The
+    // practices array lives on the TEAM DOC instead, and the same reasoning
+    // now cuts harder there: the practice merge deletes as well as adds, and a
+    // cache-only view of the doc is the wrong picture to delete from.
+    // Requiring both can only ever refuse a sync, never allow a wrong one, and
+    // both confirm off the same connection this fetch needs anyway. Checked
+    // BEFORE the throttle stamp below, so a pre-confirmation pass doesn't burn
+    // the 5-minute window; the effect re-runs and syncs for real once
+    // confirmation lands (both are in the deps).
+    if (
+      !canEdit ||
+      !gcFeedUrl ||
+      !activeTeamId ||
+      !gamesServerConfirmed ||
+      !teamDocServerConfirmed
+    )
       return;
     const now = Date.now();
     if (now - (gcAutoSyncedAt.get(activeTeamId) || 0) < GC_AUTOSYNC_INTERVAL_MS)
@@ -307,26 +327,59 @@ export const ScheduleTab = memo(() => {
           battingSize: team.battingSize,
           positionLock: team.positionLock,
         };
-        // Dry-run the merge against the rendered snapshot to decide whether
-        // anything changed (and for the toast counts); the actual write
-        // re-merges against the LATEST games via mapEntries so a concurrent
-        // edit isn't clobbered by this whole-array rewrite.
+        // Dry-run both merges against the rendered snapshot to decide whether
+        // anything changed (and for the toast counts); the actual writes
+        // re-merge against the LATEST arrays via mapEntries so a concurrent
+        // edit isn't clobbered by these whole-array rewrites.
         const { added, updated } = mergeGcEventsIntoGames(
           current,
           events,
           defaults,
         );
-        if (cancelled || (added === 0 && updated === 0)) return;
-        updateTeamArrays({
-          op: "mapEntries",
-          key: "games",
-          map: (items: Game[]) =>
-            mergeGcEventsIntoGames(items, events, defaults).games,
-        });
+        const practices = mergeGcEventsIntoPractices(
+          team?.practices || [],
+          events,
+        );
+        // One op per key, and only for the arrays that actually changed — an
+        // unchanged array must not be rewritten just because the other moved.
+        const ops: TeamArrayUpdate[] = [];
+        if (added > 0 || updated > 0) {
+          ops.push({
+            op: "mapEntries",
+            key: "games",
+            map: (items: Game[]) =>
+              mergeGcEventsIntoGames(items, events, defaults).games,
+          });
+        }
+        if (
+          practices.added > 0 ||
+          practices.updated > 0 ||
+          practices.removed > 0
+        ) {
+          ops.push({
+            op: "mapEntries",
+            key: "practices",
+            map: (items: Practice[]) =>
+              mergeGcEventsIntoPractices(items, events).practices,
+          });
+        }
+        if (cancelled || ops.length === 0) return;
+        updateTeamArrays(ops);
+        // Removals are deletions the coach never pressed a button for, so the
+        // toast names them rather than folding them into an "updated" count.
+        const practiceBits = [
+          practices.added > 0 ? `${practices.added} new` : "",
+          practices.updated > 0 ? `${practices.updated} updated` : "",
+          practices.removed > 0 ? `${practices.removed} removed` : "",
+        ].filter(Boolean);
         toast.push({
           kind: "success",
           title: "Schedule synced",
-          message: `GameChanger: ${added} new, ${updated} updated.`,
+          message:
+            `GameChanger: ${added} new, ${updated} updated.` +
+            (practiceBits.length > 0
+              ? ` Practices: ${practiceBits.join(", ")}.`
+              : ""),
         });
       } catch {
         // Silent — don't nag on every open; manual import surfaces errors. On a
@@ -340,7 +393,13 @@ export const ScheduleTab = memo(() => {
     // Intentionally keyed on team/feed identity, not the whole team object, so
     // the post-sync games write doesn't re-trigger this effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTeamId, canEdit, gcFeedUrl, gamesServerConfirmed]);
+  }, [
+    activeTeamId,
+    canEdit,
+    gcFeedUrl,
+    gamesServerConfirmed,
+    teamDocServerConfirmed,
+  ]);
 
   // Sort games by ISO date string once per games-array change instead of on
   // every keystroke into newGameForm (which triggers a ScheduleTab re-render).
