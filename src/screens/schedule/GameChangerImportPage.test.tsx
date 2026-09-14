@@ -4,15 +4,6 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { GameChangerImportPage } from "./GameChangerImportPage";
 import { applyTeamOps, renderWithProviders } from "../../test-utils";
 
-// Dates relative to the run's own "today", so the prune fences (which compare
-// against the wall clock) mean the same thing whenever CI runs this.
-const isoInDays = (days: number): string => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, "0")}`;
-};
-
 // An all-day VEVENT — a literal feed date, no timezone conversion to reason
 // about in the assertions.
 const icsFeed = (
@@ -105,64 +96,103 @@ describe("GameChangerImportPage", () => {
     expect(screen.getByText("SCHEDULE LIST")).toBeInTheDocument();
   });
 
+  // The prune is measured against the FEED's own span, never the wall clock,
+  // so these fixtures use fixed dates.
   describe("practices GameChanger dropped", () => {
     const realFetch = globalThis.fetch;
     afterEach(() => {
       (globalThis as any).fetch = realFetch;
     });
 
-    // One upcoming GameChanger practice the coach deleted upstream, and a
-    // later game that proves the feed still reaches past that date.
-    const cancelledDate = isoInDays(7);
+    // Two GameChanger practices the coach deleted upstream — one already
+    // played, with attendance on it — plus one older than the feed reaches.
     const team = {
       gcCalendarUrl: "webcal://api.team-manager.gc.com/feed.ics",
       games: [],
       practices: [
         {
-          id: "pr-gone",
-          gcUid: "gone",
-          date: cancelledDate,
+          id: "pr-upcoming",
+          gcUid: "gone-1",
+          date: "2026-06-20",
           location: "Field 4",
+          source: "gamechanger",
+          status: "scheduled",
+        },
+        {
+          id: "pr-played",
+          gcUid: "gone-2",
+          date: "2026-05-09",
+          source: "gamechanger",
+          status: "scheduled",
+          attendance: { p1: "absent" },
+        },
+        {
+          id: "pr-ancient",
+          gcUid: "gone-3",
+          date: "2026-03-01",
           source: "gamechanger",
           status: "scheduled",
         },
       ],
     };
+    // Spans May 1 -> Jul 1, so it covers both dropped practices and reaches
+    // nowhere near the March one.
     const feed = () =>
       icsFeed([
-        {
-          uid: "g1",
-          date: isoInDays(14),
-          summary: "Trash Pandas 8u vs Dirt Dobbers",
-        },
+        { uid: "g-early", date: "2026-05-01", summary: "Pandas vs Rays" },
+        { uid: "g-late", date: "2026-07-01", summary: "Pandas vs Dobbers" },
       ]);
 
-    it("warns in the preview before the coach imports", async () => {
+    it("names every deletion in the preview, flagging logged work", async () => {
       stubFeed(feed());
       renderPage(team, { gamesServerConfirmed: true });
       fireEvent.click(screen.getByRole("button", { name: /preview games/i }));
+
+      const warning = await screen.findByText(/no longer in this feed/i);
+      expect(warning).toHaveTextContent("2 practices");
       expect(
-        await screen.findByText(/no longer in this feed/i),
+        screen.getByText("2026-06-20", { exact: false }),
       ).toBeInTheDocument();
-      expect(screen.getByText(new RegExp(cancelledDate))).toBeInTheDocument();
+      // The played one is named AND flagged for what its deletion costs.
+      expect(
+        screen.getByText(/attendance \/ drills logged/i),
+      ).toBeInTheDocument();
     });
 
-    it("drops it on import and says so", async () => {
+    it("explains the practice it left alone, and the span that excluded it", async () => {
+      stubFeed(feed());
+      renderPage(team, { gamesServerConfirmed: true });
+      fireEvent.click(screen.getByRole("button", { name: /preview games/i }));
+
+      // The heading is its own span; the explanation and the list are its
+      // siblings inside the panel.
+      const panel = (await screen.findByText(/1 practice kept/i)).closest(
+        "div",
+      );
+      expect(panel).toHaveTextContent("2026-05-01");
+      expect(panel).toHaveTextContent("2026-07-01");
+      expect(panel).toHaveTextContent("2026-03-01");
+    });
+
+    it("deletes both on import and says so", async () => {
       stubFeed(feed());
       const { updateTeamArrays, toastValue } = renderPage(team, {
         gamesServerConfirmed: true,
       });
       fireEvent.click(screen.getByRole("button", { name: /preview games/i }));
       await screen.findByText(/no longer in this feed/i);
-      fireEvent.click(screen.getByRole("button", { name: /^import 1 game$/i }));
+      fireEvent.click(
+        screen.getByRole("button", { name: /^import 2 games$/i }),
+      );
 
       await waitFor(() => expect(updateTeamArrays).toHaveBeenCalled());
       const next = applyTeamOps(team, updateTeamArrays.mock.calls[0][0]);
-      expect(next.practices).toEqual([]);
-      expect(next.games).toHaveLength(1); // the feed's game still lands
+      // The two inside the feed's span are gone; the March one survives.
+      expect(next.practices.map((p: any) => p.id)).toEqual(["pr-ancient"]);
+      expect(next.games).toHaveLength(2); // the feed's games still land
       expect(toastValue.push).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining("1 practice removed"),
+          message: expect.stringContaining("2 practices removed"),
         }),
       );
     });
@@ -172,17 +202,19 @@ describe("GameChangerImportPage", () => {
       const manual = {
         ...team,
         practices: [
-          { id: "pr-mine", date: cancelledDate, source: "manual" as const },
+          { id: "pr-mine", date: "2026-06-20", source: "manual" as const },
         ],
       };
       const { updateTeamArrays } = renderPage(manual, {
         gamesServerConfirmed: true,
       });
       fireEvent.click(screen.getByRole("button", { name: /preview games/i }));
-      await screen.findByRole("button", { name: /^import 1 game$/i });
+      await screen.findByRole("button", { name: /^import 2 games$/i });
       expect(screen.queryByText(/no longer in this feed/i)).toBeNull();
 
-      fireEvent.click(screen.getByRole("button", { name: /^import 1 game$/i }));
+      fireEvent.click(
+        screen.getByRole("button", { name: /^import 2 games$/i }),
+      );
       await waitFor(() => expect(updateTeamArrays).toHaveBeenCalled());
       const next = applyTeamOps(manual, updateTeamArrays.mock.calls[0][0]);
       expect(next.practices).toHaveLength(1);

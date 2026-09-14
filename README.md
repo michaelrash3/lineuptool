@@ -32,7 +32,7 @@ The whole signed-in app is **coach-facing**, split into two roles — **head** a
 
 - Schema-versioned evaluation rounds with head + assistant workflows, compare/trend views, and roster decisions with offer/rejection letter drafts
 - Practice planner with a reusable drill library, attendance tracking, and a weakness-weighted plan generator
-- Practices ride the GameChanger calendar feed alongside games — on the manual import and on the Schedule tab's own on-open sync: the feed adds new practices, follows reschedules, and deletes an upcoming one the coach removed in GameChanger. Practices already played, and any the coach added by hand, are left alone
+- Practices ride the GameChanger calendar feed alongside games — on the manual import and on the Schedule tab's own on-open sync: the feed adds new practices, follows reschedules, and deletes any the coach removed in GameChanger, played or not. The feed's own span is the fence — a practice older or newer than anything it publishes is kept (that is what a feed rolling old events off looks like), as is any practice added by hand. The import preview names both sets before you commit
 
 **Intake portals (parent-facing)**
 
