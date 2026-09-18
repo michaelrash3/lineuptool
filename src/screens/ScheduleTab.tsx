@@ -244,6 +244,7 @@ export const ScheduleTab = memo(() => {
     gameSaved,
     handleCellClick,
     moveBatter,
+    reorderBatter,
     setOpponentName,
     openPlayerProfile,
     setInGameId,
@@ -275,6 +276,14 @@ export const ScheduleTab = memo(() => {
   // Desktop master-detail: tracks which game is previewed in the right rail.
   // Separate from selectedGameId (which opens the full-screen editor).
   const [desktopPreviewId, setDesktopPreviewId] = useState<string | null>(null);
+  // Batting-order drag, desktop only: HTML5 drag events are mouse-driven and
+  // never fire from a touch, so phones and tablets keep the up/down arrows as
+  // the only way to move a batter — which is also the keyboard path here.
+  // `from` is the slot being dragged, `over` the slot it would land in.
+  const [batterDrag, setBatterDrag] = useState<{
+    from: number;
+    over: number;
+  } | null>(null);
   // Tournament games should still expose the generated lineup grid before
   // in-game mode so coaches can review and make manual swaps.
 
@@ -1501,6 +1510,12 @@ export const ScheduleTab = memo(() => {
                   </div>
                   <h3 className="t-h3">Batting Order</h3>
                 </div>
+                {/* The drag affordance is desktop-only: a touch never fires
+                    HTML5 drag events, so a phone would be promised something
+                    that can't happen. The arrows work everywhere. */}
+                <p className="hidden sm:block -mt-3 mb-4 text-[11px] font-bold text-ink-3">
+                  Drag a batter to move them in the order, or use the arrows.
+                </p>
                 <div className="flex flex-col gap-3 max-w-2xl">
                   {battingLineup.map((p: any, idx: any) => {
                     // Slim lineup entry → roster player for the stat line
@@ -1521,16 +1536,65 @@ export const ScheduleTab = memo(() => {
                       typeof stats?.pa === "number" && Number.isFinite(stats.pa)
                         ? stats.pa
                         : undefined;
+                    const dragging = batterDrag?.from === idx;
+                    const dropTarget =
+                      !!batterDrag &&
+                      batterDrag.over === idx &&
+                      batterDrag.from !== idx;
                     return (
                       <div
                         key={p?.id ?? `batter_${idx}`}
-                        className="bg-surface border border-line p-2.5 shadow-sm rounded-xl transition-all hover:shadow-md hover:bg-surface-2"
+                        draggable
+                        onDragStart={(e) => {
+                          // Firefox refuses to start a drag with no payload,
+                          // and the slot rides along so a drop still knows
+                          // where the batter came from.
+                          e.dataTransfer?.setData("text/plain", String(idx));
+                          if (e.dataTransfer)
+                            e.dataTransfer.effectAllowed = "move";
+                          setBatterDrag({ from: idx, over: idx });
+                        }}
+                        onDragOver={(e) => {
+                          if (!batterDrag) return;
+                          // Without preventDefault the browser refuses the
+                          // drop outright.
+                          e.preventDefault();
+                          if (e.dataTransfer)
+                            e.dataTransfer.dropEffect = "move";
+                          if (batterDrag.over !== idx)
+                            setBatterDrag({ from: batterDrag.from, over: idx });
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const from = batterDrag
+                            ? batterDrag.from
+                            : Number(e.dataTransfer?.getData("text/plain"));
+                          setBatterDrag(null);
+                          if (Number.isInteger(from)) reorderBatter(from, idx);
+                        }}
+                        onDragEnd={() => setBatterDrag(null)}
+                        className={`bg-surface border p-2.5 shadow-sm rounded-xl transition-all hover:shadow-md hover:bg-surface-2 sm:cursor-grab sm:active:cursor-grabbing ${
+                          dragging
+                            ? "border-line opacity-40"
+                            : dropTarget
+                              ? "border-team-primary ring-2 ring-team-primary/40"
+                              : "border-line"
+                        }`}
                       >
                         <div className="flex items-center gap-4">
+                          <span
+                            className="hidden sm:flex shrink-0 -mr-2 text-ink-3"
+                            title="Drag to reorder"
+                            aria-hidden="true"
+                          >
+                            <Icons.Grip className="w-4 h-4" />
+                          </span>
                           <div className="flex flex-col items-center gap-1 text-ink-3 border-r border-line/50 pr-3 mr-1">
                             <button
                               onClick={() => moveBatter(idx, -1)}
                               disabled={idx === 0}
+                              aria-label={`Move ${p?.name ?? "batter"} up in the order`}
+                              title="Move up"
                               className="p-1 hover:bg-surface-2 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
                             >
                               <Icons.ChevronUp className="w-4 h-4" />
@@ -1538,6 +1602,8 @@ export const ScheduleTab = memo(() => {
                             <button
                               onClick={() => moveBatter(idx, 1)}
                               disabled={idx === battingLineup.length - 1}
+                              aria-label={`Move ${p?.name ?? "batter"} down in the order`}
+                              title="Move down"
                               className="p-1 hover:bg-surface-2 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
                             >
                               <Icons.ChevronDown className="w-4 h-4" />

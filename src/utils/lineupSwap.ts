@@ -93,3 +93,29 @@ export function applyLineupSwap(lineup: Inning[], swap: LineupSwap): Inning[] {
 
   return next;
 }
+
+// Move a batter from one slot in the order to another, sliding everyone
+// between them along — what dragging a row across the batting order means.
+// Deliberately NOT a swap: dragging the 9-hole up to leadoff must push the
+// rest of the order down a slot, not banish the leadoff hitter to the 9-hole
+// (that is what the up/down arrows do, one neighbor at a time).
+//
+// Returns the SAME array reference when the move is a no-op — out of range,
+// or a drag that ended where it started — so a caller passing this to setState
+// re-renders nothing.
+export function moveBatterTo<T>(order: T[], from: number, to: number): T[] {
+  if (
+    !Number.isInteger(from) ||
+    !Number.isInteger(to) ||
+    from === to ||
+    from < 0 ||
+    to < 0 ||
+    from >= order.length ||
+    to >= order.length
+  )
+    return order;
+  const next = [...order];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
