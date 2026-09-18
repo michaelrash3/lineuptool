@@ -1508,10 +1508,19 @@ export const ScheduleTab = memo(() => {
                     const stats = p ? rosterById.get(p.id)?.stats : undefined;
                     const hasBattingStats =
                       !!stats &&
-                      ((stats.ab ?? 0) > 0 ||
+                      ((stats.pa ?? 0) > 0 ||
+                        (stats.ab ?? 0) > 0 ||
                         (stats.ops ?? 0) > 0 ||
                         (stats.avg ?? 0) > 0 ||
                         (stats.contact ?? 0) > 0);
+                    // PA only shows once a stat line actually carries it —
+                    // lines imported before PA was read have none, and a
+                    // guessed plate-appearance count would be worse than a
+                    // missing one.
+                    const pa =
+                      typeof stats?.pa === "number" && Number.isFinite(stats.pa)
+                        ? stats.pa
+                        : undefined;
                     return (
                       <div
                         key={p?.id ?? `batter_${idx}`}
@@ -1558,7 +1567,18 @@ export const ScheduleTab = memo(() => {
                               {p.name}
                             </button>
                             {hasBattingStats && (
-                              <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest flex items-center gap-3 bg-surface px-3 py-1.5 border border-line rounded-lg">
+                              <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest flex flex-wrap items-center gap-x-3 gap-y-1 bg-surface px-3 py-1.5 border border-line rounded-lg">
+                                {pa !== undefined && (
+                                  <>
+                                    <span>
+                                      PA:{" "}
+                                      <span className="text-ink">
+                                        {Math.round(pa)}
+                                      </span>
+                                    </span>
+                                    <span className="text-ink-3">|</span>
+                                  </>
+                                )}
                                 <span>
                                   {stats?.h || 0}/{stats?.ab || 0}
                                 </span>

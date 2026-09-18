@@ -1066,12 +1066,13 @@ export const HELP_TOPICS: HelpTopic[] = [
     title: "Glossary",
     summary: "The stats and app terms used across the tables and reports.",
     keywords:
-      "glossary define definition avg obp ops qab babip whip battery bench equity run differential pool bracket pitch eligibility big game",
+      "glossary define definition pa plate appearance avg obp ops qab babip whip battery bench equity run differential pool bracket pitch eligibility big game",
     sections: [
       {
         heading: "Batting",
         body: "The core hitting numbers on the stat tables:",
         list: [
+          "PA — plate appearances: every trip to the plate, including the walks, hit-by-pitch and sacrifices an at-bat leaves out. It's the fairest read of how much a kid has actually hit.",
           "AVG — batting average: hits divided by at-bats.",
           "OBP — on-base percentage: how often a plate appearance ends on base (hits, walks, hit-by-pitch).",
           "OPS — OBP plus slugging; the best single number for overall offense.",

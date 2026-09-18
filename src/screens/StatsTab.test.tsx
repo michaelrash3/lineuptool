@@ -113,6 +113,26 @@ describe("StatsTab", () => {
     expect(screen.queryByRole("button", { name: /WHIP/ })).toBeNull();
   });
 
+  it("leads the batting table with a sortable PA column", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      { team: { team } },
+    );
+    expect(
+      screen.getByRole("button", { name: /Sort by PA/ }),
+    ).toBeInTheDocument();
+    // First stat column, ahead of AB.
+    const headers = Array.from(document.querySelectorAll("th")).map(
+      (h) => h.textContent || "",
+    );
+    const paIdx = headers.findIndex((h) => h.startsWith("PA"));
+    const abIdx = headers.findIndex((h) => h.startsWith("AB"));
+    expect(paIdx).toBeGreaterThanOrEqual(0);
+    expect(paIdx).toBeLessThan(abIdx);
+  });
+
   it("switches to the pitching view and reveals advanced pitching columns", () => {
     renderWithProviders(
       <MemoryRouter>
@@ -351,8 +371,8 @@ describe("StatsTab — performance only", () => {
           { P: { id: "b", name: "Bolt" }, BENCH: [{ id: "a", name: "Apex" }] },
         ],
         playerStats: {
-          a: { fInnSS: 2, fInnTotal: 2, ab: 3, h: 2, avg: 0.667 },
-          b: { fInnTotal: 0, ab: 3, h: 0, avg: 0 },
+          a: { fInnSS: 2, fInnTotal: 2, pa: 4, ab: 3, h: 2, avg: 0.667 },
+          b: { fInnTotal: 0, pa: 3, ab: 3, h: 0, avg: 0 },
         },
       },
     ],
@@ -382,6 +402,25 @@ describe("StatsTab — performance only", () => {
     expect(headings.indexOf("Player Stats")).toBeLessThan(
       headings.indexOf("Recent Form"),
     );
+  });
+
+  it("counts plate appearances in Recent Form", () => {
+    const { container } = renderOverview();
+    const recentForm = Array.from(container.querySelectorAll("table")).find(
+      (t) => (t.textContent || "").includes("Form"),
+    ) as HTMLTableElement;
+    const headers = Array.from(recentForm.querySelectorAll("th")).map(
+      (h) => h.textContent,
+    );
+    expect(headers).toContain("PA");
+    // Apex's one game line: 4 PA on 3 AB.
+    const apexRow = Array.from(recentForm.querySelectorAll("tbody tr")).find(
+      (r) => (r.textContent || "").includes("Apex"),
+    ) as HTMLTableRowElement;
+    const cells = Array.from(apexRow.querySelectorAll("td")).map(
+      (c) => c.textContent,
+    );
+    expect(cells[headers.indexOf("PA")]).toBe("4");
   });
 
   it("still shows the performance sections it owns", () => {

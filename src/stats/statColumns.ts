@@ -53,6 +53,7 @@ const fb = (adv: string, basic: string) => (r: StatRow) =>
   numOf(r.stats?.[adv]) ?? numOf(r.stats?.[basic]);
 
 export const BATTING_COLS: Col[] = [
+  { key: "pa", label: "PA", kind: "int", hi: true, get: f("pa") },
   { key: "ab", label: "AB", kind: "int", hi: true, get: f("ab") },
   { key: "avg", label: "AVG", kind: "dec3", hi: true, get: f("avg") },
   { key: "obp", label: "OBP", kind: "dec3", hi: true, get: f("obp") },

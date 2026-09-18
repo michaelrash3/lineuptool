@@ -545,6 +545,7 @@ export const parseGameChangerPastSeasonCsv = (
     setInt("totalPitches", idx.tp);
     setNum("ip", idx.ip);
     setNum("era", idx.era);
+    setInt("pa", idx.pa);
     setInt("ab", idx.ab);
     setInt("h", idx.h);
     setInt("doubles", idx.doubles);

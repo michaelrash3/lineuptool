@@ -20,6 +20,11 @@ export interface PlayerStats {
   totalPitches?: number;
   ip?: number;
   era?: number;
+  // Plate appearances — every trip to the plate, including the walks,
+  // hit-by-pitch and sacrifices an at-bat leaves out. GameChanger's batting
+  // section carries it as "PA"; stat lines imported before it was read simply
+  // have no value here.
+  pa?: number;
   ab?: number;
   h?: number;
   doubles?: number;

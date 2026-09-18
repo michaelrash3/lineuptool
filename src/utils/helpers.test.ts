@@ -1920,6 +1920,20 @@ describe("parseGameChangerStatsCsv", () => {
     expect(out.rows[0].patch).toMatchObject({ ab: 3, h: 2, hr: 1, rbi: 3 });
   });
 
+  it("reads the PA column into the patch as a counting stat", () => {
+    const csv = "First,Last,PA,AB,H,AVG,BB\n" + "Sammy,Sosa,5,3,2,.667,2\n";
+    const out = parseGameChangerStatsCsv(csv) as any;
+    expect(out.error).toBeUndefined();
+    expect(out.rows[0].patch).toMatchObject({ pa: 5, ab: 3, h: 2 });
+  });
+
+  it("leaves PA out of the patch when the export has no PA column", () => {
+    const out = parseGameChangerStatsCsv(
+      "First,Last,AB,H,AVG\nSammy,Sosa,3,2,.667\n",
+    ) as any;
+    expect(out.rows[0].patch).not.toHaveProperty("pa");
+  });
+
   it("rejects a non-GameChanger file with a clear error", () => {
     const out = parseGameChangerStatsCsv(
       "First,Last,Email\nA,B,a@b.c\n",
@@ -2000,6 +2014,38 @@ describe("deriveSeasonFromGameLines (per-game lines SUM to season)", () => {
     ];
     const season = deriveSeasonFromGameLines(games, "p1");
     expect(season!.qab).toBeCloseTo((0.5 * 4 + 1.0 * 1) / 5);
+  });
+
+  it("sums plate appearances across game lines", () => {
+    const games = [
+      game("g1", { p1: { pa: 4, ab: 3, h: 1 } }),
+      game("g2", { p1: { pa: 3, ab: 2, h: 2 } }),
+    ];
+    const season = deriveSeasonFromGameLines(games, "p1");
+    expect(season!.pa).toBe(7);
+    expect(season!.ab).toBe(5);
+  });
+
+  it("weights the plate-appearance rates by PA once the lines carry it", () => {
+    // A walk-heavy game has more PA than AB, so OBP leans on it more than an
+    // AB weight would allow.
+    const games = [
+      game("g1", { p1: { pa: 6, ab: 2, obp: 0.667 } }),
+      game("g2", { p1: { pa: 2, ab: 2, obp: 0.5 } }),
+    ];
+    const season = deriveSeasonFromGameLines(games, "p1");
+    expect(season!.obp).toBeCloseTo((0.667 * 6 + 0.5 * 2) / 8);
+    // The AB-weighted answer would have been the even split — it is not that.
+    expect(season!.obp).not.toBeCloseTo((0.667 * 2 + 0.5 * 2) / 4);
+  });
+
+  it("falls back to AB weighting for lines imported before PA existed", () => {
+    const games = [
+      game("g1", { p1: { ab: 4, obp: 0.25 } }),
+      game("g2", { p1: { ab: 1, obp: 1.0 } }),
+    ];
+    const season = deriveSeasonFromGameLines(games, "p1");
+    expect(season!.obp).toBeCloseTo((0.25 * 4 + 1.0 * 1) / 5);
   });
 
   it("returns null when the player has no game lines (season CSV stays)", () => {

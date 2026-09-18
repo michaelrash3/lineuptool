@@ -15,7 +15,7 @@ const pitching = { label: "Pitching", cols: PITCHING_COLS, defaultKey: "era" };
 describe("statsTableCsv", () => {
   it("emits the header with Player, Number, Overall, then the category columns", () => {
     expect(statsTableCsv([], batting)).toBe(
-      "Player,Number,Overall,AB,AVG,OBP,OPS,H,2B,3B,HR,RBI,SB,K,QAB%",
+      "Player,Number,Overall,PA,AB,AVG,OBP,OPS,H,2B,3B,HR,RBI,SB,K,QAB%",
     );
   });
 
@@ -27,12 +27,12 @@ describe("statsTableCsv", () => {
           name: "Apex",
           number: "1",
           total: 72,
-          stats: { ab: 20, avg: 0.4, ops: 1.205 },
+          stats: { pa: 24, ab: 20, avg: 0.4, ops: 1.205 },
         }),
       ],
       batting,
     );
-    expect(csv.split("\n")[1]).toBe("Apex,1,72,20,.400,,1.205,,,,,,,,");
+    expect(csv.split("\n")[1]).toBe("Apex,1,72,24,20,.400,,1.205,,,,,,,,");
   });
 
   it("escapes names containing commas or quotes", () => {
