@@ -797,6 +797,7 @@ export const StatsTab = memo(() => {
                         <tr>
                           <th className="p-2.5 t-eyebrow text-left">Player</th>
                           <th className="p-2.5 t-eyebrow text-center">Games</th>
+                          <th className="p-2.5 t-eyebrow text-center">PA</th>
                           <th className="p-2.5 t-eyebrow text-center">AB</th>
                           <th className="p-2.5 t-eyebrow text-center">H</th>
                           <th className="p-2.5 t-eyebrow text-center">AVG</th>
@@ -820,6 +821,9 @@ export const StatsTab = memo(() => {
                               </td>
                               <td className="p-2 text-center tabular-nums font-bold text-ink-2">
                                 {n}
+                              </td>
+                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                                {fmt(numOf(agg.pa), "int")}
                               </td>
                               <td className="p-2 text-center tabular-nums font-bold text-ink-2">
                                 {fmt(numOf(agg.ab), "int")}

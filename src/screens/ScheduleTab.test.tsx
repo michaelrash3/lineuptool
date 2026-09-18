@@ -456,6 +456,37 @@ describe("ScheduleTab — batting order rows", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows plate appearances ahead of the hit line when the stat line has PA", () => {
+    const roster = players.map((pl) =>
+      pl.id === "p1"
+        ? { ...pl, stats: { pa: 24, ab: 20, h: 9, avg: 0.45, ops: 1.1 } }
+        : pl,
+    );
+    renderGameEditor("USSSA", { players: roster });
+    const chip = within(batterRow("Pitcher")).getByText(/PA:/);
+    expect(chip).toBeInTheDocument();
+    expect(within(chip).getByText("24")).toBeInTheDocument();
+  });
+
+  it("omits PA for a stat line imported before plate appearances were read", () => {
+    // No guessed count: a line with AB but no PA shows the rest and no PA.
+    const roster = players.map((pl) =>
+      pl.id === "p1" ? { ...pl, stats: { ab: 20, h: 9, avg: 0.45 } } : pl,
+    );
+    renderGameEditor("USSSA", { players: roster });
+    const row = batterRow("Pitcher");
+    expect(within(row).getByText("9/20")).toBeInTheDocument();
+    expect(within(row).queryByText(/PA:/)).not.toBeInTheDocument();
+  });
+
+  it("gives a batter with only plate appearances a stat chip", () => {
+    const roster = players.map((pl) =>
+      pl.id === "p1" ? { ...pl, stats: { pa: 3 } } : pl,
+    );
+    renderGameEditor("USSSA", { players: roster });
+    expect(within(batterRow("Pitcher")).getByText(/PA:/)).toBeInTheDocument();
+  });
+
   it("renders a departed batter (not on the roster) without stats or crash", () => {
     renderGameEditor("USSSA", {
       battingLineup: [...players, { id: "gone", name: "Left Team" }],

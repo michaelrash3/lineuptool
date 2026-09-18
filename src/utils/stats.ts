@@ -67,6 +67,7 @@ export interface CsvHeaderIndex {
   tp: number;
   ip: number;
   era: number;
+  pa: number;
   ab: number;
   h: number;
   doubles: number;
@@ -115,6 +116,7 @@ export const buildCsvHeaderIndex = (headers: string[]): CsvHeaderIndex => {
     tp: find("#p", "pitches"),
     ip: find("ip"),
     era: find("era"),
+    pa: find("pa", "plate appearances"),
     ab: find("ab"),
     h: find("h"),
     doubles: find("2b"),
@@ -292,6 +294,7 @@ export const buildStatsPatchFromCsvRow = (
   setInt("totalPitches", idx.tp);
   setNum("ip", idx.ip);
   setNum("era", idx.era);
+  setInt("pa", idx.pa);
   setInt("ab", idx.ab);
   setInt("h", idx.h);
   setInt("doubles", idx.doubles);
@@ -390,6 +393,7 @@ export const stripPitchingStatsForFormat = (
 
 // Stat keys that SUM across game lines (true counting stats).
 const SUMMABLE_KEYS = [
+  "pa",
   "ab",
   "h",
   "doubles",
@@ -426,13 +430,19 @@ const SUMMABLE_KEYS = [
   "fInnTotal",
 ];
 // Rate keys that can't be summed: weighted-average them across lines using the
-// given weight key (sample size). An approximation for OBP/OPS (PA vs AB), but
-// honest and stable for youth-ball data; AVG is recomputed exactly from H/AB.
-const WEIGHTED_KEYS: Array<{ key: string; weightBy: string }> = [
-  { key: "obp", weightBy: "ab" },
-  { key: "ops", weightBy: "ab" },
+// given weight key (sample size). The per-plate-appearance rates (OBP, OPS,
+// QAB%) weight by PA and fall back to AB on lines imported before PA was read,
+// so an older line aggregates exactly as it used to; AVG is recomputed exactly
+// from H/AB.
+const WEIGHTED_KEYS: Array<{
+  key: string;
+  weightBy: string;
+  weightAlt?: string;
+}> = [
+  { key: "obp", weightBy: "pa", weightAlt: "ab" },
+  { key: "ops", weightBy: "pa", weightAlt: "ab" },
   { key: "contact", weightBy: "ab" },
-  { key: "qab", weightBy: "ab" },
+  { key: "qab", weightBy: "pa", weightAlt: "ab" },
   { key: "hard", weightBy: "ab" },
   { key: "ld", weightBy: "ab" },
   { key: "fb", weightBy: "ab" },
@@ -455,6 +465,21 @@ const WEIGHTED_KEYS: Array<{ key: string; weightBy: string }> = [
   { key: "fFpct", weightBy: "fTc" },
   { key: "fCsPct", weightBy: "fSbAtt" },
 ];
+
+// The sample size one line contributes to a weighted rate: the primary weight
+// key, the fallback key when that line predates it (PA → AB), else 1 so a line
+// with no sample still counts once.
+const sampleWeight = (
+  line: Record<string, number | undefined>,
+  weightBy: string,
+  weightAlt?: string,
+): number => {
+  for (const k of weightAlt ? [weightBy, weightAlt] : [weightBy]) {
+    const raw = Number(line[k]);
+    if (Number.isFinite(raw) && raw > 0) return raw;
+  }
+  return 1;
+};
 
 // Aggregate several per-game stat lines into one line. Counting stats sum;
 // AVG recomputes exactly from H/AB; other rates are sample-weighted averages;
@@ -479,15 +504,14 @@ export const aggregateGameLines = (
   if (Number.isFinite(out.ab) && out.ab > 0 && Number.isFinite(out.h)) {
     out.avg = out.h / out.ab;
   }
-  for (const { key, weightBy } of WEIGHTED_KEYS) {
+  for (const { key, weightBy, weightAlt } of WEIGHTED_KEYS) {
     if (key === "avg") continue;
     let acc = 0;
     let w = 0;
     for (const line of lines) {
       const v = Number(line[key]);
       if (!Number.isFinite(v)) continue;
-      const rawW = Number(line[weightBy]);
-      const weight = Number.isFinite(rawW) && rawW > 0 ? rawW : 1;
+      const weight = sampleWeight(line, weightBy, weightAlt);
       acc += v * weight;
       w += weight;
     }
