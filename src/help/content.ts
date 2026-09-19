@@ -510,7 +510,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     keywords: "batting order lineup hitters order bat b key continuous",
     sections: [
       {
-        body: "Each game gets a batting order along with the defensive grid. Drag to reorder by hand, or regenerate it (B on the keyboard) without touching the fielding assignments.",
+        body: "Each game gets a batting order along with the defensive grid. Drag a batter to a new slot on a computer, use the up/down arrows on any device, or regenerate the order (B on the keyboard) without touching the fielding assignments.",
       },
       {
         body: "The order balances over the season too — kids who've been hitting at the bottom drift up in later games.",

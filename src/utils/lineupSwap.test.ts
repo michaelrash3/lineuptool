@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyLineupSwap, type LineupSwap } from "./lineupSwap";
+import { applyLineupSwap, moveBatterTo, type LineupSwap } from "./lineupSwap";
 import type { Inning, SlimPlayer } from "../types";
 
 const p = (id: string): NonNullable<SlimPlayer> => ({
@@ -140,5 +140,41 @@ describe("applyLineupSwap", () => {
     });
     expect((next[0].P as any)?.id).toBe("b");
     expect((next[0].BENCH as any[]).map((p) => p.id)).toEqual(["a"]);
+  });
+});
+
+// The batting order's drag-and-drop: a MOVE, not the arrows' neighbor swap.
+describe("moveBatterTo (drag a batter to a new slot)", () => {
+  const order = ["a", "b", "c", "d", "e"];
+
+  it("slides everyone between the two slots along, dragging up", () => {
+    // The 5-hole hitter dragged to leadoff pushes the rest down one slot —
+    // nobody is banished to the bottom of the order.
+    expect(moveBatterTo(order, 4, 0)).toEqual(["e", "a", "b", "c", "d"]);
+  });
+
+  it("slides everyone along dragging down too", () => {
+    expect(moveBatterTo(order, 0, 3)).toEqual(["b", "c", "d", "a", "e"]);
+  });
+
+  it("moves a batter one slot without swapping the neighbor past them", () => {
+    expect(moveBatterTo(order, 1, 2)).toEqual(["a", "c", "b", "d", "e"]);
+  });
+
+  it("returns the same array for a drag that ends where it started", () => {
+    expect(moveBatterTo(order, 2, 2)).toBe(order);
+  });
+
+  it("returns the same array for out-of-range or non-integer slots", () => {
+    expect(moveBatterTo(order, -1, 2)).toBe(order);
+    expect(moveBatterTo(order, 2, 99)).toBe(order);
+    expect(moveBatterTo(order, 2, NaN)).toBe(order);
+    expect(moveBatterTo([], 0, 1)).toEqual([]);
+  });
+
+  it("never mutates the order it was given", () => {
+    const copy = [...order];
+    moveBatterTo(order, 0, 4);
+    expect(order).toEqual(copy);
   });
 });

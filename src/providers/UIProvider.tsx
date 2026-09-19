@@ -9,7 +9,7 @@ import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { UIContext, useTeam, useToast } from "../contexts";
 import { playerPathFromId } from "../utils/playerSlug";
 import { APP_NAME, getLocalDateString } from "../constants/ui";
-import { applyLineupSwap } from "../utils/lineupSwap";
+import { applyLineupSwap, moveBatterTo } from "../utils/lineupSwap";
 import { lineupSignature, battingSignature } from "../utils/lineupSignature";
 import {
   isPlayerUnavailable,
@@ -368,6 +368,15 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     });
   }, []);
 
+  // Drop a batter into a new slot — the batting order's drag-and-drop. The
+  // move itself is pure (moveBatterTo), which also makes a no-op drag return
+  // the same array and re-render nothing.
+  const reorderBatter = useCallback((from: number, to: number) => {
+    setBattingLineup((cur: SlimPlayer[] | null) =>
+      cur ? moveBatterTo(cur, from, to) : cur,
+    );
+  }, []);
+
   // Each player has their own page: /roster/<name-slug>. Callers still pass an
   // id — the identity everything else is keyed by — and the slug is derived
   // here so no call site has to know about the naming. PlayerProfilePage
@@ -491,6 +500,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       gameSaved,
       handleCellClick,
       moveBatter,
+      reorderBatter,
       opponentName,
       setOpponentName,
       isAddingTeam,
@@ -530,6 +540,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       gameSaved,
       handleCellClick,
       moveBatter,
+      reorderBatter,
       opponentName,
       isAddingTeam,
       newTeamName,

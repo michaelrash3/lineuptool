@@ -1,5 +1,5 @@
 import React from "react";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ScheduleTab } from "./ScheduleTab";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -108,9 +108,24 @@ const renderGameEditor = (
         swapSelection: null,
         handleCellClick,
         moveBatter: jest.fn(),
+        reorderBatter: jest.fn(),
       },
     },
   );
+};
+
+// A stand-in for the browser's DataTransfer: jsdom has none, and the drag
+// handlers read and write the dragged slot through it.
+const makeDataTransfer = () => {
+  const store: Record<string, string> = {};
+  return {
+    effectAllowed: "",
+    dropEffect: "",
+    setData: (key: string, value: string) => {
+      store[key] = String(value);
+    },
+    getData: (key: string) => store[key] ?? "",
+  };
 };
 
 describe("ScheduleTab", () => {
@@ -485,6 +500,70 @@ describe("ScheduleTab — batting order rows", () => {
     );
     renderGameEditor("USSSA", { players: roster });
     expect(within(batterRow("Pitcher")).getByText(/PA:/)).toBeInTheDocument();
+  });
+
+  it("drags a batter to a new slot, sliding the order rather than swapping", () => {
+    const { uiValue } = renderGameEditor("USSSA");
+    const from = batterRow("Right Field"); // 9th in the order
+    const onto = batterRow("Pitcher"); // leadoff
+    const dataTransfer = makeDataTransfer();
+    fireEvent.dragStart(from, { dataTransfer });
+    fireEvent.dragOver(onto, { dataTransfer });
+    fireEvent.drop(onto, { dataTransfer });
+    expect(uiValue.reorderBatter).toHaveBeenCalledWith(8, 0);
+  });
+
+  it("dims the dragged row and rings the slot it would land in", () => {
+    renderGameEditor("USSSA");
+    const from = batterRow("Right Field");
+    const onto = batterRow("Pitcher");
+    const dataTransfer = makeDataTransfer();
+    fireEvent.dragStart(from, { dataTransfer });
+    fireEvent.dragOver(onto, { dataTransfer });
+    expect(batterRow("Right Field").className).toContain("opacity-40");
+    expect(batterRow("Pitcher").className).toContain("ring-team-primary/40");
+    // Dropping clears both.
+    fireEvent.drop(onto, { dataTransfer });
+    expect(batterRow("Right Field").className).not.toContain("opacity-40");
+    expect(batterRow("Pitcher").className).not.toContain(
+      "ring-team-primary/40",
+    );
+  });
+
+  it("reads the dragged slot off the drag payload when the drop lands cold", () => {
+    // A drop with no in-flight state (a drag that started elsewhere, or a
+    // re-render mid-drag) still knows where the batter came from.
+    const { uiValue } = renderGameEditor("USSSA");
+    const dataTransfer = makeDataTransfer();
+    dataTransfer.setData("text/plain", "3");
+    fireEvent.drop(batterRow("Catcher"), { dataTransfer });
+    expect(uiValue.reorderBatter).toHaveBeenCalledWith(3, 1);
+  });
+
+  it("gives up the drag when it ends outside the order", () => {
+    renderGameEditor("USSSA");
+    const from = batterRow("Right Field");
+    const dataTransfer = makeDataTransfer();
+    fireEvent.dragStart(from, { dataTransfer });
+    expect(batterRow("Right Field").className).toContain("opacity-40");
+    fireEvent.dragEnd(from);
+    expect(batterRow("Right Field").className).not.toContain("opacity-40");
+  });
+
+  it("names the arrow buttons for screen readers and touch users", () => {
+    renderGameEditor("USSSA");
+    expect(
+      screen.getByRole("button", { name: "Move Pitcher down in the order" }),
+    ).toBeInTheDocument();
+    // Leadoff can't move up, the last batter can't move down.
+    expect(
+      screen.getByRole("button", { name: "Move Pitcher up in the order" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", {
+        name: "Move Right Field down in the order",
+      }),
+    ).toBeDisabled();
   });
 
   it("renders a departed batter (not on the roster) without stats or crash", () => {
