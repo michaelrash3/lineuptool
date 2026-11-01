@@ -12,37 +12,19 @@ import {
   isSafeImageUrl,
 } from "../utils/helpers";
 import { newSignupId, upsertSignupDoc } from "../utils/tryoutSignupDocs";
+import { formatTryoutSignupLabel, tryoutSignupLabels } from "../utils/tryouts";
 import { applyTeamInkVars } from "../utils/contrast";
 import { reportError } from "../utils/errorReporter";
 import { Button, Eyebrow } from "../components/shared";
 import { Icons } from "../icons";
 
-const getTryoutAgeLabel = (teamAge: any) => {
-  const n = Number.parseInt(String(teamAge || "").replace(/[^0-9]/g, ""), 10);
-  if (Number.isNaN(n)) return "Next Season";
-  return `${n + 1}U`;
-};
-
-const getNextSpringSeasonLabel = (currentSeason: any) => {
-  const match = String(currentSeason || "")
-    .trim()
-    .match(/^(Spring|Fall)\s+(\d{4})$/i);
-  if (!match) return "Next Season";
-
-  const year = Number.parseInt(match[2], 10);
-  if (Number.isNaN(year)) return "Next Season";
-
-  // Interest links are for the next spring tryout cycle, not merely the
-  // next chronological season after the current team season.
-  return `Spring ${year + 1}`;
-};
-
 // 8U plays 10 defenders → LF, LCF, RCF, RF (LC + RC cover center, no
 // lone CF). 9U+ plays 9 defenders → LF, CF, RF. Anything younger than
 // 8U or unknown defaults to the 8U layout.
-const getOutfieldPositions = (tryoutAgeLabel: any) => {
+const getOutfieldPositions = (tryoutAgeLabel: string) => {
+  // The first number is the age: "11U to 12U" is 11, not 1112.
   const n = Number.parseInt(
-    String(tryoutAgeLabel || "").replace(/[^0-9]/g, ""),
+    String(tryoutAgeLabel || "").match(/\d+/)?.[0] ?? "",
     10,
   );
   return !Number.isNaN(n) && n >= 9
@@ -154,18 +136,21 @@ export const TryoutsPortal = () => {
     };
   }, [team?.name]);
 
-  const tryoutAgeLabel = useMemo(
-    () => getTryoutAgeLabel(team?.teamAge),
-    [team?.teamAge],
-  );
-  const headerSeasonLabel = useMemo(
-    () => getNextSpringSeasonLabel(team?.currentSeason),
-    [team?.currentSeason],
+  // Season + age group the coach is recruiting for — this season or the next
+  // spring cycle, per the head's choice in Tryouts setup (team.tryoutTarget).
+  const signupLabels = useMemo(
+    () =>
+      tryoutSignupLabels({
+        currentSeason: team?.currentSeason,
+        teamAge: team?.teamAge,
+        tryoutTarget: team?.tryoutTarget,
+      }),
+    [team?.currentSeason, team?.teamAge, team?.tryoutTarget],
   );
   const positions = useMemo(() => {
-    const outfield = getOutfieldPositions(tryoutAgeLabel);
+    const outfield = getOutfieldPositions(signupLabels.age);
     return ["P", "C", "1B", "2B", "3B", "SS", ...outfield];
-  }, [tryoutAgeLabel]);
+  }, [signupLabels.age]);
 
   useEffect(() => {
     let cancelled = false;
@@ -450,7 +435,7 @@ export const TryoutsPortal = () => {
           />
         )}
         <Eyebrow className="block mb-2 text-ink-3">
-          {headerSeasonLabel} · {tryoutAgeLabel}
+          {formatTryoutSignupLabel(signupLabels)}
         </Eyebrow>
         <h1 className="t-display" style={{ color: "var(--team-ink)" }}>
           {team?.name || "Tryouts"} Player Interest
@@ -474,7 +459,7 @@ export const TryoutsPortal = () => {
           <section className="space-y-4">
             <div className="flex items-center justify-between gap-3 pb-2 border-b border-line">
               <h2 className="t-h2">Player Info</h2>
-              <Eyebrow>{tryoutAgeLabel}</Eyebrow>
+              <Eyebrow>{signupLabels.age || signupLabels.season}</Eyebrow>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="First Name *">

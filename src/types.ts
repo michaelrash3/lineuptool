@@ -731,6 +731,10 @@ export interface Team {
   disabledFeatures?: TeamFeatureId[];
   // Tryouts (PR M)
   tryoutShareId?: string;
+  // Which season the public signup page recruits for — "current" shows the
+  // team's own season + age group, "next" (absent = next) the next spring
+  // tryout cycle. See tryoutSignupLabels in utils/tryouts.ts.
+  tryoutTarget?: "current" | "next";
   tryoutsOpen?: boolean;
   tryoutsPhase?: "open" | "intake_closed" | "completed";
   rosterCap?: number;

@@ -1077,6 +1077,8 @@ describe("buildPublicMirror", () => {
       // Opt-in public coach contact (empty here — fullTeam sets neither).
       headCoachName: "",
       headCoachEmail: "",
+      // No choice made yet → the next spring cycle, as before the choice existed.
+      tryoutTarget: "next",
     });
   });
 

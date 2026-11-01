@@ -2,6 +2,12 @@ import React, { memo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useToast } from "../contexts";
 import { ShareLinkBlock } from "./PortalShareCard";
+import {
+  formatTryoutSignupLabel,
+  resolveTryoutTarget,
+  tryoutSignupLabels,
+  type TryoutTarget,
+} from "../utils/tryouts";
 
 // Tryout operations, IN the Tryouts tab (moved out of Settings so running a
 // tryout never detours through configuration): the public share link, tryout
@@ -119,6 +125,69 @@ const TryoutDatesPanel = memo(({ team, updateTeam, toast }: any) => {
   );
 });
 
+// Which season the signup page recruits for. Each option previews the exact
+// season + age group families will see, so the head can tell at a glance
+// whether the link says "9U" or "10U".
+const TRYOUT_TARGET_OPTIONS: Array<{ id: TryoutTarget; title: string }> = [
+  { id: "current", title: "This season" },
+  { id: "next", title: "Next season" },
+];
+
+const TryoutTargetPicker = memo(({ team, updateTeam }: any) => {
+  const target = resolveTryoutTarget(team);
+  return (
+    <div className="cc-card p-3 space-y-2">
+      <div>
+        <div
+          id="tryout-target-label"
+          className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3"
+        >
+          Signups are for
+        </div>
+        <p className="text-[10px] font-medium text-ink-3 leading-snug mt-1">
+          The season and age group families see at the top of the signup form.
+        </p>
+      </div>
+      <div
+        role="radiogroup"
+        aria-labelledby="tryout-target-label"
+        className="grid grid-cols-2 gap-2"
+      >
+        {TRYOUT_TARGET_OPTIONS.map((o) => {
+          const on = o.id === target;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => {
+                if (!on) updateTeam?.({ tryoutTarget: o.id });
+              }}
+              className={`text-left p-3 rounded-xl border transition-colors ${
+                on ? "" : "border-line bg-surface hover:bg-surface-2"
+              }`}
+              style={
+                on
+                  ? {
+                      borderColor: "var(--team-primary)",
+                      backgroundColor: "var(--team-primary-15)",
+                    }
+                  : undefined
+              }
+            >
+              <div className="text-sm font-black text-ink">{o.title}</div>
+              <div className="text-[11px] text-ink-3 font-medium mt-0.5">
+                {formatTryoutSignupLabel(tryoutSignupLabels(team, o.id))}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 export const TryoutControlsPanel = memo(() => {
   const {
     team,
@@ -159,6 +228,8 @@ export const TryoutControlsPanel = memo(() => {
             Tryout setup — dates, link &amp; intake
           </div>
           <div className="text-[11px] text-ink-3 font-medium">
+            {formatTryoutSignupLabel(tryoutSignupLabels(team))}
+            {" · "}
             {open
               ? "Signups open"
               : phase === "completed"
@@ -214,6 +285,8 @@ export const TryoutControlsPanel = memo(() => {
               Generate Player Interest Link
             </button>
           )}
+
+          <TryoutTargetPicker team={team} updateTeam={updateTeam} />
 
           <TryoutDatesPanel team={team} updateTeam={updateTeam} toast={toast} />
 
