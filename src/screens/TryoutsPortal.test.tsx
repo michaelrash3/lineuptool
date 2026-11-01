@@ -44,7 +44,9 @@ const mirrorDoc = {
   }),
 };
 
-const renderPortal = (doc = mirrorDoc) => {
+const renderPortal = (
+  doc: { id: string; data: () => Record<string, unknown> } = mirrorDoc,
+) => {
   mockGetDocs.mockResolvedValue({ empty: true, docs: [] });
   mockGetDocs.mockResolvedValueOnce({ empty: false, docs: [doc] });
   return render(
@@ -78,24 +80,33 @@ beforeEach(() => {
 });
 
 describe("TryoutsPortal interest header", () => {
-  it.each(["Spring 2026", "Fall 2026"])(
-    "shows next spring season and next age for an 8U %s team",
-    async (currentSeason) => {
-      const eightUMirrorDoc = {
-        id: "team1",
-        data: () => ({
-          name: "Rockets",
-          currentSeason,
-          tryoutShareId: "abc",
-          teamAge: "8U",
-        }),
-      };
+  const teamMirror = (fields: Record<string, unknown>) => ({
+    id: "team1",
+    data: () => ({ name: "Rockets", tryoutShareId: "abc", ...fields }),
+  });
 
-      renderPortal(eightUMirrorDoc);
+  it("shows next spring and the next age group for a Spring team", async () => {
+    renderPortal(teamMirror({ currentSeason: "Spring 2026", teamAge: "8U" }));
+    expect(await screen.findByText("Spring 2027 · 9U")).toBeInTheDocument();
+  });
 
-      expect(await screen.findByText("Spring 2027 · 9U")).toBeInTheDocument();
-    },
-  );
+  it("keeps a Fall team's age group for the Spring it already plays in", async () => {
+    // Advance Season takes Spring 2026 8U to Fall 2026 9U, and Fall → Spring
+    // keeps the tier — so that team's next spring is still 9U, not 10U.
+    renderPortal(teamMirror({ currentSeason: "Fall 2026", teamAge: "9U" }));
+    expect(await screen.findByText("Spring 2027 · 9U")).toBeInTheDocument();
+  });
+
+  it("shows the team's own season and age when signups are for this season", async () => {
+    renderPortal(
+      teamMirror({
+        currentSeason: "Fall 2026",
+        teamAge: "9U",
+        tryoutTarget: "current",
+      }),
+    );
+    expect(await screen.findByText("Fall 2026 · 9U")).toBeInTheDocument();
+  });
 });
 
 describe("TryoutsPortal submit validation", () => {

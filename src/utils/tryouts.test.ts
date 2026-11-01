@@ -7,6 +7,10 @@ import {
   tryoutGradeWithMeasurements,
   unifiedTryoutGradeForSignup,
   evaluatorEntriesForSignup,
+  buildPublicMirror,
+  formatTryoutSignupLabel,
+  resolveTryoutTarget,
+  tryoutSignupLabels,
 } from "./tryouts";
 
 // A legacy tryout grade as it was stored before tryoutSessions existed: an
@@ -456,5 +460,90 @@ describe("evaluatorEntriesForSignup — cross-coach visibility", () => {
     expect(evaluatorEntriesForSignup(sessions, "nobody")).toEqual([]);
     expect(evaluatorEntriesForSignup(null, "s1")).toEqual([]);
     expect(evaluatorEntriesForSignup(sessions, null)).toEqual([]);
+  });
+});
+
+describe("tryoutSignupLabels", () => {
+  it("recruits a Spring team for next Spring, one age group up", () => {
+    expect(
+      tryoutSignupLabels({ currentSeason: "Spring 2026", teamAge: "8U" }),
+    ).toEqual({ season: "Spring 2027", age: "9U" });
+  });
+
+  it("keeps a Fall team's age group for the Spring it is playing up for", () => {
+    // Spring 2026 8U advances to Fall 2026 9U; that team's next Spring is
+    // still 9U (Fall → Spring keeps the tier), not 10U.
+    expect(
+      tryoutSignupLabels({ currentSeason: "Fall 2026", teamAge: "9U" }),
+    ).toEqual({ season: "Spring 2027", age: "9U" });
+  });
+
+  it("shows the team as it stands for this season", () => {
+    expect(
+      tryoutSignupLabels({
+        currentSeason: "Fall 2026",
+        teamAge: "9U",
+        tryoutTarget: "current",
+      }),
+    ).toEqual({ season: "Fall 2026", age: "9U" });
+    // An explicit target overrides the team's saved one (the picker previews).
+    expect(
+      tryoutSignupLabels(
+        { currentSeason: "Spring 2026", teamAge: "8U", tryoutTarget: "next" },
+        "current",
+      ),
+    ).toEqual({ season: "Spring 2026", age: "8U" });
+  });
+
+  it("steps along the app's own age tiers, not a bare +1", () => {
+    expect(
+      tryoutSignupLabels({ currentSeason: "Spring 2026", teamAge: "10U" }).age,
+    ).toBe("11U to 12U");
+    expect(
+      tryoutSignupLabels({
+        currentSeason: "Spring 2026",
+        teamAge: "11U to 12U",
+      }).age,
+    ).toBe("13U to 14U");
+    // A legacy label off the ladder still steps by one.
+    expect(
+      tryoutSignupLabels({ currentSeason: "Spring 2026", teamAge: "12U" }).age,
+    ).toBe("13U");
+  });
+
+  it("falls back cleanly when the season or age is missing", () => {
+    expect(tryoutSignupLabels({ currentSeason: "", teamAge: "9U" })).toEqual({
+      season: "Next Season",
+      age: "10U",
+    });
+    expect(
+      tryoutSignupLabels({ currentSeason: "Spring 2026", teamAge: "" }),
+    ).toEqual({ season: "Spring 2027", age: "" });
+    expect(
+      tryoutSignupLabels({ teamAge: "", tryoutTarget: "current" }),
+    ).toEqual({ season: "This Season", age: "" });
+  });
+
+  it("formats with or without an age group", () => {
+    expect(formatTryoutSignupLabel({ season: "Spring 2027", age: "9U" })).toBe(
+      "Spring 2027 · 9U",
+    );
+    expect(formatTryoutSignupLabel({ season: "Spring 2027", age: "" })).toBe(
+      "Spring 2027",
+    );
+  });
+
+  it("treats anything but an explicit 'current' as next season", () => {
+    expect(resolveTryoutTarget(undefined)).toBe("next");
+    expect(resolveTryoutTarget({})).toBe("next");
+    expect(resolveTryoutTarget({ tryoutTarget: "bogus" })).toBe("next");
+    expect(resolveTryoutTarget({ tryoutTarget: "current" })).toBe("current");
+  });
+
+  it("publishes the choice to the public mirror", () => {
+    expect(buildPublicMirror({ tryoutTarget: "current" }).tryoutTarget).toBe(
+      "current",
+    );
+    expect(buildPublicMirror({}).tryoutTarget).toBe("next");
   });
 });

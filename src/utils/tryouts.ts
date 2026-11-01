@@ -3,6 +3,7 @@
 // React, no Firestore.
 
 import { measurementGrades } from "../constants/showcaseBenchmarks";
+import { AGE_TIERS, bumpAgeTier, computeNextSeason } from "../constants/ui";
 
 // Player Info submissions arrive from the public portal append-only (the
 // security rules forbid the anonymous client from replacing array entries), so
@@ -88,6 +89,8 @@ export interface PublicTeamMirror {
   // can ask questions. Coach opts in via Settings; empty strings hide the block.
   headCoachName: string;
   headCoachEmail: string;
+  // Which season the signup page recruits for (see tryoutSignupLabels).
+  tryoutTarget: TryoutTarget;
 }
 
 // Normalize a team's per-date tryout links into the canonical slug→date shape.
@@ -183,8 +186,71 @@ export const buildPublicMirror = (
     tryoutDateSlugs: links.map((l) => l.slug),
     headCoachName: (team?.headCoachName as string) || "",
     headCoachEmail: (team?.headCoachPublicEmail as string) || "",
+    tryoutTarget: resolveTryoutTarget(team),
   };
 };
+
+// Which season the public signup page recruits for. "next" (the default, and
+// what every team had before the choice existed) is the next spring tryout
+// cycle; "current" is the team as it stands now — a mid-season pickup at the
+// team's own age group.
+export type TryoutTarget = "current" | "next";
+
+export const resolveTryoutTarget = (
+  team: { tryoutTarget?: unknown } | null | undefined,
+): TryoutTarget => (team?.tryoutTarget === "current" ? "current" : "next");
+
+// One step up the age ladder. Uses the same tiers Advance Season does, so a
+// "10U" team recruits "11U to 12U", not a made-up "11U". A legacy label that
+// isn't on the ladder ("12U") still steps by one; anything else is left as is.
+const nextAgeLabel = (age: string): string => {
+  if (AGE_TIERS.includes(age)) return bumpAgeTier(age);
+  const m = age.match(/^(\d+)U$/i);
+  return m ? `${Number(m[1]) + 1}U` : age;
+};
+
+export interface TryoutSignupLabels {
+  season: string;
+  // "" when the team has no age group set.
+  age: string;
+}
+
+// The season + age group the signup page shows families. "next" walks the
+// same Spring/Fall ladder Advance Season does (computeNextSeason) to the next
+// Spring: Spring → Fall bumps one tier and Fall → Spring keeps it. So a Spring
+// 8U team recruits "Spring 2027 · 9U", and so does the Fall 9U team it becomes
+// after advancing — the page used to add a year blindly and say 10U there.
+export const tryoutSignupLabels = (
+  team:
+    | { currentSeason?: unknown; teamAge?: unknown; tryoutTarget?: unknown }
+    | null
+    | undefined,
+  target: TryoutTarget = resolveTryoutTarget(team),
+): TryoutSignupLabels => {
+  const currentSeason = String(team?.currentSeason || "").trim();
+  const teamAge = String(team?.teamAge || "").trim();
+  if (target === "current") {
+    return { season: currentSeason || "This Season", age: teamAge };
+  }
+  let season = currentSeason;
+  let age = teamAge;
+  // At most two steps: Spring → Fall → Spring.
+  for (let i = 0; i < 2; i++) {
+    const step = computeNextSeason(season);
+    if (!step) break;
+    season = step.nextSeason;
+    if (step.shouldBump) age = nextAgeLabel(age);
+    if (/^spring\b/i.test(season)) return { season, age };
+  }
+  // No readable season label: still a year older, just no season name.
+  return { season: "Next Season", age: nextAgeLabel(teamAge) };
+};
+
+// "Spring 2027 · 9U", or just the season when no age group is set.
+export const formatTryoutSignupLabel = ({
+  season,
+  age,
+}: TryoutSignupLabels): string => (age ? `${season} · ${age}` : season);
 
 const tryoutSessionIdForDate = (date: string) =>
   `tryout-${String(date || "undated").replace(/[^a-zA-Z0-9_-]/g, "-")}`;

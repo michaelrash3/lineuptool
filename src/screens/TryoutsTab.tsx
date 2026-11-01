@@ -23,6 +23,7 @@ import {
 import {
   tryoutGradeWithMeasurements,
   evaluatorEntriesForSignup,
+  resolveTryoutTarget,
   type TryoutEvaluatorEntry,
 } from "../utils/tryouts";
 import {
@@ -1772,41 +1773,47 @@ export const TryoutsTab = memo(() => {
                 </p>
               </div>
               <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    acceptTryout?.(acceptChoice.id, "next");
-                    setAcceptChoice(null);
-                  }}
-                  className="w-full text-left p-3 rounded-xl border border-line bg-surface hover:bg-surface-2 transition-colors"
-                >
-                  <div className="text-sm font-black text-ink">
-                    Next season{" "}
-                    <span className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
-                      Default
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-ink-3 font-medium mt-0.5">
-                    Stays in Tryouts marked Accepted. Joins the roster
-                    automatically when you Advance Season.
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    acceptTryout?.(acceptChoice.id, "current");
-                    setAcceptChoice(null);
-                  }}
-                  className="w-full text-left p-3 rounded-xl border border-line bg-surface hover:bg-surface-2 transition-colors"
-                >
-                  <div className="text-sm font-black text-ink">
-                    Current roster now
-                  </div>
-                  <div className="text-[11px] text-ink-3 font-medium mt-0.5">
-                    Adds them to this season&apos;s roster immediately
-                    (available in lineups right away).
-                  </div>
-                </button>
+                {(
+                  [
+                    {
+                      id: "next",
+                      title: "Next season",
+                      body: "Stays in Tryouts marked Accepted. Joins the roster automatically when you Advance Season.",
+                    },
+                    {
+                      id: "current",
+                      title: "Current roster now",
+                      body: "Adds them to this season\u2019s roster immediately (available in lineups right away).",
+                    },
+                  ] as const
+                ).map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => {
+                      acceptTryout?.(acceptChoice.id, o.id);
+                      setAcceptChoice(null);
+                    }}
+                    className="w-full text-left p-3 rounded-xl border border-line bg-surface hover:bg-surface-2 transition-colors"
+                  >
+                    <div className="text-sm font-black text-ink">
+                      {o.title}
+                      {/* The default follows what the signup page recruits
+                          for (Tryout setup → Signups are for). */}
+                      {o.id === resolveTryoutTarget(team) && (
+                        <>
+                          {" "}
+                          <span className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
+                            Default
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-ink-3 font-medium mt-0.5">
+                      {o.body}
+                    </div>
+                  </button>
+                ))}
               </div>
               <button
                 type="button"
