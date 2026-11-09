@@ -128,8 +128,17 @@ Home → Live Game card
      reload/share, but the route element only hides the tab content; the
      overlay itself mounts standalone above the tabs.
      ├─ Tap any defensive cell → swap player (yellow ring indicates pending swap target)
+     │    The edit is a fact: the current inning becomes exactly what was tapped
+     │    (rule conflicts are a heads-up, never a refusal), then every LATER
+     │    inning is re-planned from the facts so far — generateLineup with
+     │    fromInning = current + 1 (competitive for Tournament games). The
+     │    bench scheduler counts sits already taken and innings already caught,
+     │    and a catcher mid-block finishes the block (benchSchedule `replayed`).
      ├─ Alert button: handle a mid-game injury, prorate fairness, mark player removed
-     ├─ Undo: pre-swap snapshot, restorable for the duration of the inning
+     │    The removed kid's spot goes to the bench kid who has sat the most;
+     │    nobody else in the inning moves; later innings re-plan. (Pitcher
+     │    removed, or no bench kid can play the spot → re-solve the inning.)
+     ├─ Undo: whole-game snapshot (the edited inning + the innings it re-planned)
      └─ Save & Finalize:
           ├─ finalizeGame(gameId, score) ─→ persistTeam({ games: [...updated] })
           ├─ archive lineup snapshots

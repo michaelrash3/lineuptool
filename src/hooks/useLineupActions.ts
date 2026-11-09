@@ -5,6 +5,11 @@ import {
   generateTournamentLineup as engineGenerateTournamentLineup,
   resolvePitchRuleSet,
 } from "../lineupEngine";
+import {
+  isCatcherEligible,
+  isHardRestricted,
+} from "../lineupEngine/eligibility";
+import { removeFromInning } from "../lineup/inGameSwap";
 import { sameDayRoleSets, genId, playsGame } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
@@ -669,10 +674,14 @@ export const useLineupActions = ({
     [teamDataRef, updateTeam],
   );
 
-  // Mid-game player removal: rebuild the defensive lineup from the current
-  // inning onward (engine fills the open slots with remaining roster), strip
-  // the removed player from the batting order (the rest of the order stays
-  // static), and record the removal so the engine's fairness math prorates
+  // Mid-game player removal. The inning the coach is on changes as little as
+  // possible: the removed player's spot goes to the bench kid who has sat the
+  // most so far (and can play it), nobody else moves, and only the innings
+  // AFTER it are re-planned around what has happened. When that can't work —
+  // the pitcher left (a new arm is a pitch-count decision), or nobody on the
+  // bench can take the spot — the engine re-solves from the current inning
+  // instead. Either way the player leaves the batting order (the rest of the
+  // order stays) and the removal is recorded so the fairness math prorates
   // their played innings.
   const removePlayerMidGame = useCallback(
     (playerId: any, opts: any = {}) => {
@@ -736,61 +745,118 @@ export const useLineupActions = ({
         (persistedGame?.leagueRuleSet || teamDataRef.current.leagueRuleSet) ===
         "USSSA";
 
-      const result = engineGenerateLineup({
-        activePlayers,
-        allPlayers: teamDataRef.current.players || [],
-        games: teamDataRef.current.games || [],
-        evaluationEvents: teamDataRef.current.evaluationEvents || [],
-        currentGame: persistedGame,
-        totalInnings: existingLineup.length,
-        leagueRuleSet:
-          persistedGame?.leagueRuleSet || teamDataRef.current.leagueRuleSet,
-        teamAge: persistedGame?.teamAge || teamDataRef.current.teamAge,
-        defenseSize:
-          persistedGame?.defenseSize || teamDataRef.current.defenseSize,
-        positionLock:
-          persistedGame?.positionLock || teamDataRef.current.positionLock,
-        battingSize:
-          persistedGame?.battingSize || teamDataRef.current.battingSize,
-        pitchingFormat:
-          persistedGame?.pitchingFormat || teamDataRef.current.pitchingFormat,
-        catcherMaxInnings:
-          persistedGame?.catcherMaxInnings ||
-          teamDataRef.current.catcherMaxInnings,
-        catcherConsecutive:
-          persistedGame?.catcherConsecutive ??
-          teamDataRef.current.catcherConsecutive,
-        isBigGame: persistedGame?.isBigGame === true,
-        competitive: isTournament,
-        depthChart: teamDataRef.current.depthChart,
-        pitchRuleSet: resolvePitchRuleSet({
-          pitchRuleSet: teamDataRef.current.pitchRuleSet,
-          customPitchLimit: teamDataRef.current.customPitchLimit,
-          customRestTiers: teamDataRef.current.customRestTiers,
-        }),
-        sameDayRoles: sameDayRoleSets(
-          teamDataRef.current.players,
-          persistedGame?.date,
-          gameId,
-        ),
-        seed: Date.now() & 0xffffffff,
-        relaxFairness: true,
-        fromInning: fromInn,
-        currentLineup: existingLineup,
-      });
-
-      if (result.error) {
-        toast.push({
-          kind: "error",
-          title: "Rebuild failed",
-          message: result.error,
+      const runEngine = (fromInningArg: number, currentLineupArg: any[]) =>
+        engineGenerateLineup({
+          activePlayers,
+          allPlayers: teamDataRef.current.players || [],
+          games: teamDataRef.current.games || [],
+          evaluationEvents: teamDataRef.current.evaluationEvents || [],
+          currentGame: persistedGame,
+          totalInnings: existingLineup.length,
+          leagueRuleSet:
+            persistedGame?.leagueRuleSet || teamDataRef.current.leagueRuleSet,
+          teamAge: persistedGame?.teamAge || teamDataRef.current.teamAge,
+          defenseSize:
+            persistedGame?.defenseSize || teamDataRef.current.defenseSize,
+          positionLock:
+            persistedGame?.positionLock || teamDataRef.current.positionLock,
+          battingSize:
+            persistedGame?.battingSize || teamDataRef.current.battingSize,
+          pitchingFormat:
+            persistedGame?.pitchingFormat || teamDataRef.current.pitchingFormat,
+          catcherMaxInnings:
+            persistedGame?.catcherMaxInnings ||
+            teamDataRef.current.catcherMaxInnings,
+          catcherConsecutive:
+            persistedGame?.catcherConsecutive ??
+            teamDataRef.current.catcherConsecutive,
+          isBigGame: persistedGame?.isBigGame === true,
+          competitive: isTournament,
+          depthChart: teamDataRef.current.depthChart,
+          pitchRuleSet: resolvePitchRuleSet({
+            pitchRuleSet: teamDataRef.current.pitchRuleSet,
+            customPitchLimit: teamDataRef.current.customPitchLimit,
+            customRestTiers: teamDataRef.current.customRestTiers,
+          }),
+          sameDayRoles: sameDayRoleSets(
+            teamDataRef.current.players,
+            persistedGame?.date,
+            gameId,
+          ),
+          seed: Date.now() & 0xffffffff,
+          relaxFairness: true,
+          fromInning: fromInningArg,
+          currentLineup: currentLineupArg,
         });
-        return;
+
+      // Minimal change to the current inning: hand the vacated spot to the
+      // bench kid who has sat the most innings so far this game (ties: bench
+      // order) and is cleared for it. P is left to the engine (see above).
+      const rosterById = new Map<string, any>(
+        (teamDataRef.current.players || []).map((p: any) => [p.id, p]),
+      );
+      const activeIds = new Set(activePlayers.map((p: any) => p.id));
+      const satSoFar = (id: string) =>
+        existingLineup
+          .slice(0, fromInn + 1)
+          .filter((inn: any) =>
+            (inn?.BENCH || []).some((b: any) => b?.id === id),
+          ).length;
+      const minimal = removeFromInning(
+        existingLineup[fromInn] || {},
+        playerId,
+        (pos, benchKids) => {
+          if (pos === "P") return undefined;
+          let best: any;
+          for (const b of benchKids) {
+            const rp = rosterById.get(b.id);
+            if (!rp || !activeIds.has(b.id)) continue;
+            const cleared =
+              pos === "C" ? isCatcherEligible(rp) : !isHardRestricted(rp, pos);
+            if (!cleared) continue;
+            if (!best || satSoFar(b.id) > satSoFar(best.id)) best = b;
+          }
+          return best;
+        },
+      );
+
+      let nextLineup: any[] | null = null;
+      let filled: { pos?: string; filledBy?: any } = {};
+      let rebuiltCurrent = false;
+      if (minimal) {
+        const edited = existingLineup.map((inn: any, i: number) =>
+          i === fromInn ? minimal.inning : inn,
+        );
+        if (fromInn >= edited.length - 1) {
+          nextLineup = edited;
+        } else {
+          const replan = runEngine(fromInn + 1, edited);
+          if (!replan.error && Array.isArray(replan.lineup)) {
+            const rebuilt = replan.lineup;
+            // Innings up to and including the current one stay exactly as set.
+            nextLineup = edited.map((inn: any, i: number) =>
+              i <= fromInn ? inn : rebuilt[i] || inn,
+            );
+          }
+        }
+        if (nextLineup) filled = minimal;
+      }
+      if (!nextLineup) {
+        const result = runEngine(fromInn, existingLineup);
+        if (result.error) {
+          toast.push({
+            kind: "error",
+            title: "Rebuild failed",
+            message: result.error,
+          });
+          return;
+        }
+        nextLineup = Array.isArray(result.lineup)
+          ? result.lineup
+          : existingLineup;
+        rebuiltCurrent = true;
       }
 
-      const nextLineup = Array.isArray(result.lineup)
-        ? result.lineup
-        : existingLineup;
       const nextBatting = (existingBatting || []).filter(
         (p: any) => p && p.id !== playerId,
       );
@@ -812,16 +878,24 @@ export const useLineupActions = ({
       const removedPlayer = (teamDataRef.current.players || []).find(
         (p: any) => p.id === playerId,
       );
+      const hasLater = fromInn < nextLineup.length - 1;
+      const defenseNote = rebuiltCurrent
+        ? isTournament
+          ? "Defense redrafted best-available from the depth chart"
+          : "Defense rebuilt"
+        : filled.filledBy
+          ? `${filled.filledBy.name} takes over at ${filled.pos}${
+              hasLater ? "; later innings re-planned" : ""
+            }`
+          : hasLater
+            ? "Later innings re-planned"
+            : "Lineup updated";
       toast.push({
         kind: "success",
         title: "Player removed",
         message: `${removedPlayer?.name || "Player"} removed from inning ${
           fromInn + 1
-        }+. ${
-          isTournament
-            ? "Defense redrafted best-available from the depth chart"
-            : "Defense rebuilt"
-        }; batting order shrunk by one.`,
+        } on. ${defenseNote}; batting order shrunk by one.`,
         duration: 6000,
       });
     },
