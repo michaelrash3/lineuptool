@@ -4161,3 +4161,158 @@ describe("kid-pitch game-long pitcher pin (Rec engine)", () => {
     }
   });
 });
+
+// A mid-game re-plan (fromInning + currentLineup) plans the rest of the game
+// from what ACTUALLY happened. In-game, every edit the coach makes re-plans the
+// innings after it, so these guard the things a coach would notice: a kid who
+// already sat isn't benched again ahead of one who hasn't, the catcher doesn't
+// change halfway through a block, and innings already caught count toward the
+// cap.
+describe("mid-game re-plan counts the innings already played", () => {
+  const FIELD9 = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
+  const slimOf = (id: string) => ({ id, name: `Player ${id}`, number: "" });
+  const sitsOf = (lineup: any[], id: string) =>
+    lineup.filter((inn) => (inn.BENCH || []).some((b: any) => b?.id === id))
+      .length;
+  // A played inning: `bench` sits, `catcher` catches, everyone else fills the
+  // remaining 9-man spots in roster order.
+  const playedInning = (players: any[], bench: string[], catcher: string) => {
+    const rest = players
+      .map((p) => p.id)
+      .filter((id) => !bench.includes(id) && id !== catcher);
+    const inn: Record<string, any> = { C: slimOf(catcher) };
+    for (const pos of FIELD9) if (pos !== "C") inn[pos] = slimOf(rest.shift()!);
+    inn.BENCH = bench.map(slimOf);
+    return inn;
+  };
+  const replan = (players: any[], over: any = {}) =>
+    generateLineup({
+      activePlayers: players,
+      allPlayers: players,
+      games: [],
+      evaluationEvents: [],
+      currentGame: baseGame(),
+      firstInningOverridesById: {},
+      totalInnings: 6,
+      leagueRuleSet: "Rec",
+      teamAge: "10U",
+      defenseSize: "9",
+      positionLock: "0",
+      battingSize: "roster",
+      pitchingFormat: "Machine Pitch",
+      catcherMaxInnings: "2",
+      catcherConsecutive: true,
+      ...over,
+    } as any);
+
+  test("a kid who already sat their share isn't benched again", () => {
+    // 12 kids, 9 field, 6 innings: 18 sits, so everyone sits once or twice.
+    // p9–p11 sat innings 1 and 3 — already at the most anyone should.
+    const players = makeRoster(12);
+    const played = [
+      playedInning(players, ["p9", "p10", "p11"], "p0"),
+      playedInning(players, ["p6", "p7", "p8"], "p0"),
+      playedInning(players, ["p9", "p10", "p11"], "p1"),
+    ];
+    for (let seed = 1; seed <= 12; seed++) {
+      const res = replan(players, {
+        seed,
+        fromInning: 3,
+        currentLineup: played,
+      });
+      expect(res.error).toBeUndefined();
+      const merged = [...played, ...res.lineup!.slice(3)];
+      for (const id of ["p9", "p10", "p11"])
+        expect(sitsOf(res.lineup!.slice(3), id)).toBe(0);
+      // Whole game: nobody sits more than twice, everybody sits at least once.
+      for (const p of players) {
+        expect(sitsOf(merged, p.id)).toBeLessThanOrEqual(2);
+        expect(sitsOf(merged, p.id)).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
+
+  test("re-planning an unchanged game keeps the sits as even as a fresh build", () => {
+    const players = makeRoster(12);
+    for (let seed = 1; seed <= 8; seed++) {
+      const fresh = replan(players, { seed });
+      expect(fresh.error).toBeUndefined();
+      for (let n = 1; n <= 5; n++) {
+        const res = replan(players, {
+          seed: seed * 100 + n,
+          fromInning: n,
+          currentLineup: fresh.lineup!.slice(0, n),
+        });
+        expect(res.error).toBeUndefined();
+        const merged = [...fresh.lineup!.slice(0, n), ...res.lineup!.slice(n)];
+        const counts = players.map((p) => sitsOf(merged, p.id));
+        expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(
+          1,
+        );
+      }
+    }
+  });
+
+  test("a catcher partway through a block finishes it", () => {
+    // Blocks of two: (1,2) (3,4) (5,6). p1 caught inning 3 — the block's first
+    // half — so inning 4 stays with p1.
+    const players = makeRoster(12);
+    const played = [
+      playedInning(players, ["p9", "p10", "p11"], "p0"),
+      playedInning(players, ["p6", "p7", "p8"], "p0"),
+      playedInning(players, ["p3", "p4", "p5"], "p1"),
+    ];
+    for (let seed = 1; seed <= 12; seed++) {
+      const res = replan(players, {
+        seed,
+        fromInning: 3,
+        currentLineup: played,
+      });
+      expect(res.error).toBeUndefined();
+      expect((res.lineup![3].C as any)?.id).toBe("p1");
+    }
+  });
+
+  test("innings already caught count toward the catcher cap", () => {
+    // Cap 2: p0 caught innings 1–2 and is done catching for the game.
+    const players = makeRoster(12);
+    const played = [
+      playedInning(players, ["p9", "p10", "p11"], "p0"),
+      playedInning(players, ["p6", "p7", "p8"], "p0"),
+    ];
+    for (let seed = 1; seed <= 12; seed++) {
+      const res = replan(players, {
+        seed,
+        fromInning: 2,
+        currentLineup: played,
+      });
+      expect(res.error).toBeUndefined();
+      for (const inn of res.lineup!.slice(2))
+        expect((inn.C as any)?.id).not.toBe("p0");
+    }
+  });
+
+  test("tournament re-plan holds the half-the-game floor across the merged game", () => {
+    // 11 kids, 9 field: p9 already sat innings 1 and 3, so with a floor of
+    // three sits per six innings they can sit at most once more.
+    const players = makeRoster(11);
+    const played = [
+      playedInning(players, ["p9", "p10"], "p0"),
+      playedInning(players, ["p7", "p8"], "p0"),
+      playedInning(players, ["p9", "p10"], "p1"),
+    ];
+    for (let seed = 1; seed <= 12; seed++) {
+      const res = replan(players, {
+        seed,
+        leagueRuleSet: "USSSA",
+        competitive: true,
+        fromInning: 3,
+        currentLineup: played,
+      });
+      expect(res.error).toBeUndefined();
+      const merged = [...played, ...res.lineup!.slice(3)];
+      for (const p of players)
+        expect(sitsOf(merged, p.id)).toBeLessThanOrEqual(3);
+    }
+  });
+});

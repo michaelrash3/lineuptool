@@ -21,24 +21,6 @@ export const getPlayerAt = (
   return bench(inning).find((p) => p?.id === sel.playerId);
 };
 
-// Catcher is opt-in: a swap is blocked if it would drop a player into the C
-// slot when they aren't cleared to catch. `isClearedToCatch` resolves that from
-// the roster (kept as a callback so this module stays free of team state).
-// After the swap, firstSel receives playerB and secondSel receives playerA.
-export const isCatcherBlocked = (
-  firstSel: SwapSel,
-  secondSel: SwapSel,
-  playerA: SlimPlayer | undefined,
-  playerB: SlimPlayer | undefined,
-  isClearedToCatch: (player: SlimPlayer | undefined) => boolean,
-): boolean =>
-  (firstSel.type === "position" &&
-    firstSel.pos === "C" &&
-    !isClearedToCatch(playerB)) ||
-  (secondSel.type === "position" &&
-    secondSel.pos === "C" &&
-    !isClearedToCatch(playerA));
-
 // Return a NEW inning with the two cells' players exchanged. Immutable: the
 // input inning (and its BENCH array) are not mutated. Returns null when either
 // cell is empty (nothing to swap) so callers can no-op cleanly.
@@ -101,4 +83,43 @@ export const fillVacatedSpot = (
   next[pos] = inPlayer;
   next.BENCH = bench(inning).map((p) => (p?.id === inPlayer.id ? occupant : p));
   return next;
+};
+
+// A player actually present (bench slots are typed as possibly-null).
+type Kid = NonNullable<SlimPlayer>;
+
+// Take a player out of ONE inning (mid-game removal), changing that inning as
+// little as possible: off the bench they simply leave it; from a field spot
+// their spot goes to the bench kid `pick` chooses, and nobody else moves.
+// Returns null when the spot can't be filled that way (`pick` found no one —
+// e.g. an empty bench, nobody cleared for the spot, or the caller wants the
+// engine to choose), so the caller can fall back to a full re-solve. A player
+// who isn't in the inning leaves it untouched. Immutable.
+export const removeFromInning = (
+  inning: Inning,
+  playerId: string,
+  pick: (pos: string, benchKids: Kid[]) => Kid | undefined,
+): { inning: Inning; pos?: string; filledBy?: Kid } | null => {
+  const benchKids = bench(inning).filter((p): p is Kid => !!p);
+  if (benchKids.some((p) => p.id === playerId)) {
+    return {
+      inning: { ...inning, BENCH: benchKids.filter((p) => p.id !== playerId) },
+    };
+  }
+  const pos = Object.keys(inning).find(
+    (k) =>
+      k !== "BENCH" && (inning[k] as SlimPlayer | undefined)?.id === playerId,
+  );
+  if (!pos) return { inning };
+  const filledBy = pick(pos, benchKids);
+  if (!filledBy || !benchKids.some((p) => p.id === filledBy.id)) return null;
+  return {
+    inning: {
+      ...inning,
+      [pos]: filledBy,
+      BENCH: benchKids.filter((p) => p.id !== filledBy.id),
+    },
+    pos,
+    filledBy,
+  };
 };

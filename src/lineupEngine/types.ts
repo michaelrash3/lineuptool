@@ -101,6 +101,19 @@ export type BenchScheduleOpts = {
   // build; on a mid-game rebuild (fromInning > 0 + currentLineup) it's the
   // first RE-SOLVED inning, so a coach's in-game pin lands where they made it.
   overrideInning?: number;
+  // Mid-game rebuild history: what ACTUALLY happened in innings 0..R-1 (the
+  // replayed innings), one entry per inning — who sat, and who caught. When
+  // present the schedule plans only innings R.. and treats this as fact: sits
+  // already taken count toward each kid's share for the game, innings already
+  // caught count toward the catcher cap, and a catcher mid-block keeps the
+  // block. Absent / empty on a from-scratch build (behavior unchanged).
+  replayed?: ReplayedInning[];
+};
+
+// One already-played inning, as the bench scheduler needs to see it.
+export type ReplayedInning = {
+  bench: Set<string>;
+  catcherId: string | null;
 };
 
 // Context passed to each tryBuildLineup attempt.

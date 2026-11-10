@@ -1,8 +1,8 @@
 import {
   applySwap,
   getPlayerAt,
-  isCatcherBlocked,
   fillVacatedSpot,
+  removeFromInning,
 } from "./inGameSwap";
 
 const P = (id: string, name = id) => ({ id, name });
@@ -151,42 +151,54 @@ describe("fillVacatedSpot (carry a sub forward, just the tapped spot)", () => {
   });
 });
 
-describe("isCatcherBlocked", () => {
-  const ava = P("ava");
-  const mia = P("mia");
-  const clears = (ids: string[]) => (pl: any) => ids.includes(pl?.id);
+describe("removeFromInning (mid-game removal, minimal change)", () => {
+  const pickFirst = (_pos: string, bench: any[]) => bench[0];
 
-  it("blocks moving a non-catcher into C", () => {
-    // firstSel C receives playerB (mia); mia is not cleared → blocked.
-    const blocked = isCatcherBlocked(
-      { type: "position", pos: "C" },
-      { type: "position", pos: "P" },
-      ava,
-      mia,
-      clears(["ava"]),
-    );
-    expect(blocked).toBe(true);
+  it("hands a field spot to the bench kid the caller picks; nobody else moves", () => {
+    const before = inning();
+    const res = removeFromInning(before, "zoe", pickFirst)!;
+    expect(res.pos).toBe("1B");
+    expect(res.filledBy?.id).toBe("ben");
+    expect((res.inning["1B"] as any).id).toBe("ben");
+    expect((res.inning.P as any).id).toBe("ava");
+    expect((res.inning.C as any).id).toBe("mia");
+    expect((res.inning.BENCH as any[]).map((p) => p.id)).toEqual(["cor"]);
+    // Immutable.
+    expect((before["1B"] as any).id).toBe("zoe");
+    expect(before.BENCH.map((p) => p.id)).toEqual(["ben", "cor"]);
   });
 
-  it("allows the swap when the incoming player is cleared to catch", () => {
-    const blocked = isCatcherBlocked(
-      { type: "position", pos: "C" },
-      { type: "position", pos: "P" },
-      ava,
-      mia,
-      clears(["mia"]),
-    );
-    expect(blocked).toBe(false);
+  it("passes the vacated position and the bench to the picker", () => {
+    const seen: any[] = [];
+    removeFromInning(inning(), "mia", (pos, bench) => {
+      seen.push([pos, bench.map((p) => p.id)]);
+      return bench[1];
+    });
+    expect(seen).toEqual([["C", ["ben", "cor"]]]);
   });
 
-  it("is irrelevant when neither cell is the C slot", () => {
-    const blocked = isCatcherBlocked(
-      { type: "position", pos: "P" },
-      { type: "bench", playerId: "ben" },
-      ava,
-      mia,
-      clears([]),
+  it("a kid on the bench just leaves it", () => {
+    const res = removeFromInning(inning(), "ben", pickFirst)!;
+    expect((res.inning.BENCH as any[]).map((p) => p.id)).toEqual(["cor"]);
+    expect((res.inning["1B"] as any).id).toBe("zoe");
+    expect(res.filledBy).toBeUndefined();
+  });
+
+  it("returns null when the picker finds no one, so the caller can fall back", () => {
+    expect(removeFromInning(inning(), "zoe", () => undefined)).toBeNull();
+    expect(
+      removeFromInning({ ...inning(), BENCH: [] }, "zoe", pickFirst),
+    ).toBeNull();
+  });
+
+  it("refuses a pick that isn't actually on the bench", () => {
+    expect(removeFromInning(inning(), "zoe", () => P("ava"))).toBeNull();
+  });
+
+  it("leaves an inning the player isn't in untouched", () => {
+    const before = inning();
+    expect(removeFromInning(before, "nobody", pickFirst)!.inning).toEqual(
+      before,
     );
-    expect(blocked).toBe(false);
   });
 });

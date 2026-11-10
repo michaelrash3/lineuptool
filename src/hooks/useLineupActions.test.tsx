@@ -459,11 +459,17 @@ describe("useLineupActions mid-game removal redraft", () => {
     id: `p${i}`,
     name: `P${i}`,
   }));
-  const lineup = [
-    { P: { id: "p0" } },
-    { P: { id: "p0" } },
-    { P: { id: "p0" } },
-  ];
+  const slim = (i: number) => ({ id: `p${i}`, name: `P${i}` });
+  // p0 pitches, p1 plays SS, p2/p3 field; p8 and p9 rotate on the bench.
+  const inning = (bench: number[]) => ({
+    P: slim(0),
+    SS: slim(1),
+    "1B": slim(2),
+    "2B": slim(3),
+    BENCH: bench.map(slim),
+  });
+  // p9 has sat twice by inning 2 (index 2), p8 once.
+  const lineup = [inning([9]), inning([8]), inning([9, 8]), inning([8])];
   const game = (leagueRuleSet: string) => ({
     id: "g1",
     date: "2026-06-20",
@@ -477,7 +483,90 @@ describe("useLineupActions mid-game removal redraft", () => {
 
   beforeEach(() => {
     generateLineupMock.mockReset();
-    generateLineupMock.mockReturnValue({ lineup, battingLineup: [] });
+    // Echo the lineup it was handed, so the merge is visible in the patch.
+    generateLineupMock.mockImplementation((input: any) => ({
+      lineup: input.currentLineup,
+      battingLineup: [],
+    }));
+  });
+
+  it("fills the vacated spot from the bench without moving anyone else in the current inning", () => {
+    const rec = game("NKB");
+    const { result, updateGame } = setup(
+      { players, games: [rec], depthChart, leagueRuleSet: "NKB" },
+      { currentGame: rec },
+    );
+    act(() =>
+      result.current.removePlayerMidGame("p1", { fromInning: 2, gameId: "g1" }),
+    );
+    const patch = updateGame.mock.calls[0][1];
+    const inn = patch.lineup[2];
+    // p9 has sat the most (twice) — they take SS; nobody else moved.
+    expect(inn.SS.id).toBe("p9");
+    expect(inn.P.id).toBe("p0");
+    expect(inn["1B"].id).toBe("p2");
+    expect(inn["2B"].id).toBe("p3");
+    expect(inn.BENCH.map((p: any) => p.id)).toEqual(["p8"]);
+    // Innings already played are untouched.
+    expect(patch.lineup[0]).toEqual(lineup[0]);
+    expect(patch.lineup[1]).toEqual(lineup[1]);
+    // The engine plans only the innings AFTER the current one, from the facts.
+    const call = generateLineupMock.mock.calls[0][0];
+    expect(call.fromInning).toBe(3);
+    expect(call.currentLineup[2]).toEqual(inn);
+    expect(call.activePlayers.some((p: any) => p.id === "p1")).toBe(false);
+    expect(patch.midGameRemovals.p1).toMatchObject({ fromInning: 2 });
+    expect(patch.battingLineup.some((p: any) => p.id === "p1")).toBe(false);
+  });
+
+  it("a kid on the bench just leaves it — the field is untouched", () => {
+    const rec = game("NKB");
+    const { result, updateGame } = setup(
+      { players, games: [rec], leagueRuleSet: "NKB" },
+      { currentGame: rec },
+    );
+    act(() =>
+      result.current.removePlayerMidGame("p8", { fromInning: 1, gameId: "g1" }),
+    );
+    const inn = updateGame.mock.calls[0][1].lineup[1];
+    expect(inn.BENCH).toEqual([]);
+    expect(inn.SS.id).toBe("p1");
+    expect(generateLineupMock.mock.calls[0][0].fromInning).toBe(2);
+  });
+
+  it("removing the pitcher lets the engine re-solve from the current inning", () => {
+    const rec = game("NKB");
+    const { result } = setup(
+      { players, games: [rec], leagueRuleSet: "NKB" },
+      { currentGame: rec },
+    );
+    act(() =>
+      result.current.removePlayerMidGame("p0", { fromInning: 1, gameId: "g1" }),
+    );
+    expect(generateLineupMock).toHaveBeenCalledTimes(1);
+    expect(generateLineupMock.mock.calls[0][0]).toMatchObject({
+      fromInning: 1,
+      currentLineup: lineup,
+    });
+  });
+
+  it("falls back to re-solving the current inning when the re-plan fails", () => {
+    const rec = game("NKB");
+    generateLineupMock
+      .mockReturnValueOnce({ error: "no catcher" })
+      .mockImplementationOnce((input: any) => ({
+        lineup: input.currentLineup,
+        battingLineup: [],
+      }));
+    const { result, updateGame } = setup(
+      { players, games: [rec], leagueRuleSet: "NKB" },
+      { currentGame: rec },
+    );
+    act(() =>
+      result.current.removePlayerMidGame("p1", { fromInning: 2, gameId: "g1" }),
+    );
+    expect(generateLineupMock.mock.calls[1][0].fromInning).toBe(2);
+    expect(updateGame).toHaveBeenCalledTimes(1);
   });
 
   it("tournament removal redrafts competitively and clears the stale subs script", () => {
@@ -490,20 +579,11 @@ describe("useLineupActions mid-game removal redraft", () => {
       result.current.removePlayerMidGame("p1", { fromInning: 1, gameId: "g1" }),
     );
     expect(generateLineupMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        competitive: true,
-        depthChart,
-        fromInning: 1,
-        currentLineup: lineup,
-      }),
+      expect.objectContaining({ competitive: true, depthChart, fromInning: 2 }),
     );
-    // The removed player is out of the active pool fed to the engine.
-    const call = generateLineupMock.mock.calls[0][0];
-    expect(call.activePlayers.some((p: any) => p.id === "p1")).toBe(false);
     const patch = updateGame.mock.calls[0][1];
     expect(patch.tournamentPlan).toBeNull();
     expect(patch.midGameRemovals.p1).toMatchObject({ fromInning: 1 });
-    expect(patch.battingLineup.some((p: any) => p.id === "p1")).toBe(false);
   });
 
   it("rec removal keeps the relaxed rebuild and leaves the plan untouched", () => {

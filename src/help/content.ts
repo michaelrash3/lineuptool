@@ -573,6 +573,10 @@ export const HELP_TOPICS: HelpTopic[] = [
         body: "Tap any defensive cell, then tap the player to swap in — a highlight ring marks the pending swap until you confirm. Changes sync instantly to every coach's device.",
       },
       {
+        heading: "Your change is what happened",
+        body: "Whatever you set for the inning you're on is exactly what that inning becomes — nothing is refused and nothing else in it moves. If a move breaks a rule (a kid who isn't set as a catcher, or catching after pitching the same day), it still goes in and you get a heads-up. Every inning after it is then re-planned around what has actually happened: kids who already sat sit less, a catcher partway through a block finishes it, and the arm on the mound keeps the ball.",
+      },
+      {
         heading: "Finishing up",
         body: "Save & Finalize records the score, archives the lineup as played, and unlocks the evaluation prompt on Home.",
       },
@@ -585,16 +589,16 @@ export const HELP_TOPICS: HelpTopic[] = [
     category: "in-game",
     title: "Injuries and undo",
     summary:
-      "The Alert button re-balances the remaining innings after an injury; undo restores your last state.",
+      "The Alert button takes a player out and re-plans the innings after; undo restores your last state.",
     keywords: "injury hurt alert rebalance remove player undo mistake revert",
     sections: [
       {
         heading: "Injury alert",
-        body: "A kid goes down mid-game: tap the red Alert button, pick the player, and the engine removes them and re-balances the remaining innings automatically — fairness math is prorated so nobody else's season totals get distorted.",
+        body: "A kid goes down mid-game: tap the red Alert button and pick the player. In the inning you're on, the kid on the bench who has sat the most takes their spot and nobody else moves; the innings after are re-planned automatically — fairness math is prorated so nobody else's season totals get distorted. (If it's the pitcher, or nobody on the bench can play the spot, the engine re-solves the current inning too.)",
       },
       {
         heading: "Undo",
-        body: "Every swap takes a snapshot first. Fat-fingered the wrong cell? Undo restores the pre-swap state for the rest of the inning.",
+        body: "Every swap takes a snapshot of the whole game first. Fat-fingered the wrong cell? Undo puts back the inning and the innings it re-planned.",
       },
     ],
     related: ["in-game-mode"],

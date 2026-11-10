@@ -8,16 +8,10 @@ import {
 import {
   pitchBudgetFor,
   generateLineup,
-  generateTournamentLineup,
   resolvePitchRuleSet,
 } from "../lineupEngine";
 import { shareLineupCard } from "../lineup/lineupCard";
-import {
-  applySwap,
-  getPlayerAt,
-  isCatcherBlocked,
-  fillVacatedSpot,
-} from "../lineup/inGameSwap";
+import { applySwap, getPlayerAt, fillVacatedSpot } from "../lineup/inGameSwap";
 import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog } from "../components/shared";
 import { featureEnabled } from "../constants/features";
@@ -50,6 +44,23 @@ const nextManualLocks = (
       if (locks[k] === playerId && k !== pos) delete locks[k];
     if (LOCKABLE(pos)) locks[pos] = playerId;
     else delete locks[pos];
+  }
+  return locks;
+};
+
+// Keep existing durable picks current without creating new ones: a kid who
+// moves gives up any hold they had elsewhere, and a kid arriving at a spot
+// someone else held takes the hold over (the coach just overrode it).
+const keepManualLocksCurrent = (
+  prev: Record<string, string> | undefined,
+  assignments: { pos: string; playerId?: string }[],
+): Record<string, string> => {
+  const locks: Record<string, string> = { ...(prev || {}) };
+  for (const { pos, playerId } of assignments) {
+    if (!playerId) continue;
+    for (const k of Object.keys(locks))
+      if (locks[k] === playerId && k !== pos) delete locks[k];
+    if (LOCKABLE(pos) && pos in locks) locks[pos] = playerId;
   }
   return locks;
 };
@@ -106,7 +117,7 @@ export const InGameView = memo(() => {
   //
   // These hooks must live above the early returns below so React sees
   // the same hook order on every render — the rules-of-hooks invariant.
-  const [pendingLineup, setPendingLineup] = useState(null);
+  const [pendingLineup, setPendingLineup] = useState<any[] | null>(null);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Resolve the live game without an early return so downstream hooks
@@ -204,20 +215,15 @@ export const InGameView = memo(() => {
   // same-day roles come from other games on the same date.
   const sameDayRoles = sameDayRoleSets(team.players, game.date, game.id);
   const catchersThisGame = new Set<string>();
-  const pitchersThisGame = new Set<string>();
   for (const innx of liveLineup) {
     const cId = (innx?.C as any)?.id;
     if (cId) catchersThisGame.add(cId);
-    const pId = (innx?.P as any)?.id;
-    if (pId) pitchersThisGame.add(pId);
   }
-  // May this player take the mound? Not if they're catching this game or caught
-  // earlier today.
+  // Should the Available list offer this arm? Not if they're catching this game
+  // or caught earlier today. (A list of suggestions only — the coach can still
+  // put anyone on the mound by tapping; that's applied with a heads-up.)
   const canPitchDual = (id: string) =>
     !catchersThisGame.has(id) && !sameDayRoles.caught.has(id);
-  // May this player catch? Not if they pitched this game or earlier today.
-  const canCatchDual = (id: string) =>
-    !pitchersThisGame.has(id) && !sameDayRoles.pitched.has(id);
 
   // Position order — display order (matches existing lineup grid)
   const positionOrder = [
@@ -336,34 +342,172 @@ export const InGameView = memo(() => {
     return [...ids].map((id) => byId.get(id)).filter(Boolean);
   })();
 
-  // Update a specific inning's lineup with a patch. Writes go through the
-  // optimistic pendingLineup state and the flush is debounced so rapid taps
-  // coalesce into one Firestore write.
-  const patchInning = (idx: any, patch: any) => {
-    setPendingLineup((cur) => {
-      const base = cur ?? game.lineup;
-      return base.map((existingInn: any, i: any) => {
-        if (i !== idx) return existingInn;
-        return { ...existingInn, ...patch };
-      });
-    });
-    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
-    flushTimerRef.current = setTimeout(flush, 500);
+  // ----- Editing the live lineup -----
+  // An edit is a FACT, not a suggestion. Whatever the coach sets for the inning
+  // they're on is exactly what that inning becomes — nothing is refused and the
+  // engine never reshuffles it. Every inning AFTER it is then re-planned around
+  // what has actually happened so far (innings 0..current, as edited): the
+  // fairness math counts the sits already taken, a catcher mid-block finishes
+  // the block, and in Kid Pitch the arm on the mound now keeps the ball. Rec
+  // games re-plan with the fair-play engine, Tournament games with the
+  // competitive one (best-XI + minimum-play floor) — the same pair that builds
+  // their lineups.
+  const replanAfter = (
+    edited: any[],
+    fromIdx: number,
+    locks: Record<string, string>,
+  ): { lineup: any[] } | { error: string } => {
+    if (fromIdx >= edited.length - 1) return { lineup: edited };
+    const current = edited[fromIdx] || {};
+    const activeIds = new Set<string>();
+    for (const pos of Object.keys(current)) {
+      if (pos === "BENCH") continue;
+      const p = current[pos];
+      if (p?.id) activeIds.add(p.id);
+    }
+    for (const p of current.BENCH || []) if (p?.id) activeIds.add(p.id);
+    const roster = team.players || [];
+    const byId = new Map<string, any>(roster.map((p: any) => [p.id, p]));
+    const activePlayers = [...activeIds]
+      .map((id) => byId.get(id))
+      .filter(Boolean) as any[];
+    // Durable manual picks (field positions) the re-plan keeps holding — only
+    // for kids still in the game.
+    const stickyPins: Record<string, string> = {};
+    for (const [pos, id] of Object.entries(locks))
+      if (id && activeIds.has(id)) stickyPins[pos] = id;
+    const isTournament = (game.leagueRuleSet || team.leagueRuleSet) === "USSSA";
+    let result: any;
+    try {
+      result = generateLineup({
+        activePlayers,
+        allPlayers: roster.length ? roster : activePlayers,
+        games: team.games || [],
+        evaluationEvents: team.evaluationEvents || [],
+        currentGame: game,
+        firstInningOverridesById: {},
+        stickyOverridesById: stickyPins,
+        totalInnings: edited.length,
+        fromInning: fromIdx + 1,
+        currentLineup: edited,
+        leagueRuleSet: game.leagueRuleSet || team.leagueRuleSet,
+        competitive: isTournament,
+        depthChart: team.depthChart,
+        pitchRuleSet: resolvePitchRuleSet({
+          pitchRuleSet: team.pitchRuleSet,
+          customPitchLimit: team.customPitchLimit,
+          customRestTiers: team.customRestTiers,
+        }),
+        sameDayRoles: sameDayRoleSets(roster, game.date, game.id),
+        teamAge: team.teamAge,
+        defenseSize: game.defenseSize || team.defenseSize,
+        positionLock: game.positionLock || team.positionLock,
+        battingSize: game.battingSize || team.battingSize,
+        pitchingFormat: game.pitchingFormat || team.pitchingFormat,
+        catcherMaxInnings: game.catcherMaxInnings || team.catcherMaxInnings,
+        catcherConsecutive: game.catcherConsecutive ?? team.catcherConsecutive,
+        isBigGame: game.isBigGame === true,
+        seed: Date.now() + Math.floor(Math.random() * 1e6),
+        relaxFairness: game.applySeasonalFairness === false,
+      } as any);
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+    if (result?.error) return { error: String(result.error) };
+    const rebuilt = result?.lineup;
+    if (!Array.isArray(rebuilt) || rebuilt.length < edited.length)
+      return { error: "The engine returned an incomplete lineup." };
+    // Innings 0..fromIdx are taken from `edited` itself (never the engine's
+    // replay of them), so the inning the coach just set is exactly as set.
+    return {
+      lineup: edited.map((inn: any, idx: number) =>
+        idx <= fromIdx
+          ? inn
+          : {
+              ...rebuilt[idx],
+              BENCH: Array.isArray(rebuilt[idx].BENCH)
+                ? [...rebuilt[idx].BENCH]
+                : [],
+            },
+      ),
+    };
   };
 
-  // One-tap pitcher assignment from the Available pool. Both Rec and Tournament
-  // games re-run the engine with the chosen reliever forced to P and re-flow the
-  // current + remaining innings around them (recalibrateRestOfGame picks the
-  // right engine). Only if that rebuild can't run (e.g. the engine errors) do we
-  // fall back to a current-inning-only swap via performSwap.
+  const inningRange = (from: number, to: number) =>
+    from === to ? `inning ${from}` : `innings ${from}–${to}`;
+
+  // Commit an edit to the CURRENT inning: write it exactly, re-plan the rest of
+  // the game, keep one whole-lineup undo snapshot, and say what happened. If
+  // the re-plan can't run, the edit still stands — the later innings just keep
+  // their old plan (`fallbackLater`, when given, patches each of them first).
+  const commitInningEdit = (
+    editedInning: any,
+    opts: {
+      title: string;
+      message: string;
+      locks: Record<string, string>;
+      warnings: string[];
+      fallbackLater?: (inn: any) => any;
+    },
+  ) => {
+    const base = pendingLineup ?? game.lineup;
+    const edited = base.map((inn: any, i: number) =>
+      i === currentInning ? editedInning : inn,
+    );
+    const replan = replanAfter(edited, currentInning, opts.locks);
+    const isLast = currentInning >= edited.length - 1;
+    let nextLineup: any[];
+    let replanError: string | null = null;
+    if ("error" in replan) {
+      replanError = replan.error;
+      nextLineup = opts.fallbackLater
+        ? edited.map((inn: any, i: number) =>
+            i > currentInning ? opts.fallbackLater!(inn) : inn,
+          )
+        : edited;
+    } else {
+      nextLineup = replan.lineup;
+    }
+
+    setPendingLineup(nextLineup);
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    flushTimerRef.current = setTimeout(flush, 500);
+    // Holds only steer re-plans, so the last inning (nothing left to plan)
+    // doesn't record new ones.
+    const priorLocks = game.manualLocks || {};
+    if (!isLast && JSON.stringify(priorLocks) !== JSON.stringify(opts.locks))
+      updateGame(game.id, { manualLocks: opts.locks });
+    setInGameUndoStack(
+      [{ lineup: base, locks: priorLocks }, ...inGameUndoStack].slice(0, 5),
+    );
+    setInGameSelection(null);
+    tapHaptic();
+
+    const rest = inningRange(currentInning + 2, edited.length);
+    const later = isLast
+      ? ""
+      : replanError
+        ? ` Couldn't re-plan ${rest} (${replanError}) — they keep their old plan.`
+        : ` ${rest[0].toUpperCase()}${rest.slice(1)} re-planned around it.`;
+    const headsUp = opts.warnings.length
+      ? ` Heads up: ${opts.warnings.join(" ")}`
+      : "";
+    toast.push({
+      kind: replanError || opts.warnings.length ? "warn" : "success",
+      title: opts.title,
+      message: `${opts.message}${later}${headsUp}`,
+      duration: replanError || opts.warnings.length ? 8000 : 4000,
+    });
+  };
+
+  // One-tap pitching change from the Available pool: the reliever takes the
+  // mound THIS inning by trading places with the pitcher (the pulled arm goes
+  // to the reliever's spot — field or bench), exactly like tapping the two
+  // cells. The innings after it re-plan around the new arm.
   const assignPitcher = (playerId: any) => {
-    if (assignPitcherRestOfGame(playerId)) return;
-    const innNow = pendingLineup
-      ? pendingLineup[currentInning]
-      : liveLineup[currentInning];
-    if (!innNow) return;
-    // Find which cell the chosen pitcher currently occupies this inning.
-    let sourceSel = null;
+    const innNow = liveLineup[currentInning];
+    if (!innNow || innNow.P?.id === playerId) return;
+    let sourceSel: any = null;
     for (const pos of positionOrder) {
       if (innNow[pos]?.id === playerId) {
         sourceSel = { type: "position", pos };
@@ -375,171 +519,7 @@ export const InGameView = memo(() => {
       if (onBench) sourceSel = { type: "bench", playerId };
     }
     if (!sourceSel) return;
-    // Don't swap a player with themselves (they're already P somehow).
-    if (sourceSel.type === "position" && sourceSel.pos === "P") return;
     performSwap({ type: "position", pos: "P" }, sourceSel);
-  };
-
-  // Tournament pitching change: preserve completed innings, rebuild the best
-  // current/future defense with the selected reliever forced to P, and record
-  // one whole-lineup undo snapshot. This intentionally does NOT swap the
-  // pulled pitcher into the reliever's old field/bench spot.
-  const assignPitcherRestOfGame = (playerId: any): boolean => {
-    const base = pendingLineup ?? game.lineup;
-    const current = base[currentInning];
-    if (!current) return false;
-    if (current.P?.id === playerId) return false;
-    // The new pitcher is no longer a field lock (P isn't lockable).
-    const locks = nextManualLocks(game.manualLocks, [{ pos: "P", playerId }]);
-    return recalibrateRestOfGame(
-      { P: playerId },
-      {
-        title: "Pitching change",
-        message: (rebuiltCurrent: any) =>
-          `${
-            (rebuiltCurrent.P as any)?.name || "New pitcher"
-          } takes the mound from inning ${
-            currentInning + 1
-          } on — the rest of the lineup re-flowed around it.`,
-      },
-      locks,
-    );
-  };
-
-  // Re-optimize the current + remaining innings with a set of position pins,
-  // keeping the innings already played. Shared by the pitching change (pin P)
-  // and a manual position move (pin the swapped spots + keep the battery). The
-  // fair rotation keeps rotating around the pins. Works in BOTH Rec and
-  // Tournament games (the engine is chosen by game type below). Returns true if
-  // it rebuilt.
-  const recalibrateRestOfGame = (
-    overrides: Record<string, string>,
-    opts: { title: string; message: (rebuiltCurrent: any) => string },
-    sticky?: Record<string, string>,
-  ): boolean => {
-    if (!canEdit) return false;
-    const base = pendingLineup ?? game.lineup;
-    const current = base[currentInning];
-    if (!current) return false;
-
-    const activeIds = new Set<string>();
-    for (const pos of Object.keys(current || {})) {
-      if (pos === "BENCH") continue;
-      const p = current[pos];
-      if (p?.id) activeIds.add(p.id);
-    }
-    for (const p of current.BENCH || []) if (p?.id) activeIds.add(p.id);
-
-    const roster = team.players || [];
-    const byId = new Map<string, any>(roster.map((p: any) => [p.id, p]));
-    const activePlayers = [...activeIds]
-      .map((id) => byId.get(id))
-      .filter(Boolean) as any[];
-    if (activePlayers.length === 0) return false;
-    // Drop pins for anyone not actually in this inning (defensive).
-    const pins: Record<string, string> = {};
-    for (const [pos, id] of Object.entries(overrides))
-      if (id && activeIds.has(id)) pins[pos] = id;
-    // Durable manual locks (field positions) that the engine holds for the rest
-    // of the game. Default to the game's stored locks; callers pass the freshly
-    // updated map for the move that triggered this rebuild. Filter to players in
-    // this inning.
-    const sourceLocks: Record<string, string> =
-      sticky ?? game.manualLocks ?? {};
-    const stickyPins: Record<string, string> = {};
-    for (const [pos, id] of Object.entries(sourceLocks))
-      if (id && activeIds.has(id)) stickyPins[pos] = id;
-
-    // Pick the engine by game type, mirroring useLineupActions: Tournament
-    // (USSSA) games run the competitive pipeline; Rec games run the fair-play
-    // engine. This is what makes the re-flow work in BOTH modes, not just
-    // tournament. The two engines preserve the already-played innings
-    // differently: the Rec engine (generateLineup) replays them via
-    // fromInning/currentLineup, which also makes it apply the pin at the
-    // CURRENT inning (the one the coach is on) rather than inning 0 — without
-    // that, the fair-play rotation would slide the moved pitcher off the mound.
-    // The tournament pipeline doesn't take fromInning; it regenerates fresh and
-    // we keep the played innings in the caller-side merge below.
-    const isTournament = (game.leagueRuleSet || team.leagueRuleSet) === "USSSA";
-    const result = (isTournament ? generateTournamentLineup : generateLineup)({
-      activePlayers,
-      allPlayers: roster.length ? roster : activePlayers,
-      games: team.games || [],
-      evaluationEvents: team.evaluationEvents || [],
-      currentGame: game,
-      firstInningOverridesById: pins,
-      stickyOverridesById: stickyPins,
-      totalInnings: base.length,
-      ...(isTournament
-        ? {}
-        : { fromInning: currentInning, currentLineup: base }),
-      leagueRuleSet: game.leagueRuleSet || team.leagueRuleSet,
-      competitive: isTournament,
-      depthChart: team.depthChart,
-      pitchRuleSet: resolvePitchRuleSet({
-        pitchRuleSet: team.pitchRuleSet,
-        customPitchLimit: team.customPitchLimit,
-        customRestTiers: team.customRestTiers,
-      }),
-      sameDayRoles: sameDayRoleSets(roster, game.date, game.id),
-      teamAge: team.teamAge,
-      defenseSize: game.defenseSize || team.defenseSize,
-      positionLock: game.positionLock || team.positionLock,
-      battingSize: game.battingSize || team.battingSize,
-      pitchingFormat: game.pitchingFormat || team.pitchingFormat,
-      catcherMaxInnings: game.catcherMaxInnings || team.catcherMaxInnings,
-      catcherConsecutive: game.catcherConsecutive ?? team.catcherConsecutive,
-      isBigGame: game.isBigGame === true,
-      seed: Date.now() + Math.floor(Math.random() * 1e6),
-      relaxFairness: game.applySeasonalFairness === false,
-    });
-
-    if (result.error) {
-      toast.push({
-        kind: "error",
-        title: `${opts.title} failed`,
-        message: result.error,
-        duration: 0,
-      });
-      return false;
-    }
-
-    const rebuilt = result.lineup;
-    if (!rebuilt || !rebuilt[currentInning]) return false;
-    const cloneInning = (inning: any) => ({
-      ...inning,
-      BENCH: Array.isArray(inning.BENCH) ? [...inning.BENCH] : [],
-    });
-    // Keep the innings already played; for the rest, take the corresponding
-    // inning from the rebuild so the fair rotation KEEPS rotating around the
-    // pins (not a single inning frozen across the rest of the game).
-    const next = base.map((innState: any, idx: number) =>
-      idx < currentInning
-        ? innState
-        : rebuilt[idx]
-          ? cloneInning(rebuilt[idx])
-          : innState,
-    );
-
-    setPendingLineup(next);
-    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
-    flushTimerRef.current = setTimeout(flush, 500);
-    // Persist the manual locks that drove this rebuild so later re-flows (from
-    // other changes) keep building around them. Snapshot the prior locks on the
-    // undo entry so undo restores them too.
-    const priorLocks = game.manualLocks || {};
-    if (sticky) updateGame(game.id, { manualLocks: sticky });
-    setInGameUndoStack(
-      [{ lineup: base, locks: priorLocks }, ...inGameUndoStack].slice(0, 5),
-    );
-    setInGameSelection(null);
-    tapHaptic();
-    toast.push({
-      kind: "success",
-      title: opts.title,
-      message: opts.message(rebuilt[currentInning]),
-    });
-    return true;
   };
 
   // Resolve from the roster whether a slim player is cleared to catch
@@ -553,25 +533,16 @@ export const InGameView = memo(() => {
     return list.includes("C") && !restr.includes("C");
   };
 
-  // Perform a swap and record undo info. The pure transform + catcher-block
-  // check live in ../lineup/inGameSwap; this keeps the side effects.
+  // Perform a swap of two tapped cells in the current inning. The pure
+  // transform lives in ../lineup/inGameSwap; this decides the lock bookkeeping
+  // and the wording, then commits through commitInningEdit.
   const performSwap = (firstSel: any, secondSel: any) => {
+    if (!canEdit) return;
     const liveInning = liveLineup[currentInning];
     const playerA = getPlayerAt(liveInning, firstSel);
     const playerB = getPlayerAt(liveInning, secondSel);
-    if (!playerA || !playerB) {
-      setInGameSelection(null);
-      return;
-    }
-    if (
-      isCatcherBlocked(firstSel, secondSel, playerA, playerB, clearedToCatch)
-    ) {
-      toast.push({
-        kind: "error",
-        title: "Not a catcher",
-        message:
-          "That player isn't cleared to catch. Add C to their comfortable positions on the roster first.",
-      });
+    const next = applySwap(liveInning, firstSel, secondSel);
+    if (!playerA || !playerB || !next) {
       setInGameSelection(null);
       return;
     }
@@ -583,186 +554,107 @@ export const InGameView = memo(() => {
         : secondSel.type === "position" && secondSel.pos === pos
           ? playerA
           : null;
+
+    // Heads-ups, never refusals: the coach is telling us what's happening on
+    // the field. "This game" means the innings already played (before this
+    // one) — the planned innings are about to be re-planned anyway.
+    const played = liveLineup.slice(0, currentInning);
+    const caughtEarlier = new Set(
+      played.map((i: any) => i?.C?.id).filter(Boolean),
+    );
+    const pitchedEarlier = new Set(
+      played.map((i: any) => i?.P?.id).filter(Boolean),
+    );
+    const warnings: string[] = [];
     const incomingC = arrivingAt("C");
-    if (incomingC && !canCatchDual(incomingC.id)) {
-      toast.push({
-        kind: "error",
-        title: "Can't catch today",
-        message: `${incomingC.name} pitched ${
-          pitchersThisGame.has(incomingC.id) ? "this game" : "earlier today"
-        } — they can't catch the same day (arm care).`,
-      });
-      setInGameSelection(null);
-      return;
+    if (incomingC) {
+      if (!clearedToCatch(incomingC))
+        warnings.push(
+          `${incomingC.name} isn't set as a catcher on the roster.`,
+        );
+      if (
+        pitchedEarlier.has(incomingC.id) ||
+        sameDayRoles.pitched.has(incomingC.id)
+      )
+        warnings.push(
+          `${incomingC.name} pitched ${
+            pitchedEarlier.has(incomingC.id) ? "this game" : "earlier today"
+          } — arm-care rules say no catching the same day.`,
+        );
     }
     const incomingP = arrivingAt("P");
-    if (incomingP && !canPitchDual(incomingP.id)) {
-      toast.push({
-        kind: "error",
-        title: "Can't pitch today",
-        message: `${incomingP.name} is ${
-          catchersThisGame.has(incomingP.id)
-            ? "catching this game"
-            : "caught earlier today"
-        } — they can't pitch the same day (arm care).`,
-      });
-      setInGameSelection(null);
-      return;
-    }
+    if (
+      incomingP &&
+      (caughtEarlier.has(incomingP.id) || sameDayRoles.caught.has(incomingP.id))
+    )
+      warnings.push(
+        `${incomingP.name} caught ${
+          caughtEarlier.has(incomingP.id) ? "this game" : "earlier today"
+        } — arm-care rules say no pitching the same day.`,
+      );
 
-    const next = applySwap(liveInning, firstSel, secondSel);
-    if (!next) {
-      setInGameSelection(null);
-      return;
-    }
-
-    // A SUBSTITUTION (one cell is the bench: a player enters or leaves the
-    // field) carries forward to the remaining innings — but ONLY by filling the
-    // exact spot that was tapped, and only in innings that still match it (the
-    // subbed-out player still at that position with the sub free on the bench).
-    // Innings the rotation has already changed are left alone, so this never
-    // scrambles the rest of the game. A plain position↔position swap (both on
-    // the field) only changes the current inning.
     const isSubstitution =
       firstSel.type === "bench" || secondSel.type === "bench";
-    if (isSubstitution && currentInning < liveLineup.length - 1) {
-      // The tapped field position, the player leaving it, and the sub entering.
-      const posSel = firstSel.type === "position" ? firstSel : secondSel;
-      const pos = posSel.pos;
-      const outPlayer = getPlayerAt(liveInning, posSel);
-      const inPlayer = firstSel.type === "bench" ? playerA : playerB;
-
-      // Bringing a new PITCHER or CATCHER in off the bench recalibrates the rest
-      // of the game (like the Available-Pitchers change and a position move):
-      // the incoming arm/glove is pinned to the mound/plate, the other half of
-      // the battery is kept for continuity, and the remaining innings re-flow
-      // around them. Both Rec and Tournament. Other subs just fill the tapped
-      // spot below.
-      if (pos === "P" || pos === "C") {
-        const cur = (pendingLineup ?? game.lineup)[currentInning];
-        const pins: Record<string, string> = {};
-        if ((cur?.P as any)?.id) pins.P = (cur.P as any).id;
-        if ((cur?.C as any)?.id) pins.C = (cur.C as any).id;
-        pins[pos] = inPlayer.id; // the incoming player takes the tapped slot
-        // Incoming arm/glove moves to P/C (not lockable) — clear any field lock.
-        const locks = nextManualLocks(game.manualLocks, [
-          { pos, playerId: inPlayer.id },
-        ]);
-        const did = recalibrateRestOfGame(
-          pins,
-          {
-            title: pos === "P" ? "Pitching change" : "Catcher change",
-            message: () =>
-              `${inPlayer.name} ${
-                pos === "P" ? "takes the mound" : "is behind the plate"
-              } from inning ${
-                currentInning + 1
-              } on — the rest of the lineup re-flowed around it.`,
-          },
-          locks,
-        );
-        if (did) return; // otherwise fall through to a fill-forward sub
-      }
-
-      const base = pendingLineup ?? game.lineup;
-      const newLineup = base.map((innState: any, idx: number) => {
-        if (idx < currentInning) return innState;
-        if (idx === currentInning) return next;
-        return outPlayer
-          ? fillVacatedSpot(
-              innState,
-              pos,
-              outPlayer.id,
-              inPlayer,
-              clearedToCatch,
-            )
-          : innState;
-      });
-      setPendingLineup(newLineup);
-      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
-      flushTimerRef.current = setTimeout(flush, 500);
-      // Whole-lineup undo snapshot (the change touched several innings).
-      setInGameUndoStack([{ lineup: base }, ...inGameUndoStack].slice(0, 5));
-      setInGameSelection(null);
-      tapHaptic();
-      // Whoever came OFF the bench is the one entering the game.
-      const enter = firstSel.type === "bench" ? playerA : playerB;
-      const exit = firstSel.type === "bench" ? playerB : playerA;
-      toast.push({
-        kind: "success",
-        title: "Substitution",
-        message: `${(enter as any)?.name || "The sub"} in for ${
-          (exit as any)?.name || "the starter"
-        } from inning ${currentInning + 1} on.`,
-      });
-      return;
-    }
-
-    // A POSITION MOVE (both cells on the field) recalibrates the rest of the
-    // game: the two swapped players are pinned to their new spots and the
-    // current battery (P/C) is kept for continuity, then the engine re-optimizes
-    // the remaining innings' defense + rotation around them. Innings already
-    // played are untouched. If the rebuild can't run it falls back to the
-    // current-inning-only swap below.
-    //   - Tournament: any position move re-flows the rest of the game.
-    //   - Rec: only a move that touches the BATTERY (a player to/from P or C)
-    //     re-flows; a plain field↔field tweak stays current-inning-only so a
-    //     coach's small fair-play adjustment doesn't reshuffle the whole game.
-    const movesBattery =
-      firstSel.pos === "P" ||
-      secondSel.pos === "P" ||
-      firstSel.pos === "C" ||
-      secondSel.pos === "C";
     const isTournamentGame =
       (game.leagueRuleSet || team.leagueRuleSet) === "USSSA";
-    if (
-      !isSubstitution &&
-      (isTournamentGame || movesBattery) &&
-      currentInning < liveLineup.length - 1 &&
-      firstSel.type === "position" &&
-      secondSel.type === "position"
-    ) {
-      const cur = (pendingLineup ?? game.lineup)[currentInning];
-      const pins: Record<string, string> = {};
-      if ((cur?.P as any)?.id) pins.P = (cur.P as any).id; // keep the pitcher
-      if ((cur?.C as any)?.id) pins.C = (cur.C as any).id; // keep the catcher
-      // The swap wins for the two tapped spots (firstSel now holds playerB,
-      // secondSel now holds playerA).
-      pins[firstSel.pos] = playerB.id;
-      pins[secondSel.pos] = playerA.id;
-      // Remember both tapped spots as durable manual picks (field positions are
-      // held rest-of-game; P/C are dropped by nextManualLocks).
-      const locks = nextManualLocks(game.manualLocks, [
-        { pos: firstSel.pos, playerId: playerB.id },
-        { pos: secondSel.pos, playerId: playerA.id },
-      ]);
-      const did = recalibrateRestOfGame(
-        pins,
-        {
-          title: "Defense recalibrated",
-          message: () =>
-            `Lineup re-flowed around your change from inning ${
-              currentInning + 1
-            } on.`,
-        },
-        locks,
-      );
-      if (did) return; // otherwise fall back to a current-inning-only swap
+    const touchesBattery = [firstSel, secondSel].some(
+      (s: any) => s.type === "position" && (s.pos === "P" || s.pos === "C"),
+    );
+    // Who lands where (field spots only) after the swap.
+    const arrivals = [
+      firstSel.type === "position" && {
+        pos: firstSel.pos,
+        playerId: playerB.id,
+      },
+      secondSel.type === "position" && {
+        pos: secondSel.pos,
+        playerId: playerA.id,
+      },
+    ].filter(Boolean) as { pos: string; playerId: string }[];
+    // Durable manual picks: a Tournament position move, or any move that
+    // touches the battery, holds the tapped field spots for the rest of the
+    // game (P/C themselves are never held — the pitch-count and catcher-block
+    // rules govern them). Any other move just keeps existing picks current: a
+    // kid arriving at a held spot takes the hold over.
+    const locks =
+      touchesBattery || (isTournamentGame && !isSubstitution)
+        ? nextManualLocks(game.manualLocks, arrivals)
+        : keepManualLocksCurrent(game.manualLocks, arrivals);
+
+    const inning = currentInning + 1;
+    let title = "Lineup updated";
+    let message = `${playerA.name} and ${playerB.name} switched in inning ${inning}.`;
+    let fallbackLater: ((inn: any) => any) | undefined;
+    if (isSubstitution && firstSel.type !== secondSel.type) {
+      // A substitution: one player comes off the bench, one goes to it.
+      const posSel = firstSel.type === "position" ? firstSel : secondSel;
+      const enter = firstSel.type === "bench" ? playerA : playerB;
+      const exit = firstSel.type === "bench" ? playerB : playerA;
+      title =
+        posSel.pos === "P"
+          ? "Pitching change"
+          : posSel.pos === "C"
+            ? "Catcher change"
+            : "Substitution";
+      message = `${enter.name} in for ${exit.name} at ${posSel.pos} in inning ${inning}.`;
+      // If the re-plan can't run, still carry the sub forward in the exact
+      // spot where the rest of the old plan has the same situation.
+      fallbackLater = (inn: any) =>
+        fillVacatedSpot(inn, posSel.pos, exit.id, enter, clearedToCatch);
+    } else if (incomingP) {
+      title = "Pitching change";
+      const outgoing = incomingP.id === playerA.id ? playerB : playerA;
+      const outgoingTo =
+        arrivals.find((a) => a.playerId === outgoing.id)?.pos || "the bench";
+      message = `${incomingP.name} pitching in inning ${inning}; ${outgoing.name} to ${outgoingTo}.`;
+    } else if (incomingC) {
+      title = "Catcher change";
+      message = `${incomingC.name} catching in inning ${inning}.`;
+    } else if (isSubstitution) {
+      message = `${playerA.name} and ${playerB.name} switched on the bench.`;
     }
 
-    patchInning(currentInning, next);
-    // Snapshot the pre-swap inning for undo. (Replaying the swap to undo it
-    // breaks for bench cells — the player's id moves off the bench — so we
-    // restore the prior inning state directly. applySwap is immutable, so
-    // liveInning is untouched and safe to keep.)
-    setInGameUndoStack(
-      [
-        { inning: currentInning, prevInning: liveInning },
-        ...inGameUndoStack,
-      ].slice(0, 5),
-    );
-    setInGameSelection(null);
-    tapHaptic();
+    commitInningEdit(next, { title, message, locks, warnings, fallbackLater });
   };
 
   const handleTap = (sel: any) => {
@@ -789,14 +681,12 @@ export const InGameView = memo(() => {
   const undo = () => {
     if (inGameUndoStack.length === 0) return;
     const entry = inGameUndoStack[0];
-    // Restore the snapshot captured before the swap. Whole-lineup entries
-    // come from tournament pitching changes (they touch several innings).
+    // Restore the whole lineup captured before the edit — the edited inning
+    // AND the re-planned innings after it.
     if (entry.lineup) {
       setPendingLineup(entry.lineup);
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
       flushTimerRef.current = setTimeout(flush, 500);
-    } else if (entry.prevInning) {
-      patchInning(entry.inning, entry.prevInning);
     }
     // Restore the manual locks captured before the change this entry undoes.
     if (entry.locks !== undefined)

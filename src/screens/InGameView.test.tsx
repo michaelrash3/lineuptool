@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { InGameView } from "./InGameView";
 import { renderWithProviders } from "../test-utils";
 import { DEFAULT_TEAM_DATA } from "../constants/ui";
+import { generateLineup } from "../lineupEngine";
 import type { CoachRole } from "../types";
 
 // The in-game swap *engine* (applySwap, fillVacatedSpot, …) is covered by
@@ -362,5 +363,201 @@ describe("InGameView", () => {
     expect(
       screen.queryByText(/doesn't count for tiebreakers/i),
     ).not.toBeInTheDocument();
+  });
+});
+
+// An in-game edit is a FACT: the inning the coach is on becomes exactly what
+// they set — nothing is refused — and every inning after it is re-planned
+// around what has happened.
+describe("InGameView edits are facts, and the rest of the game re-plans", () => {
+  const flushWrite = () =>
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+  const lineupPatch = (updateGame: any) =>
+    updateGame.mock.calls.find(([, patch]: any) => patch.lineup)?.[1].lineup;
+  const lastToast = (toastValue: any) =>
+    toastValue.push.mock.calls[toastValue.push.mock.calls.length - 1][0];
+
+  // 11 kids, 9 in the field, Rec rules — a real engine-built game.
+  const ALL = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
+  const roster = Array.from({ length: 11 }, (_, i) => ({
+    id: `k${i}`,
+    name: `Kid${i}`,
+    number: String(i),
+    comfortablePositions: ALL,
+  }));
+  const recTeam = {
+    players: roster,
+    leagueRuleSet: "NKB",
+    defenseSize: "9",
+    pitchingFormat: "Machine Pitch",
+    teamAge: "10U",
+    catcherMaxInnings: "2",
+    catcherConsecutive: true,
+  };
+  const builtGame = () => {
+    const res = generateLineup({
+      activePlayers: roster,
+      allPlayers: roster,
+      games: [],
+      evaluationEvents: [],
+      currentGame: { id: "g1", date: "2026-07-01", opponent: "Rivals" },
+      firstInningOverridesById: {},
+      totalInnings: 4,
+      leagueRuleSet: "NKB",
+      teamAge: "10U",
+      defenseSize: "9",
+      positionLock: "0",
+      battingSize: "roster",
+      pitchingFormat: "Machine Pitch",
+      catcherMaxInnings: "2",
+      catcherConsecutive: true,
+      seed: 3,
+    } as any);
+    expect(res.error).toBeUndefined();
+    return makeGame({ lineup: res.lineup as any, battingLineup: roster });
+  };
+
+  it("sets the current inning exactly as tapped and re-plans every inning after it", () => {
+    vi.useFakeTimers();
+    try {
+      const game = builtGame();
+      const before = game.lineup[0] as any;
+      const { updateGame, toastValue, uiValue } = renderInGame({
+        game,
+        team: recTeam,
+        ui: { inGameSelection: { type: "position", pos: "1B" } },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /2B/ }));
+      flushWrite();
+
+      const lineup = lineupPatch(updateGame);
+      // Inning 1 is exactly the swap — nothing else in it moved.
+      expect(lineup[0]).toEqual({
+        ...before,
+        "1B": before["2B"],
+        "2B": before["1B"],
+      });
+      // Innings 2-4 are a full, valid re-plan.
+      for (const inn of lineup.slice(1)) {
+        const onField = ALL.map((pos) => inn[pos]?.id);
+        expect(onField.every(Boolean)).toBe(true);
+        const everyone = [...onField, ...inn.BENCH.map((b: any) => b.id)];
+        expect(new Set(everyone).size).toBe(11);
+      }
+      // One undo snapshot holds the whole pre-edit game.
+      const undoEntry = uiValue.setInGameUndoStack.mock.calls[0][0][0];
+      expect(undoEntry.lineup).toEqual(game.lineup);
+      const toast = lastToast(toastValue);
+      expect(toast.kind).toBe("success");
+      expect(toast.message).toMatch(/Innings 2–4 re-planned around it/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("puts a kid who isn't set as a catcher behind the plate, with a heads-up", () => {
+    vi.useFakeTimers();
+    try {
+      const { updateGame, toastValue } = renderInGame({
+        ui: { inGameSelection: { type: "position", pos: "C" } },
+      });
+      // Bob has no catcher clearance on the roster — applied anyway.
+      fireEvent.click(screen.getByRole("button", { name: /1B/ }));
+      flushWrite();
+      const lineup = lineupPatch(updateGame);
+      expect(lineup[0].C.id).toBe("p2");
+      expect(lineup[0]["1B"].id).toBe("p3");
+      const toast = lastToast(toastValue);
+      expect(toast.kind).toBe("warn");
+      expect(toast.message).toMatch(/Bob isn't set as a catcher/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("applies an arm-care conflict with a heads-up instead of refusing it", () => {
+    vi.useFakeTimers();
+    try {
+      // Alice pitched inning 1; in inning 2 the coach puts her behind the plate.
+      const game = makeGame({ lineup: [oneInning(), oneInning()] });
+      const { updateGame, toastValue } = renderInGame({
+        game,
+        ui: {
+          inGameInning: 1,
+          inGameSelection: { type: "position", pos: "C" },
+        },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /^P\b/ }));
+      flushWrite();
+      const lineup = lineupPatch(updateGame);
+      expect(lineup[1].C.id).toBe("p1");
+      expect(lineup[1].P.id).toBe("p3");
+      expect(lineup[0]).toEqual(oneInning()); // inning 1 is history
+      const toast = lastToast(toastValue);
+      expect(toast.kind).toBe("warn");
+      expect(toast.message).toMatch(/Alice pitched this game/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the edit when the rest of the game can't be re-planned", () => {
+    vi.useFakeTimers();
+    try {
+      // Five kids — too few for the engine — so the re-plan fails.
+      const game = makeGame({ lineup: [oneInning(), oneInning()] });
+      const { updateGame, toastValue } = renderInGame({
+        game,
+        ui: { inGameSelection: { type: "position", pos: "1B" } },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /2B/ }));
+      flushWrite();
+      const lineup = lineupPatch(updateGame);
+      expect(lineup[0]["1B"].id).toBe("p4");
+      expect(lineup[0]["2B"].id).toBe("p2");
+      expect(lineup[1]).toEqual(oneInning()); // keeps its old plan
+      const toast = lastToast(toastValue);
+      expect(toast.kind).toBe("warn");
+      expect(toast.message).toMatch(/Couldn't re-plan inning 2/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a pitching change from the Available list trades places with the pitcher this inning", () => {
+    vi.useFakeTimers();
+    try {
+      const { updateGame, toastValue } = renderInGame();
+      fireEvent.click(screen.getByTitle("Make Evan the pitcher for inning 1"));
+      flushWrite();
+      const lineup = lineupPatch(updateGame);
+      expect(lineup[0].P.id).toBe("p5");
+      expect(lineup[0].BENCH.map((b: any) => b.id)).toEqual(["p1"]);
+      expect(lineup[0].C.id).toBe("p3"); // nobody else moved
+      expect(lastToast(toastValue).title).toBe("Pitching change");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("undo restores the whole game, including the re-planned innings", () => {
+    vi.useFakeTimers();
+    try {
+      const snapshot = [oneInning(), oneInning()];
+      const game = makeGame({
+        lineup: [{ ...oneInning(), "1B": dave, "2B": bob }, oneInning()],
+      });
+      const { updateGame } = renderInGame({
+        game,
+        ui: { inGameUndoStack: [{ lineup: snapshot, locks: {} }] },
+      });
+      fireEvent.click(screen.getByLabelText("Undo last swap"));
+      flushWrite();
+      expect(lineupPatch(updateGame)).toEqual(snapshot);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

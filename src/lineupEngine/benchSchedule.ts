@@ -28,6 +28,7 @@ import type {
   PickBestOpts,
   CatcherBlock,
   BenchScheduleOpts,
+  ReplayedInning,
   TryBuildCtx,
 } from "./types";
 
@@ -288,7 +289,26 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
     firstInningOverridesById,
     overrideInning = 0,
     fixedPitcherId = null,
+    replayed = [],
   } = opts;
+
+  // MID-GAME REBUILD HISTORY. Innings 0..R-1 already happened (`replayed`); the
+  // schedule plans only innings R.. and treats the history as fact. The whole-
+  // game fairness math below still runs over the WHOLE game — it just starts
+  // from the sits each kid has already taken, so a kid who sat twice in the
+  // first three innings isn't benched again ahead of one who hasn't sat at all.
+  // R is 0 on a from-scratch build, which leaves every step below unchanged.
+  const R = Math.min(replayed.length, totalInnings);
+  const futureInnings = totalInnings - R;
+  const profiledIds = new Set(profiled.map((p) => p.id));
+  const alreadySat = new Map<string, number>();
+  for (let i = 0; i < R; i++) {
+    for (const id of replayed[i].bench) {
+      if (profiledIds.has(id))
+        alreadySat.set(id, (alreadySat.get(id) || 0) + 1);
+    }
+  }
+  const satSoFar = (id: string) => alreadySat.get(id) || 0;
 
   // Field-position "supply": how many present players are eligible for each
   // non-catcher position. Used to steer catcher selection AWAY from kids who
@@ -352,7 +372,12 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
   }
 
   const N = profiled.length;
-  const totalBenchSlots = numToBench * totalInnings;
+  // Whole-game bench slots: the ones already sat (by kids still in the game)
+  // plus the ones still to schedule. Equals numToBench * totalInnings on a
+  // from-scratch build.
+  let replayedSlots = 0;
+  for (const n of alreadySat.values()) replayedSlots += n;
+  const totalBenchSlots = replayedSlots + numToBench * futureInnings;
   if (numToBench === 0) {
     // No benching to do
     const empty = new Map();
@@ -624,6 +649,46 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
     }
   }
 
+  // MID-GAME REBUILD FLOOR: a sit already taken can't be given back, so no kid's
+  // whole-game target may fall below what they've already sat. Raise any such
+  // target to the history and take the difference from the kids slated to sit
+  // the most (fairness: the least over-played of those; competitive: the
+  // strongest), so the total still reconciles and the remaining sits stay as
+  // even as the history allows.
+  if (R > 0) {
+    for (const x of playerDeltas) {
+      const id = x.p.id;
+      let need = satSoFar(id) - (targetSits.get(id) || 0);
+      if (need <= 0) continue;
+      targetSits.set(id, satSoFar(id));
+      while (need > 0) {
+        let donor: (typeof playerDeltas)[number] | null = null;
+        for (const y of playerDeltas) {
+          if (y.p.id === id) continue;
+          const t = targetSits.get(y.p.id) || 0;
+          if (t - satSoFar(y.p.id) <= 0) continue; // no future sit to give up
+          const bt = donor ? targetSits.get(donor.p.id) || 0 : -1;
+          if (
+            !donor ||
+            t > bt ||
+            (t === bt &&
+              (competitive
+                ? y.defScore > donor.defScore
+                : y.delta < donor.delta))
+          )
+            donor = y;
+        }
+        if (!donor) break;
+        targetSits.set(donor.p.id, (targetSits.get(donor.p.id) || 0) - 1);
+        need--;
+      }
+    }
+  }
+  // Sits each kid still owes in the innings left to play (all of them on a
+  // from-scratch build).
+  const futureDebt = (id: string) =>
+    Math.max(0, (targetSits.get(id) || 0) - satSoFar(id));
+
   // Build sortedForExtra in the legacy shape (downstream catcher logic uses it)
   const sortedForExtra = playerDeltas.map((x) => ({
     p: x.p,
@@ -648,6 +713,13 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
   const offFieldByInning = new Array(totalInnings)
     .fill(null)
     .map(() => new Set());
+  // Innings already caught (mid-game rebuild) count toward the cap and mark the
+  // kid as "used", so the remaining blocks spread to fresh gloves first.
+  for (let i = 0; i < R; i++) {
+    const c = replayed[i].catcherId;
+    if (c && profiledIds.has(c))
+      catcherInnTotals.set(c, (catcherInnTotals.get(c) || 0) + 1);
+  }
 
   if (catcherInningBlocks && catcherInningBlocks.length > 0) {
     // Eligible catcher pool. Coaches who don't want a particular kid catching
@@ -686,7 +758,11 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
       });
 
     for (let bi = 0; bi < catcherInningBlocks.length; bi++) {
-      const block = catcherInningBlocks[bi];
+      const fullBlock = catcherInningBlocks[bi];
+      // Only the innings still to play are planned; a block wholly in the
+      // played innings is history (its catcher is already counted above).
+      const block = fullBlock.filter((inn) => inn >= R);
+      if (block.length === 0) continue;
       const blockSize = block.length;
       const involvesOverrideInning = block.includes(overrideInning);
 
@@ -699,7 +775,7 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
         }
         // Enough remaining play budget to be on the field every inning of the
         // block (i.e. not benched so much they can't cover it).
-        if ((targetSits.get(p.id) || 0) > totalInnings - blockSize) {
+        if (futureDebt(p.id) > futureInnings - blockSize) {
           return false;
         }
         // Hard cap: never let a single kid catch more than `catcherCap`
@@ -722,7 +798,53 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
       // ONLY option for a field position are skipped here (reserving them at C
       // strands that position) and only considered as a last resort.
       const free = ({ p }: { p: ProfiledPlayer }) => !anchorNonC.has(p.id);
+      // Continuity across a mid-game rebuild: a block that started in the
+      // played innings stays with the kid who was catching it, when they still
+      // can (cleared, under the cap, not needed elsewhere) — a re-plan must not
+      // change the catcher halfway through a block.
+      let incumbent: (typeof eligiblePool)[number] | undefined;
+      if (block.length < fullBlock.length) {
+        const incId = replayed[R - 1]?.catcherId;
+        const inc = eligiblePool.find((x) => x.p.id === incId && free(x));
+        if (inc) {
+          // Catching the rest of the block keeps them on the field for it, so
+          // any sit they still owe beyond the innings left OUTSIDE the block
+          // moves to the kid slated to sit least (fairness: the most over-
+          // played; competitive: the weakest) — the same trade a fresh build
+          // makes when it picks a catcher. This is the first block still being
+          // planned, so no other catcher's budget is disturbed.
+          const sitCeiling = Math.ceil(futureInnings / 2);
+          let excess = futureDebt(inc.p.id) - (futureInnings - blockSize);
+          while (excess > 0) {
+            let receiver: (typeof playerDeltas)[number] | null = null;
+            for (const y of playerDeltas) {
+              if (y.p.id === inc.p.id || anchorIds.has(y.p.id)) continue;
+              if (futureDebt(y.p.id) >= sitCeiling) continue;
+              const t = targetSits.get(y.p.id) || 0;
+              const bt = receiver ? targetSits.get(receiver.p.id) || 0 : 0;
+              if (
+                !receiver ||
+                t < bt ||
+                (t === bt &&
+                  (competitive
+                    ? y.defScore < receiver.defScore
+                    : y.delta > receiver.delta))
+              )
+                receiver = y;
+            }
+            if (!receiver) break;
+            targetSits.set(
+              receiver.p.id,
+              (targetSits.get(receiver.p.id) || 0) + 1,
+            );
+            targetSits.set(inc.p.id, (targetSits.get(inc.p.id) || 0) - 1);
+            excess--;
+          }
+          if (isAvailable(inc.p)) incumbent = inc;
+        }
+      }
       let candidate =
+        incumbent ||
         eligiblePool.find(
           (x) =>
             free(x) &&
@@ -773,10 +895,15 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
   // pairing (avoid two top half on bench together); then random.
   // ============================================================
   const remaining = new Map();
-  for (const [pid, target] of targetSits) remaining.set(pid, target);
+  for (const pid of targetSits.keys()) remaining.set(pid, futureDebt(pid));
 
   const schedule = new Map();
   for (const p of profiled) schedule.set(p.id, new Set());
+  // The played innings' bench is history: record it as-is (it isn't owed debt)
+  // so the no-back-to-back rule sees who sat in the last played inning.
+  for (let i = 0; i < R; i++) {
+    for (const id of replayed[i].bench) schedule.get(id)?.add(i);
+  }
 
   // Position-coverage guard: benching `pid` in `inn` must not leave the
   // remaining on-field set unable to JOINTLY cover every position. The old
@@ -848,8 +975,9 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
 
   // forcedBenchInning0: kids who must sit in inning 0 (e.g., because
   // they're not in firstInningOverridesById and can't fit otherwise).
-  // We honor this by pre assigning them.
-  if (forcedBenchInning0) {
+  // We honor this by pre assigning them. (Inning 0 is history on a mid-game
+  // rebuild — nothing to force.)
+  if (forcedBenchInning0 && R === 0) {
     for (const pid of forcedBenchInning0) {
       if (offFieldByInning[0].has(pid)) {
         return null; // can't both catch and sit
@@ -859,7 +987,7 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
     }
   }
 
-  for (let inn = 0; inn < totalInnings; inn++) {
+  for (let inn = R; inn < totalInnings; inn++) {
     const slotsThisInning = numToBench;
     const alreadyBenched = new Set<string>();
     for (const pid of schedule.keys()) {
@@ -1082,8 +1210,9 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
     }
   }
 
-  // Sanity check: every inning must have exactly numToBench benched
-  for (let inn = 0; inn < totalInnings; inn++) {
+  // Sanity check: every planned inning must have exactly numToBench benched
+  // (played innings are history and may differ, e.g. after a removal).
+  for (let inn = R; inn < totalInnings; inn++) {
     let count = 0;
     for (const pid of schedule.keys()) {
       if (schedule.get(pid).has(inn)) count++;
@@ -1231,6 +1360,24 @@ export function tryBuildLineup(ctx: TryBuildCtx):
     }
   }
 
+  // What actually happened in the replayed innings of a mid-game rebuild —
+  // the schedule plans the rest of the game from it (empty on a fresh build).
+  const replayed: ReplayedInning[] = [];
+  for (let inn = 0; inn < mgFromInning; inn++) {
+    const playedInn = currentLineup![inn] || {};
+    const benchArr: (SlimPlayer | null | undefined)[] = Array.isArray(
+      playedInn.BENCH,
+    )
+      ? playedInn.BENCH
+      : [];
+    const bench = new Set<string>();
+    for (const p of benchArr) if (p?.id) bench.add(p.id);
+    replayed.push({
+      bench,
+      catcherId: (playedInn.C as SlimPlayer | undefined)?.id ?? null,
+    });
+  }
+
   // Pre compute bench schedule (math optimal distribution)
   const sched = precomputeBenchSchedule({
     profiled,
@@ -1249,6 +1396,7 @@ export function tryBuildLineup(ctx: TryBuildCtx):
     firstInningOverridesById, // Safe-guards our overrides so we don't bench them
     overrideInning: mgFromInning, // ...at the inning the coach actually pinned
     fixedPitcherId, // Kid-Pitch game-long pitcher: never benched, never at C
+    replayed, // mid-game rebuild: who already sat / caught
   });
   if (!sched)
     return { ok: false, failure: { type: "bench-schedule-impossible" } };
