@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { signInAnonymously } from "firebase/auth";
+import { getDoc } from "firebase/firestore";
 import { auth, appId, db } from "../firebase";
 import { APP_NAME } from "../constants/ui";
 import {
@@ -17,6 +18,8 @@ import { newSignupId, upsertSignupDoc } from "../utils/tryoutSignupDocs";
 import { applyTeamInkVars } from "../utils/contrast";
 import { reportError } from "../utils/errorReporter";
 import { resolvePortalTeam } from "../utils/portalLinks";
+import { portalScheduleRef } from "../utils/portalSchedule";
+import { dateToIsoLocal } from "../utils/dates";
 import { Button, Eyebrow } from "../components/shared";
 import { Icons } from "../icons";
 
@@ -30,7 +33,9 @@ const RING_STYLE = {
 
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+// The family's LOCAL today: UTC's has already rolled over by a US evening,
+// which greyed out the rest of today as "past".
+const todayIso = () => dateToIsoLocal(new Date());
 
 // Human-friendly chip label, e.g. "2026-07-04" → "Jul 4". UTC parts so the
 // label never drifts a day across timezones.
@@ -108,14 +113,20 @@ const Field = ({ label, className = "", children }: any) => (
 const MonthPicker = ({
   selected,
   onToggle,
+  gameDays,
+  practiceDays,
 }: {
   selected: Set<string>;
   onToggle: (iso: string) => void;
+  // Days the team has a game / practice, when the coach shares them — so a
+  // family can see which dates actually matter. Empty otherwise.
+  gameDays: Set<string>;
+  practiceDays: Set<string>;
 }) => {
   const now = new Date();
   const [view, setView] = useState({
-    year: now.getUTCFullYear(),
-    month: now.getUTCMonth(),
+    year: now.getFullYear(),
+    month: now.getMonth(),
   });
   const cells = useMemo(
     () => buildMonthGrid(view.year, view.month),
@@ -178,6 +189,11 @@ const MonthPicker = ({
           const isSel = selected.has(iso);
           const isPast = iso < today;
           const day = Number(iso.slice(8, 10));
+          const isGame = gameDays.has(iso);
+          const isPractice = practiceDays.has(iso);
+          const eventNote = [isGame && "game", isPractice && "practice"]
+            .filter(Boolean)
+            .join(" and ");
           return (
             <button
               key={i}
@@ -185,7 +201,9 @@ const MonthPicker = ({
               disabled={isPast}
               onClick={() => onToggle(iso)}
               aria-pressed={isSel}
-              className={`aspect-square min-h-11 rounded-md text-base font-bold transition-colors ${
+              // The day number alone stays the name; the event is extra.
+              aria-label={eventNote ? `${day}, ${eventNote}` : undefined}
+              className={`relative aspect-square min-h-11 rounded-md text-base font-bold transition-colors ${
                 isPast
                   ? "text-ink-3 opacity-40 cursor-not-allowed"
                   : isSel
@@ -197,10 +215,49 @@ const MonthPicker = ({
               }
             >
               {day}
+              {(isGame || isPractice) && (
+                <span
+                  aria-hidden="true"
+                  className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5"
+                >
+                  {isGame && (
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{
+                        backgroundColor: isSel
+                          ? "currentColor"
+                          : "var(--team-primary)",
+                      }}
+                    />
+                  )}
+                  {isPractice && (
+                    <span className="w-1.5 h-1.5 rounded-full border border-current opacity-70" />
+                  )}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
+      {(gameDays.size > 0 || practiceDays.size > 0) && (
+        <div className="mt-3 flex items-center justify-center gap-4 text-[11px] font-bold text-ink-3">
+          {gameDays.size > 0 && (
+            <span className="flex items-center gap-1.5">
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: "var(--team-primary)" }}
+              />
+              Game day
+            </span>
+          )}
+          {practiceDays.size > 0 && (
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full border border-current" />
+              Practice
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -232,6 +289,12 @@ export const AvailabilityPortal = () => {
   // The "add a range" shortcut inputs.
   const [rangeFrom, setRangeFrom] = useState("");
   const [rangeTo, setRangeTo] = useState("");
+
+  // The team's game / practice days, when the coach shares them.
+  const [schedule, setSchedule] = useState<{
+    gameDays: Set<string>;
+    practiceDays: Set<string>;
+  }>({ gameDays: new Set(), practiceDays: new Set() });
 
   const selectedSet = useMemo(() => new Set(dates), [dates]);
   const sortedDates = useMemo(() => [...dates].sort(), [dates]);
@@ -281,6 +344,24 @@ export const AvailabilityPortal = () => {
           setTeamDocId(found.teamId);
           applyThemeColors(data);
           setPhase("form");
+          // Optional extra: the days the team plays or practices. Missing,
+          // off, or unreachable just means a plain calendar — never an error.
+          getDoc(portalScheduleRef(db, appId, linkSlug))
+            .then((snap) => {
+              const sched = snap.exists() ? snap.data() : null;
+              if (cancelled || !sched || sched.teamId !== found.teamId) return;
+              const days = (v: unknown) =>
+                new Set(
+                  Array.isArray(v)
+                    ? v.filter((d): d is string => typeof d === "string")
+                    : [],
+                );
+              setSchedule({
+                gameDays: days(sched.gameDays),
+                practiceDays: days(sched.practiceDays),
+              });
+            })
+            .catch(() => {});
           return;
         }
 
@@ -569,7 +650,12 @@ export const AvailabilityPortal = () => {
               <Eyebrow>{sortedDates.length} selected</Eyebrow>
             </div>
 
-            <MonthPicker selected={selectedSet} onToggle={toggleDate} />
+            <MonthPicker
+              selected={selectedSet}
+              onToggle={toggleDate}
+              gameDays={schedule.gameDays}
+              practiceDays={schedule.practiceDays}
+            />
 
             <div className="rounded-xl border border-line p-3 space-y-2">
               <div className="t-label">Add a range (for vacations)</div>

@@ -74,6 +74,18 @@ then this mirror **by id**, so another team can't hijack a link by publishing a
 mirror with the same share id (`resolvePortalTeam` in `src/utils/portalLinks.ts`;
 rollout phases in `docs/firebase-rules-rollout.md` §10).
 
+When the head coach turns on **Show game and practice days on the form**
+(Availability tab, `team.availabilityShowsSchedule`), the coach client also
+publishes `artifacts/{appId}/public/data/portalSchedules/{slug}`:
+`{ teamId, gameDays, practiceDays, updatedAt }`, bare `yyyy-mm-dd` dates for the
+next ~6 months and nothing else (`buildPortalSchedule` in
+`src/utils/portalSchedule.ts`). It is deliberately **not** in the mirror: the
+mirror can be listed by any signed-in session, so dates there would publish
+every team's schedule. This doc is get-only by its link, writable only by a
+member under the team's current share id **and** its owned `portalLinks` doc
+(so a team that copies another's share id can't squat it), and is deleted when
+the coach turns the option off, turns Availability off, or rotates the link.
+
 The mirror is upserted by an effect in `TeamProvider`
 (`src/providers/TeamProvider.tsx`) whenever a
 member's active team changes a mirrored field; a JSON guard skips no-op writes,

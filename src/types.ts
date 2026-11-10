@@ -733,6 +733,11 @@ export interface Team {
   // Optional feature modules the head turned OFF in Settings (absent/empty =
   // everything on). See src/constants/features.ts for the toggleable catalog.
   disabledFeatures?: TeamFeatureId[];
+  // Publish the team's game / practice DAYS (dates only) to the parent
+  // availability form. Off unless the head turns it on; false = turned off
+  // after being on (so the published days get taken down). See
+  // src/utils/portalSchedule.ts.
+  availabilityShowsSchedule?: boolean;
   // Tryouts (PR M)
   tryoutShareId?: string;
   // Which season the public signup page recruits for — "current" shows the

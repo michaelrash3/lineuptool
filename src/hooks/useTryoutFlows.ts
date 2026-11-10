@@ -14,6 +14,7 @@ import {
   tryoutGradeEntryKey,
 } from "../utils/tryouts";
 import { portalLinkRef } from "../utils/portalLinks";
+import { portalScheduleRef } from "../utils/portalSchedule";
 import {
   deleteSignupDoc,
   findLegacySignupEntries,
@@ -179,8 +180,11 @@ export const useTryoutFlows = ({
     // The new link's owned doc is created by TeamProvider's backfill; the old
     // one is cleaned up here (best-effort — a stale doc is already inert, the
     // forms check the mirror's current share id).
-    if (prev && prev !== id && db)
+    if (prev && prev !== id && db) {
       deleteDoc(portalLinkRef(db, appId, prev)).catch(() => {});
+      // ...and so is the old link's availability-form schedule, if any.
+      deleteDoc(portalScheduleRef(db, appId, prev)).catch(() => {});
+    }
     return id;
   }, [updateTeam, teamDataRef, db, appId]);
 

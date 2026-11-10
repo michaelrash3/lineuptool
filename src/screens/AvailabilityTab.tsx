@@ -33,6 +33,7 @@ export const AvailabilityTab = memo(() => {
     applyAvailabilityToPlayer,
     deleteAvailabilitySubmission,
     autoApplyAvailability,
+    updateTeam,
   } = useTeam();
   const toast = useToast();
   const isHead = currentRole !== "assistant";
@@ -216,6 +217,30 @@ export const AvailabilityTab = memo(() => {
         filenameSuffix="availability"
         hint="A unique name + birthdate match auto-fills that player's absences; anything unclear waits in the match queue below."
       />
+
+      {isHead && (
+        <label className="flex items-start justify-between gap-3 bg-surface p-3 border border-line rounded-xl shadow-sm cursor-pointer">
+          <span className="min-w-0">
+            <span className="block text-sm font-black text-ink">
+              Show game and practice days on the form
+            </span>
+            <span className="text-[11px] text-ink-3 font-medium leading-snug">
+              Families see which dates have a game or practice, so they know
+              which days matter. Dates only — no times, places or opponents —
+              but anyone with the form link can see them.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={team?.availabilityShowsSchedule === true}
+            onChange={(e) =>
+              updateTeam({ availabilityShowsSchedule: e.target.checked })
+            }
+            aria-label="Show game and practice days on the availability form"
+            className="mt-1 w-5 h-5 accent-[var(--team-primary)] shrink-0"
+          />
+        </label>
+      )}
 
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6 lg:items-start space-y-6 lg:space-y-0">
         <div className="min-w-0 space-y-4">

@@ -171,10 +171,10 @@ describe("TryoutsPortal tryout dates on interest link", () => {
     renderPortal(datedMirrorDoc);
     await screen.findByText("Submit Interest");
 
-    expect(screen.queryByText("2020-04-10")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText(/tryout date/i), {
-      target: { value: "2099-05-22" },
-    });
+    // Past dates are gone; upcoming ones read as dates, not ISO strings.
+    expect(screen.queryByText(/2020/)).not.toBeInTheDocument();
+    expect(screen.queryByText("2099-05-22")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Friday, May 22, 2099"));
     fill(/first name/i, "Ava");
     fill(/last name/i, "Rivera");
     fill(/email/i, "parent@example.com");
@@ -185,7 +185,7 @@ describe("TryoutsPortal tryout dates on interest link", () => {
     fireEvent.change(screen.getByLabelText(/does your player catch/i), {
       target: { value: "yes" },
     });
-    fireEvent.click(screen.getByText("Submit Interest"));
+    fireEvent.click(screen.getByText("Sign Up for Tryout"));
 
     await waitFor(() => expect(mockUpsertSignupDoc).toHaveBeenCalledTimes(1));
     const [, , , key, signup] = mockUpsertSignupDoc.mock.calls[0];
@@ -211,9 +211,7 @@ describe("TryoutsPortal tryout dates on interest link", () => {
     });
     await screen.findByText("Submit Interest");
 
-    fireEvent.change(screen.getByLabelText(/tryout date/i), {
-      target: { value: "2099-05-22" },
-    });
+    fireEvent.click(screen.getByLabelText("Friday, May 22, 2099"));
     fill(/first name/i, "Ava");
     fill(/last name/i, "Rivera");
     fill(/email/i, "parent@example.com");
@@ -283,5 +281,112 @@ describe("TryoutsPortal — offline vs. a dead link", () => {
       await screen.findByText(/not found or has been deactivated/i),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /try again/i })).toBeNull();
+  });
+});
+
+describe("TryoutsPortal — Which tryout? comes first", () => {
+  it("titles the page as tryouts and asks which tryout before anything else", async () => {
+    renderPortal(datedMirrorDoc);
+    const which = await screen.findByRole("group", { name: /which tryout/i });
+    expect(
+      screen.getByRole("heading", { level: 1, name: /rockets tryouts/i }),
+    ).toBeInTheDocument();
+    expect(document.title).toBe("Rockets Tryouts");
+    // Above the player's details, not buried after the jersey number.
+    const firstName = screen.getByLabelText(/first name/i);
+    expect(
+      which.compareDocumentPosition(firstName) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("won't submit until the family answers it", async () => {
+    renderPortal(datedMirrorDoc);
+    await screen.findByRole("group", { name: /which tryout/i });
+    fill(/first name/i, "Ava");
+    fill(/last name/i, "Rivera");
+    fill(/email/i, "parent@example.com");
+    fill(/phone/i, "5551234");
+    fireEvent.change(screen.getByLabelText(/does your player pitch/i), {
+      target: { value: "no" },
+    });
+    fireEvent.change(screen.getByLabelText(/does your player catch/i), {
+      target: { value: "no" },
+    });
+    fireEvent.click(screen.getByText("Submit Interest"));
+    expect((await screen.findByRole("alert")).textContent).toMatch(
+      /pick a tryout date/i,
+    );
+    expect(mockUpsertSignupDoc).not.toHaveBeenCalled();
+
+    // "Not sure yet" is an answer: it goes to the interest list, undated.
+    fireEvent.click(screen.getByLabelText(/not sure yet/i));
+    fireEvent.click(screen.getByText("Submit Interest"));
+    await waitFor(() => expect(mockUpsertSignupDoc).toHaveBeenCalledTimes(1));
+    const [, , , key, lead] = mockUpsertSignupDoc.mock.calls[0];
+    expect(key).toBe("interestSignups");
+    expect(lead.tryoutDate).toBe("");
+  });
+
+  it("confirms a tryout signup with the date written out", async () => {
+    renderPortal(datedMirrorDoc);
+    await screen.findByRole("group", { name: /which tryout/i });
+    fireEvent.click(screen.getByLabelText("Friday, May 22, 2099"));
+    fill(/first name/i, "Ava");
+    fill(/last name/i, "Rivera");
+    fill(/email/i, "parent@example.com");
+    fill(/phone/i, "5551234");
+    fireEvent.change(screen.getByLabelText(/does your player pitch/i), {
+      target: { value: "no" },
+    });
+    fireEvent.change(screen.getByLabelText(/does your player catch/i), {
+      target: { value: "no" },
+    });
+    fireEvent.click(screen.getByText("Sign Up for Tryout"));
+    expect(await screen.findByText(/you're signed up/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/signed up for the friday, may 22, 2099 tryout/i),
+    ).toBeInTheDocument();
+  });
+
+  it("stays a Player Interest page with no tryout question when there are no dates", async () => {
+    renderPortal();
+    await screen.findByText("Submit Interest");
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: /rockets player interest/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", { name: /which tryout/i }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("TryoutsPortal — a same-day tryout in a US evening", () => {
+  it("still lists tonight's tryout after UTC has rolled to tomorrow", async () => {
+    const prevTz = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 8pm May 9 in Los Angeles = 03:00 May 10 UTC.
+    vi.setSystemTime(new Date("2026-05-10T03:00:00Z"));
+    try {
+      renderPortal({
+        id: "team1",
+        data: () => ({
+          name: "Rockets",
+          tryoutShareId: "abc",
+          tryoutsOpen: true,
+          tryoutDates: ["2026-05-09"],
+        }),
+      });
+      expect(
+        await screen.findByLabelText("Saturday, May 9"),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+      process.env.TZ = prevTz;
+    }
   });
 });

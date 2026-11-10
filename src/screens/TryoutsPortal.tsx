@@ -15,6 +15,7 @@ import { formatTryoutSignupLabel, tryoutSignupLabels } from "../utils/tryouts";
 import { applyTeamInkVars } from "../utils/contrast";
 import { reportError } from "../utils/errorReporter";
 import { resolvePortalTeam } from "../utils/portalLinks";
+import { dateToIsoLocal, formatLongDate } from "../utils/dates";
 import { Button, Eyebrow } from "../components/shared";
 import { Icons } from "../icons";
 
@@ -92,6 +93,9 @@ const PhaseCard = ({ tone = "neutral", icon: Icon, title, children }: any) => {
   );
 };
 
+// The "Not sure yet" answer to Which tryout? — never a real date.
+const NOT_SURE = "not-sure";
+
 export const TryoutsPortal = () => {
   const { slug } = useParams();
   const linkSlug = (slug || "").trim();
@@ -100,7 +104,11 @@ export const TryoutsPortal = () => {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [canRetry, setCanRetry] = useState(false);
   const [mode, setMode] = useState<string | null>("interest");
-  const [selectedTryoutDate, setSelectedTryoutDate] = useState("");
+  // The tryout the family picked: a date, NOT_SURE, or "" (not answered
+  // yet). Only asked when the team has upcoming tryout dates.
+  const [tryoutChoice, setTryoutChoice] = useState("");
+  const selectedTryoutDate =
+    tryoutChoice && tryoutChoice !== NOT_SURE ? tryoutChoice : "";
   const [team, setTeam] = useState<any>(null);
   const [teamDocId, setTeamDocId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -125,19 +133,6 @@ export const TryoutsPortal = () => {
     phone: "",
     notes: "",
   });
-
-  // Team-specific browser-tab title so a shared portal link reads as
-  // "<Team> Tryouts" / "<Team> Interest List" rather than the generic brand.
-  // Restored to the brand on unmount so navigating back into the app is clean.
-  useEffect(() => {
-    const name = (team?.name || "").trim();
-    if (name) {
-      document.title = `${name} Player Interest`;
-    }
-    return () => {
-      document.title = APP_NAME;
-    };
-  }, [team?.name]);
 
   // Season + age group the coach is recruiting for — this season or the next
   // spring cycle, per the head's choice in Tryouts setup (team.tryoutTarget).
@@ -233,13 +228,33 @@ export const TryoutsPortal = () => {
   }, [linkSlug, loadAttempt]);
 
   const activeTryoutDates = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    // The family's LOCAL today — UTC's rolled over by a US evening, which hid
+    // a tryout that was still later the same day.
+    const today = dateToIsoLocal(new Date());
     return Array.isArray(team?.tryoutDates)
-      ? team.tryoutDates.filter(
-          (date: any) => String(date || "").trim() >= today,
-        )
+      ? team.tryoutDates
+          .map((date: any) => String(date || "").trim())
+          .filter((date: string) => date >= today)
+          .sort()
       : [];
   }, [team?.tryoutDates]);
+  // A real tryout signup (dates to pick AND signups open), vs. the interest
+  // list. Drives the page title, the intro and the submit label.
+  const tryoutsOpenWithDates =
+    team?.tryoutsOpen === true && activeTryoutDates.length > 0;
+
+  // Team-specific browser-tab title so a shared portal link reads as
+  // "<Team> Tryouts" / "<Team> Interest List" rather than the generic brand.
+  // Restored to the brand on unmount so navigating back into the app is clean.
+  useEffect(() => {
+    const name = (team?.name || "").trim();
+    if (name) {
+      document.title = `${name} ${tryoutsOpenWithDates ? "Tryouts" : "Player Interest"}`;
+    }
+    return () => {
+      document.title = APP_NAME;
+    };
+  }, [team?.name, tryoutsOpenWithDates]);
 
   const setPosition = (
     field: "primaryPosition" | "secondaryPosition",
@@ -268,6 +283,11 @@ export const TryoutsPortal = () => {
   const handleSubmit = async (e: any) => {
     e?.preventDefault?.();
     if (submitting) return;
+    // The tryout question comes first on the page, so it's checked first.
+    if (activeTryoutDates.length > 0 && !tryoutChoice)
+      return setError(
+        "Pick a tryout date above — or “Not sure yet” to join the interest list.",
+      );
     // Common required fields (player name + parent contact). Both modes
     // need these; the tryout mode additionally requires currentTeam.
     if (!form.firstName.trim() || !form.lastName.trim())
@@ -413,16 +433,20 @@ export const TryoutsPortal = () => {
           <PhaseCard
             tone="success"
             icon={Icons.Check}
-            title="Thanks for your interest"
+            title={
+              selectedTryoutDate && team?.tryoutsOpen === true
+                ? "You're signed up"
+                : "Thanks for your interest"
+            }
           >
             <p>
               <strong className="text-ink">
                 {form.firstName} {form.lastName}
               </strong>{" "}
               {selectedTryoutDate && team?.tryoutsOpen === true
-                ? `is signed up for the ${selectedTryoutDate} tryout. The head coach will reach out with next steps.`
+                ? `is signed up for the ${formatLongDate(selectedTryoutDate)} tryout. The head coach will reach out with next steps.`
                 : selectedTryoutDate
-                  ? `is on ${team?.name || "the team"}'s interest list for the ${selectedTryoutDate} tryout. The head coach will reach out with next steps.`
+                  ? `is on ${team?.name || "the team"}'s interest list for the ${formatLongDate(selectedTryoutDate)} tryout. The head coach will reach out with next steps.`
                   : `is on ${team?.name || "the team"}'s interest list. The head coach will be in touch.`}{" "}
               Contact at <strong className="text-ink">{form.email}</strong> ·{" "}
               <strong className="text-ink">{form.phone}</strong>.
@@ -459,12 +483,13 @@ export const TryoutsPortal = () => {
           {formatTryoutSignupLabel(signupLabels)}
         </Eyebrow>
         <h1 className="t-display" style={{ color: "var(--team-ink)" }}>
-          {team?.name || "Tryouts"} Player Interest
+          {team?.name || "Team"}{" "}
+          {tryoutsOpenWithDates ? "Tryouts" : "Player Interest"}
         </h1>
         <p className="t-body mt-2 max-w-md mx-auto">
-          Let us know your child is interested in playing for this team. Select
-          a tryout date if one is available, or submit general interest any time
-          during the season.
+          {tryoutsOpenWithDates
+            ? "Pick a tryout, then tell us about your player. Can't make any of the dates? Choose “Not sure yet” and we'll add you to the interest list."
+            : "Let us know your child is interested in playing for this team. The head coach will be in touch."}
         </p>
       </header>
 
@@ -477,6 +502,51 @@ export const TryoutsPortal = () => {
           style={{ backgroundColor: "var(--team-primary)" }}
         />
         <div className="p-5 sm:p-7 space-y-6">
+          {activeTryoutDates.length > 0 && (
+            <fieldset className="space-y-3">
+              <legend className="t-h2 pb-2 mb-1 border-b border-line w-full">
+                Which tryout?
+              </legend>
+              {!tryoutsOpenWithDates && (
+                <p className="t-body text-sm text-ink-3">
+                  Signups aren't open yet — pick the date that works and we'll
+                  add you to the interest list for it.
+                </p>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[...activeTryoutDates, NOT_SURE].map((value: string) => {
+                  const checked = tryoutChoice === value;
+                  return (
+                    <label
+                      key={value}
+                      className={`flex items-center gap-3 min-h-[52px] px-4 py-3 rounded-xl border cursor-pointer transition-colors ${
+                        checked
+                          ? "border-[var(--team-primary)] ring-2 ring-[var(--team-primary)] bg-surface-2"
+                          : "border-line bg-surface hover:bg-surface-2"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="tryout-choice"
+                        value={value}
+                        checked={checked}
+                        onChange={() => {
+                          setError(null);
+                          setTryoutChoice(value);
+                        }}
+                        className="w-4 h-4 shrink-0 accent-[var(--team-primary)]"
+                      />
+                      <span className="text-sm font-bold text-ink">
+                        {value === NOT_SURE
+                          ? "Not sure yet — add us to the interest list"
+                          : formatLongDate(value)}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          )}
           <section className="space-y-4">
             <div className="flex items-center justify-between gap-3 pb-2 border-b border-line">
               <h2 className="t-h2">Player Info</h2>
@@ -539,23 +609,6 @@ export const TryoutsPortal = () => {
                     style={RING_STYLE}
                   />
                 </Field>
-                {activeTryoutDates.length > 0 && (
-                  <Field label="Tryout Date">
-                    <select
-                      value={selectedTryoutDate}
-                      onChange={(e) => setSelectedTryoutDate(e.target.value)}
-                      className={INPUT_BASE}
-                      style={RING_STYLE}
-                    >
-                      <option value="">General interest / not sure yet</option>
-                      {activeTryoutDates.map((date: string) => (
-                        <option key={date} value={date}>
-                          {date}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                )}
                 <Field label="Bats">
                   <select
                     value={form.bats}
@@ -726,7 +779,10 @@ export const TryoutsPortal = () => {
               </>
             ) : (
               <>
-                <Icons.Check className="w-4 h-4" /> Submit Interest
+                <Icons.Check className="w-4 h-4" />{" "}
+                {selectedTryoutDate && team?.tryoutsOpen === true
+                  ? "Sign Up for Tryout"
+                  : "Submit Interest"}
               </>
             )}
           </Button>

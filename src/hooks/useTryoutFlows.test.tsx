@@ -162,16 +162,16 @@ beforeEach(() => {
 });
 
 describe("useTryoutFlows", () => {
-  it("rotating the share link deletes the old link's owned doc", () => {
+  it("rotating the share link deletes the old link's owned doc and schedule", () => {
     const { result } = setup({ tryoutShareId: "old-slug" });
     act(() => {
       result.current.generateTryoutShareId();
     });
     const mock = deleteDoc as unknown as ReturnType<typeof vi.fn>;
-    expect(mock).toHaveBeenCalledTimes(1);
-    expect(mock.mock.calls[0][0].path).toBe(
+    expect(mock.mock.calls.map((c: any[]) => c[0].path)).toEqual([
       "artifacts/test-app/public/data/portalLinks/old-slug",
-    );
+      "artifacts/test-app/public/data/portalSchedules/old-slug",
+    ]);
   });
 
   it("generateTryoutShareId opens tryouts and returns an id", () => {

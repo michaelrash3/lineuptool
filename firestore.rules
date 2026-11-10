@@ -660,6 +660,49 @@ service cloud.firestore {
       allow delete: if isCoachAccount() && isLinkTeamMember(resource.data.teamId);
     }
 
+    // Game and practice DAYS for the parent availability form, keyed by the
+    // form link's slug (the team's tryoutShareId): { teamId, gameDays,
+    // practiceDays, updatedAt } — bare yyyy-mm-dd dates, nothing else. Kept
+    // out of teamPublic on purpose: that mirror is listable, so dates there
+    // would publish every team's schedule. Here a reader needs the link.
+    // Published only when the head coach turns it on (see
+    // src/utils/portalSchedule.ts).
+    match /artifacts/{appId}/public/data/portalSchedules/{slug} {
+      function schedTeam(teamId) {
+        return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;
+      }
+      function isSchedTeamMember(teamId) {
+        return request.auth != null
+          && (schedTeam(teamId).ownerId == request.auth.uid
+              || (schedTeam(teamId).members != null
+                  && request.auth.uid in schedTeam(teamId).members));
+      }
+      // The slug's owned link doc (create-once, never repointed) must name
+      // the same team — so a team that copies another's share id can't
+      // squat this doc and show families its own dates.
+      function linkIsTeams(teamId) {
+        return exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/portalLinks/$(slug))
+          && get(/databases/$(database)/documents/artifacts/$(appId)/public/data/portalLinks/$(slug)).data.teamId == teamId;
+      }
+      // ONE doc by its slug — `get`, never `list`.
+      allow get: if request.auth != null;
+      // Written by a member, only under their team's CURRENT share id and
+      // link, with only these fields and short lists, and never moved to
+      // another team.
+      allow create, update: if isCoachAccount()
+        && request.resource.data.keys().hasOnly(['teamId', 'gameDays', 'practiceDays', 'updatedAt'])
+        && request.resource.data.teamId is string
+        && request.resource.data.gameDays is list
+        && request.resource.data.gameDays.size() <= 150
+        && request.resource.data.practiceDays is list
+        && request.resource.data.practiceDays.size() <= 150
+        && isSchedTeamMember(request.resource.data.teamId)
+        && schedTeam(request.resource.data.teamId).tryoutShareId == slug
+        && linkIsTeams(request.resource.data.teamId)
+        && (resource == null || resource.data.teamId == request.resource.data.teamId);
+      allow delete: if isCoachAccount() && isSchedTeamMember(resource.data.teamId);
+    }
+
     // Sanitized invite lookup, keyed by join code. Replaces the old "read the
     // whole team doc if it has a join code" rule: a code-holder resolves the
     // code to a teamId + teamName here (nothing private), then performs the

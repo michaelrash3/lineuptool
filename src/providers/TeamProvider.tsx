@@ -18,6 +18,7 @@ import {
   setDoc,
   getDoc,
   getDocs,
+  deleteDoc,
   collection,
   query,
   where,
@@ -33,6 +34,12 @@ import {
 } from "firebase/firestore";
 import { foldTryoutGradeEntries } from "../utils/tryouts";
 import { portalLinkRef } from "../utils/portalLinks";
+import {
+  buildPortalSchedule,
+  portalScheduleRef,
+} from "../utils/portalSchedule";
+import { dateToIsoLocal } from "../utils/dates";
+import { featureEnabled } from "../constants/features";
 import { auth, db, appId } from "../firebase";
 import {
   TeamContext,
@@ -1697,6 +1704,9 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // back to the legacy mirror query only while it's missing. Fires once per
   // (team, share id); a member's create is exactly what the rules allow.
   const lastPortalLinkBackfillRef = useRef("");
+  // `${teamId}:${slug}` once that link doc is known to exist — the
+  // availability-form schedule below is only allowed under a confirmed link.
+  const [portalLinkReadyKey, setPortalLinkReadyKey] = useState("");
   useEffect(() => {
     if (!activeTeamId || !user) return;
     if (loadedTeamIdRef.current !== activeTeamId) return;
@@ -1712,12 +1722,58 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           ? undefined
           : setDoc(ref, { teamId: activeTeamId, createdAt: Date.now() }),
       )
+      .then(() => setPortalLinkReadyKey(key))
       .catch(() => {
         // Retry on the next change; a missing link doc only means the forms
         // use the fallback lookup for now.
         lastPortalLinkBackfillRef.current = "";
       });
   }, [activeTeamId, user, teamData?.tryoutShareId]);
+
+  // Game and practice DAYS for the parent availability form — only while the
+  // head coach has it on (team.availabilityShowsSchedule), only bare dates,
+  // and in a get-only doc keyed by the form link (see utils/portalSchedule).
+  // Rewritten when the dates change; taken down when the coach turns it off
+  // or the Availability module is off. A team that never turned it on writes
+  // and reads nothing here.
+  const lastPortalScheduleRef = useRef("");
+  useEffect(() => {
+    if (!activeTeamId || !user) return;
+    if (loadedTeamIdRef.current !== activeTeamId) return;
+    const slug = String(teamData?.tryoutShareId || "").trim();
+    if (!slug || portalLinkReadyKey !== `${activeTeamId}:${slug}`) return;
+    const flag = teamData?.availabilityShowsSchedule;
+    if (flag !== true && flag !== false) return;
+    const sched =
+      flag === true && featureEnabled(teamData, "availability")
+        ? buildPortalSchedule(teamData, dateToIsoLocal(new Date()))
+        : null;
+    const key = `${activeTeamId}:${slug}:${sched ? JSON.stringify(sched) : "off"}`;
+    if (lastPortalScheduleRef.current === key) return;
+    lastPortalScheduleRef.current = key;
+    const ref = portalScheduleRef(db, appId, slug);
+    const write = sched
+      ? setDoc(ref, { teamId: activeTeamId, ...sched, updatedAt: Date.now() })
+      : getDoc(ref).then((snap) =>
+          snap.exists() ? deleteDoc(ref) : undefined,
+        );
+    write.catch(() => {
+      // Retry on the next change. Families just see a plain calendar.
+      lastPortalScheduleRef.current = "";
+    });
+    // Deps are the fields the schedule is built from, not the whole team
+    // object (which changes on every unrelated edit).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeTeamId,
+    user,
+    portalLinkReadyKey,
+    teamData?.tryoutShareId,
+    teamData?.availabilityShowsSchedule,
+    teamData?.disabledFeatures,
+    teamData?.games,
+    teamData?.practices,
+  ]);
 
   const updateTeam = useCallback(
     (updates: Partial<Team>, opts?: { allowEmptyPlayers?: boolean }) => {

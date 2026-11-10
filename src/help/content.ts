@@ -915,13 +915,17 @@ export const HELP_TOPICS: HelpTopic[] = [
     title: "The availability portal",
     summary:
       "Parents submit the dates their kid can't make; you merge them onto the roster.",
-    keywords: "availability parent portal absence submit vacation dates merge",
+    keywords:
+      "availability parent portal absence submit vacation dates merge game practice days calendar",
     sections: [
       {
         body: "Share the availability link and parents mark the dates their kid is out — no account needed. Submissions that clearly match a roster player merge onto that player's absences; ambiguous ones wait in a match queue for you to resolve.",
       },
       {
         body: "Once merged, the lineup generator benches the player for those dates automatically.",
+      },
+      {
+        body: "Turn on “Show game and practice days on the form” in the Availability tab and the form's calendar marks the days you play or practice, so families know which dates matter. It shares dates only — no times, places or opponents — with anyone who has the link. Off until you turn it on.",
       },
     ],
     related: ["absences-departed", "share-links-qr"],
