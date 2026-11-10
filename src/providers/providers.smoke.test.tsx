@@ -12,9 +12,12 @@ import { MemoryRouter } from "react-router-dom";
 
 vi.mock("../firebase", () => ({ auth: {}, db: {}, appId: "test-app" }));
 
+// What the auth listener reports. null = signed out (the default).
+const authState = vi.hoisted(() => ({ user: null as unknown }));
+
 vi.mock("firebase/auth", () => ({
   onAuthStateChanged: (_auth: unknown, cb: (u: unknown) => void) => {
-    cb(null); // resolve to "signed out"
+    cb(authState.user);
     return () => {};
   },
   getRedirectResult: () => Promise.resolve(null),
@@ -85,5 +88,45 @@ describe("provider tree (real providers)", () => {
       </MemoryRouter>,
     );
     expect(screen.getByText("providers:ok")).toBeInTheDocument();
+  });
+});
+
+describe("who counts as a signed-in coach", () => {
+  const AuthProbe = () => {
+    const { user, authReady } = useTeam() as any;
+    return (
+      <div>
+        auth:{authReady ? "ready" : "pending"}:{user ? user.uid : "signed-out"}
+      </div>
+    );
+  };
+  const renderAuth = () =>
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ConfirmProvider>
+            <TeamProvider>
+              <AuthProbe />
+            </TeamProvider>
+          </ConfirmProvider>
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+  afterEach(() => {
+    authState.user = null;
+  });
+
+  it("treats a parent's anonymous form session as signed out", async () => {
+    authState.user = { uid: "parent-uid", isAnonymous: true };
+    renderAuth();
+    expect(
+      await screen.findByText("auth:ready:signed-out"),
+    ).toBeInTheDocument();
+  });
+
+  it("signs a coach account in", async () => {
+    authState.user = { uid: "coach-uid", isAnonymous: false };
+    renderAuth();
+    expect(await screen.findByText("auth:ready:coach-uid")).toBeInTheDocument();
   });
 });

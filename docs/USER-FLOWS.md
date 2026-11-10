@@ -49,8 +49,10 @@ Both routes call `joinTeamByCode(rawCode)` in `src/hooks/useInviteFlows.js`:
 joinTeamByCode(code)
   ├─ validate /^[A-HJ-NP-Z2-9]{6}$/
   ├─ check teams the user already belongs to (fast path: switch instead of join)
-  ├─ Firestore query: teams where joinCode == code
-  │   └─ append uid to members + coachRoles[uid]="assistant" (head stays head)
+  ├─ get teamInvites/{code} → { teamId, teamName } (a lookup, never a query)
+  │   └─ append uid to members + coachRoles[uid]="assistant" (head stays head),
+  │      with lastJoin { uid, code } — the rules check the code is the team's
+  │      current joinCode, and refuse anonymous (parent-form) sessions
   ├─ update users/{uid}/settings/teams to include the new team + make it active
   └─ switchTeam(teamId)
 ```

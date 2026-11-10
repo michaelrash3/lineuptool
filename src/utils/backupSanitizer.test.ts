@@ -13,6 +13,7 @@ describe("sanitizeBackup", () => {
         members: ["a", "b"],
         coachRoles: { a: "head" },
         joinCode: "OLD123",
+        lastJoin: { uid: "b", code: "OLD123" },
       },
       TODAY,
     );
@@ -22,6 +23,7 @@ describe("sanitizeBackup", () => {
     expect("members" in data).toBe(false);
     expect("coachRoles" in data).toBe(false);
     expect("joinCode" in data).toBe(false);
+    expect("lastJoin" in data).toBe(false);
   });
 
   it("strips the retired legacy arrays — a restore must never write a ratcheted key", () => {

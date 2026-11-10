@@ -576,7 +576,12 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       }
       const unsub = onAuthStateChanged(auth, async (u) => {
         if (cancelled) return;
-        if (u) {
+        // An ANONYMOUS session is a parent who used a public form (the portals
+        // sign in anonymously, and that sign-in persists in the browser). It is
+        // never a coach: treat it as signed out so the coach app shows the
+        // login screen — not the create/join-team page. The portals run
+        // outside this provider and keep their own anonymous auth.
+        if (u && !u.isAnonymous) {
           setUser(u);
           setAuthReady(true);
         } else {

@@ -273,6 +273,14 @@ const dbFor = (uid?: string) =>
     ? testEnv.authenticatedContext(uid).firestore()
     : testEnv.unauthenticatedContext().firestore();
 
+// A REAL anonymous session — what a parent's browser holds after using a
+// public form (the portals call signInAnonymously). dbFor(uid) above models
+// a coach account; the token's sign_in_provider is what tells them apart.
+const anonFor = (uid: string) =>
+  testEnv
+    .authenticatedContext(uid, { firebase: { sign_in_provider: "anonymous" } })
+    .firestore();
+
 describe("private team doc reads", () => {
   it("denies a non-member reading the full team doc", async () => {
     await assertFails(getDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1"))));
@@ -1838,12 +1846,51 @@ describe("coachRoles escalation", () => {
 });
 
 describe("sanitized invite lookup + self-join", () => {
-  it("lets any signed-in user read the sanitized invite (only safe fields)", async () => {
+  // The join write the client sends: add yourself, as an assistant, and show
+  // the code you were given. The rules check that code against the team's.
+  const joinWrite = (uid: string, code: string) => ({
+    members: arrayUnion(uid),
+    [`coachRoles.${uid}`]: "assistant",
+    lastJoin: { uid, code },
+  });
+
+  it("lets a coach account look up an invite by its code", async () => {
     await assertSucceeds(getDoc(doc(dbFor(JOINER), ...invitePath("ABC234"))));
+  });
+
+  it("denies listing invite codes — a code is only resolvable if you have it", async () => {
+    await assertFails(
+      getDocs(
+        collection(
+          dbFor(JOINER),
+          "artifacts",
+          APP_ID,
+          "public",
+          "data",
+          "teamInvites",
+        ),
+      ),
+    );
+  });
+
+  it("denies an anonymous (parent form) session even looking up an invite", async () => {
+    await assertFails(
+      getDoc(doc(anonFor("parent-uid"), ...invitePath("ABC234"))),
+    );
   });
 
   it("lets a code-holder add ONLY themselves as an assistant", async () => {
     await assertSucceeds(
+      updateDoc(
+        doc(dbFor(JOINER), ...teamPath("team-1")),
+        joinWrite(JOINER, "ABC234"),
+      ),
+    );
+  });
+
+  it("denies a self-join that doesn't present the join code", async () => {
+    // Knowing the team id is not enough — it was the whole check before.
+    await assertFails(
       updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
         members: arrayUnion(JOINER),
         [`coachRoles.${JOINER}`]: "assistant",
@@ -1851,10 +1898,52 @@ describe("sanitized invite lookup + self-join", () => {
     );
   });
 
-  it("denies a self-join that grants a bogus role", async () => {
+  it("denies a self-join with the wrong code", async () => {
+    await assertFails(
+      updateDoc(
+        doc(dbFor(JOINER), ...teamPath("team-1")),
+        joinWrite(JOINER, "ZZZ999"),
+      ),
+    );
+  });
+
+  it("denies a self-join with a rotated-out code", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
+        joinCode: "NEW999",
+      });
+    });
+    await assertFails(
+      updateDoc(
+        doc(dbFor(JOINER), ...teamPath("team-1")),
+        joinWrite(JOINER, "ABC234"),
+      ),
+    );
+  });
+
+  it("denies a self-join whose proof names someone else", async () => {
     await assertFails(
       updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
         members: arrayUnion(JOINER),
+        [`coachRoles.${JOINER}`]: "assistant",
+        lastJoin: { uid: "someone-else", code: "ABC234" },
+      }),
+    );
+  });
+
+  it("denies an anonymous (parent form) session joining, even with the code", async () => {
+    await assertFails(
+      updateDoc(
+        doc(anonFor("parent-uid"), ...teamPath("team-1")),
+        joinWrite("parent-uid", "ABC234"),
+      ),
+    );
+  });
+
+  it("denies a self-join that grants a bogus role", async () => {
+    await assertFails(
+      updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
+        ...joinWrite(JOINER, "ABC234"),
         [`coachRoles.${JOINER}`]: "superadmin",
       }),
     );
@@ -1863,7 +1952,7 @@ describe("sanitized invite lookup + self-join", () => {
   it("denies a self-join that grants 'head' (promotion is a head's act)", async () => {
     await assertFails(
       updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
-        members: arrayUnion(JOINER),
+        ...joinWrite(JOINER, "ABC234"),
         [`coachRoles.${JOINER}`]: "head",
       }),
     );
@@ -1872,8 +1961,8 @@ describe("sanitized invite lookup + self-join", () => {
   it("denies a self-join smuggling a second uid into members", async () => {
     await assertFails(
       updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
+        ...joinWrite(JOINER, "ABC234"),
         members: arrayUnion(JOINER, "someone-else"),
-        [`coachRoles.${JOINER}`]: "assistant",
       }),
     );
   });
@@ -1881,9 +1970,17 @@ describe("sanitized invite lookup + self-join", () => {
   it("denies a self-join that also touches another user's role", async () => {
     await assertFails(
       updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
-        members: arrayUnion(JOINER),
-        [`coachRoles.${JOINER}`]: "assistant",
+        ...joinWrite(JOINER, "ABC234"),
         [`coachRoles.${ASSISTANT}`]: "head",
+      }),
+    );
+  });
+
+  it("denies a self-join that also changes another field", async () => {
+    await assertFails(
+      updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
+        ...joinWrite(JOINER, "ABC234"),
+        name: "Mine now",
       }),
     );
   });
@@ -1893,12 +1990,53 @@ describe("sanitized invite lookup + self-join", () => {
       updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
         members: arrayUnion("someone-else"),
         ["coachRoles.someone-else"]: "assistant",
+        lastJoin: { uid: "someone-else", code: "ABC234" },
       }),
     );
   });
 
-  it("lets a team member create/rotate an invite doc for their team", async () => {
+  it("lets a member create the invite for their team's current code", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
+        joinCode: "NEW999",
+      });
+    });
     await assertSucceeds(
+      setDoc(doc(dbFor(OWNER), ...invitePath("NEW999")), {
+        teamId: "team-1",
+        teamName: "Hawks",
+        updatedAt: 2,
+      }),
+    );
+  });
+
+  it("lets a member rotate the code: new code on the team, then its invite", async () => {
+    const db = dbFor(OWNER);
+    await assertSucceeds(
+      updateDoc(doc(db, ...teamPath("team-1")), { joinCode: "NEW999" }),
+    );
+    await assertSucceeds(
+      setDoc(doc(db, ...invitePath("NEW999")), {
+        teamId: "team-1",
+        teamName: "Hawks",
+        updatedAt: 2,
+      }),
+    );
+    await assertSucceeds(deleteDoc(doc(db, ...invitePath("ABC234"))));
+  });
+
+  it("lets a member refresh their team's existing invite (the backfill write)", async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(ASSISTANT), ...invitePath("ABC234")), {
+        teamId: "team-1",
+        teamName: "Hawks (renamed)",
+        updatedAt: 3,
+      }),
+    );
+  });
+
+  it("denies creating an invite for a code that isn't the team's", async () => {
+    await assertFails(
       setDoc(doc(dbFor(OWNER), ...invitePath("NEW999")), {
         teamId: "team-1",
         teamName: "Hawks",
@@ -1914,6 +2052,57 @@ describe("sanitized invite lookup + self-join", () => {
         teamName: "Hawks",
         updatedAt: 2,
       }),
+    );
+  });
+
+  it("denies repointing another team's invite at your own team", async () => {
+    // The outsider owns a team and even copies the victim's code onto it —
+    // they still can't take over the victim's invite.
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), ...teamPath("team-evil")), {
+        name: "Hawks",
+        ownerId: OUTSIDER,
+        members: [OUTSIDER],
+        joinCode: "ABC234",
+      });
+    });
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...invitePath("ABC234")), {
+        teamId: "team-evil",
+        teamName: "Hawks",
+        updatedAt: 9,
+      }),
+    );
+    await assertFails(deleteDoc(doc(dbFor(OUTSIDER), ...invitePath("ABC234"))));
+  });
+});
+
+describe("parent form sessions stay out of the coach app", () => {
+  it("denies an anonymous session creating a team", async () => {
+    await assertFails(
+      setDoc(doc(anonFor("parent-uid"), ...teamPath("team-parent")), {
+        ...NEW_TEAM_DOC,
+        name: "Not a team",
+        ownerId: "parent-uid",
+        members: ["parent-uid"],
+      }),
+    );
+  });
+
+  it("still lets an anonymous session read the public mirror and submit a form", async () => {
+    const parent = anonFor("parent-uid");
+    await assertSucceeds(getDoc(doc(parent, ...mirrorPath("team-1"))));
+    await assertSucceeds(
+      setDoc(
+        doc(parent, ...tryoutSignupPath("team-1", AUTO_ID)),
+        portalTryoutSignup,
+      ),
+    );
+  });
+
+  it("never lets an anonymous session read the team doc", async () => {
+    await assertFails(
+      getDoc(doc(anonFor("parent-uid"), ...teamPath("team-1"))),
     );
   });
 });
