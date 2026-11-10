@@ -623,6 +623,7 @@ export const useTeamLifecycle = ({
           // import modal starts blank, prompting the coach for the new link.
           gcCalendarUrl: "",
           tryoutSessions: [],
+          tryoutGradeEntries: {},
           // `tryoutSignups` is deliberately NOT here. Signups live in the
           // tryoutSignups SUBCOLLECTION (Phase 1) and the legacy array is being
           // retired by a deleteField drop; writing `tryoutSignups: []` would

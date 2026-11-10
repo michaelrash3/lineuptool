@@ -14,6 +14,10 @@ export const WHOLE_MAP_FIELDS: Record<string, number> = {
   depthChart: 1,
   seasonAwards: 1,
   evalCategoryOverrides: 2,
+  // Tryout grades are written leaf-by-leaf with field paths (never through
+  // the team save); the only team-save writers are the season roll ({} —
+  // clear them) and a backup restore (the whole map).
+  tryoutGradeEntries: 1,
 };
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>

@@ -255,6 +255,77 @@ export const formatTryoutSignupLabel = ({
 const tryoutSessionIdForDate = (date: string) =>
   `tryout-${String(date || "undated").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 
+// Tryout grades are saved PER COACH, PER KID as their own leaf in the team
+// doc's `tryoutGradeEntries` map — keyed `${sessionId}__${evaluatorId}` —
+// instead of rewriting the whole tryoutSessions array. A whole-array save
+// from a coach whose copy was a few seconds stale (or offline for an hour)
+// erased everyone else's grades; leaf writes from different coaches (or the
+// same coach on two kids) merge on the server. TeamProvider folds the entries
+// back into tryoutSessions on every snapshot, so every reader still sees the
+// familiar shape. Pure and idempotent (an entry already in a session merges
+// onto it; later updatedAt wins the evaluator metadata).
+export const tryoutGradeEntryKey = (sessionId: string, evaluatorId: string) =>
+  `${sessionId}__${evaluatorId}`;
+
+export const foldTryoutGradeEntries = (
+  sessions: any[] | null | undefined,
+  entries: Record<string, any> | null | undefined,
+): any[] => {
+  const out: any[] = Array.isArray(sessions)
+    ? sessions.map((s: any) => ({
+        ...s,
+        signupIds: Array.isArray(s?.signupIds) ? [...s.signupIds] : [],
+        gradesByEvaluator: { ...(s?.gradesByEvaluator || {}) },
+      }))
+    : [];
+  if (!entries || typeof entries !== "object") return out;
+  const byId = new Map(out.map((s: any) => [s.id, s]));
+  for (const entry of Object.values(entries)) {
+    if (!entry || typeof entry !== "object") continue;
+    const sessionId = entry.sessionId;
+    const evaluatorId = entry.evaluatorId;
+    if (!sessionId || !evaluatorId) continue;
+    const grades =
+      entry.grades && typeof entry.grades === "object" ? entry.grades : {};
+    let session = byId.get(sessionId);
+    if (!session) {
+      const date = entry.date || "undated";
+      session = {
+        id: sessionId,
+        date,
+        label: `Tryout · ${date}`,
+        createdAt: entry.updatedAt || Date.now(),
+        signupIds: [],
+        gradesByEvaluator: {},
+      };
+      byId.set(sessionId, session);
+      out.push(session);
+    }
+    const prev = session.gradesByEvaluator[evaluatorId] || {
+      coachRole: entry.coachRole || "Assistant",
+      evaluatorId,
+      grades: {},
+    };
+    const newer = (entry.updatedAt || 0) >= (prev.updatedAt || 0);
+    session.gradesByEvaluator[evaluatorId] = {
+      ...prev,
+      ...(newer
+        ? {
+            coachRole: entry.coachRole || prev.coachRole || "Assistant",
+            evaluatorName: entry.evaluatorName ?? prev.evaluatorName,
+            updatedAt: entry.updatedAt ?? prev.updatedAt,
+          }
+        : {}),
+      evaluatorId,
+      grades: { ...(prev.grades || {}), ...grades },
+    };
+    for (const sid of Object.keys(grades))
+      if (!session.signupIds.includes(sid)) session.signupIds.push(sid);
+    session.updatedAt = Math.max(session.updatedAt || 0, entry.updatedAt || 0);
+  }
+  return out;
+};
+
 export const normalizeTryoutSessions = (team: any): any[] => {
   const sessions = Array.isArray(team?.tryoutSessions)
     ? team.tryoutSessions.map((s: any) => ({

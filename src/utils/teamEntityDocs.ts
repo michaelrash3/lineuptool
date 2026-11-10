@@ -8,11 +8,15 @@
 // all of which express their edit as "here is the next array". Rather than
 // convert every caller, the provider keeps computing the next array against
 // the assembled union and this module turns (previous union, next array) into
-// the minimal set of per-doc writes: full-entry set()s for added/changed
-// entries, delete()s for removed ones. Full-entry set (never updateDoc merge)
-// is load-bearing — several writers clear fields by OMISSION (a mapEntries
-// that drops `health`, advanceSeason resetting stats), which a merge write
-// would silently resurrect.
+// the minimal set of per-doc writes: delete()s for removed entries, a
+// full-entry set() for an added one, and — in updateTeamArrays, for an entry
+// that already has its doc — an update() of only the top-level fields that
+// changed (entityFieldPatch), so one coach's edit never reverts another
+// coach's concurrent edit to a different field. Never a merge: several
+// writers clear fields by OMISSION (a mapEntries that drops `health`,
+// advanceSeason resetting stats), and a field patch sends those as explicit
+// deletes where a merge would silently resurrect them. persistTeam (bulk
+// replaces: restore, season roll) still writes full entries.
 //
 // The diff is value-based, not reference-based: wholesale undo restores
 // (map: () => prevGames) rebuild every entry object, and a reference diff
@@ -72,6 +76,34 @@ export const diffEntityArrays = (
   }
   const deletes = [...prevById.keys()].filter((id) => !nextIds.has(id));
   return { sets, deletes };
+};
+
+// The TOP-LEVEL fields that differ between an entry's previous and next value:
+// changed or added keys carry their new value, removed keys a delete sentinel.
+// Used to UPDATE an existing per-entry doc instead of replacing it whole — a
+// full-entry set() from a coach whose copy was seconds stale (or offline)
+// silently reverted whatever another coach had just changed in a DIFFERENT
+// field of the same game or player (the live score vs. a lineup swap; a stats
+// import vs. a profile edit). Omission still clears a field (it becomes an
+// explicit delete), so "clear by omission" writers keep working. Returns null
+// when nothing changed.
+export const entityFieldPatch = (
+  prev: Record<string, unknown> | null | undefined,
+  next: Record<string, unknown>,
+  deleteField: () => unknown,
+): Record<string, unknown> | null => {
+  const before = prev || {};
+  const patch: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(next)) {
+    if (k === "id" || v === undefined) continue;
+    if (stableStringify(before[k]) !== stableStringify(v)) patch[k] = v;
+  }
+  for (const k of Object.keys(before)) {
+    if (k === "id") continue;
+    if (before[k] !== undefined && (!(k in next) || next[k] === undefined))
+      patch[k] = deleteField();
+  }
+  return Object.keys(patch).length > 0 ? patch : null;
 };
 
 // Assemble a union from streamed subcollection docs + the legacy team-doc

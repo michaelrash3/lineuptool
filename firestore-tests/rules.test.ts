@@ -14,6 +14,7 @@ import {
   deleteDoc,
   deleteField,
   doc,
+  FieldPath,
   getDoc,
   getDocs,
   query,
@@ -2248,6 +2249,44 @@ describe("public mirror", () => {
         doc(dbFor(OWNER), ...mirrorPath("team-1")),
         { name: "Hawks 2" },
         { merge: true },
+      ),
+    );
+  });
+});
+
+// Tryout grades are saved as per-coach leaves of tryoutGradeEntries (a
+// whole-array rewrite of tryoutSessions erased other coaches' grades). The
+// leaf write must be a plain member write.
+describe("per-coach tryout grade leaves", () => {
+  const leaf = (uid: string, signupId: string) =>
+    new FieldPath(
+      "tryoutGradeEntries",
+      `tryout-2026-06-18__${uid}`,
+      "grades",
+      signupId,
+    );
+  it("lets an assistant save their own grade leaf", async () => {
+    await assertSucceeds(
+      updateDoc(
+        doc(dbFor(ASSISTANT), ...teamPath("team-1")),
+        leaf(ASSISTANT, "s1"),
+        { arm: 4 },
+      ),
+    );
+  });
+  it("denies an outsider (and a parent's anonymous session)", async () => {
+    await assertFails(
+      updateDoc(
+        doc(dbFor(OUTSIDER), ...teamPath("team-1")),
+        leaf(OUTSIDER, "s1"),
+        { arm: 4 },
+      ),
+    );
+    await assertFails(
+      updateDoc(
+        doc(anonFor("parent-uid"), ...teamPath("team-1")),
+        leaf("parent-uid", "s1"),
+        { arm: 4 },
       ),
     );
   });

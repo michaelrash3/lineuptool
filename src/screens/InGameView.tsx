@@ -16,6 +16,7 @@ import { shareLineupCard } from "../lineup/lineupCard";
 import { applySwap, getPlayerAt, fillVacatedSpot } from "../lineup/inGameSwap";
 import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog } from "../components/shared";
+import { SyncStatusPill } from "../components/Chrome";
 import { featureEnabled } from "../constants/features";
 import { useNavigate } from "react-router-dom";
 import { laterPlannedGamesForPlayer } from "../utils/tournamentPitching";
@@ -76,6 +77,7 @@ export const InGameView = memo(() => {
     removePlayerMidGame: removePlayerMidGameAction,
     setPlayerHealth,
     currentRole,
+    syncStatus,
   } = useTeam();
   // Whether the Development module is on — gates the "also mark Out"
   // persistence hook on injury removals.
@@ -886,6 +888,13 @@ export const InGameView = memo(() => {
         {!canEdit && (
           <div className="px-4 py-2 bg-warn-bg border-t border-line text-center text-[11px] font-black uppercase tracking-widest text-warnfg">
             View only — head coach controls lineup changes
+          </div>
+        )}
+        {/* In-game covers the app header, so its save status shows here —
+            exactly where signal is worst. */}
+        {syncStatus && (
+          <div className="px-4 py-1.5 border-t border-line flex justify-center">
+            <SyncStatusPill syncStatus={syncStatus} />
           </div>
         )}
         {showScoreEditor && canEdit && (

@@ -1,7 +1,8 @@
+import { vi } from "vitest";
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { NavDrawer } from "./Chrome";
+import { NavDrawer, SyncStatusPill } from "./Chrome";
 import { Icons } from "../icons";
 
 const NAV = [
@@ -125,5 +126,29 @@ describe("NavDrawer", () => {
     expect(
       screen.getByRole("button", { name: /sign out/i }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("SyncStatusPill", () => {
+  it("says plainly when saving hasn't gone through (no signal)", () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(<SyncStatusPill syncStatus="Saving" />);
+      expect(screen.getByRole("status").textContent).toMatch(/saving/i);
+      act(() => {
+        vi.advanceTimersByTime(4500);
+      });
+      expect(screen.getByRole("status").textContent).toMatch(/not synced yet/i);
+      rerender(<SyncStatusPill syncStatus="Synced" />);
+      expect(screen.getByRole("status").textContent).toMatch(/synced/i);
+      expect(screen.getByRole("status").textContent).not.toMatch(/not synced/i);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("renders nothing when idle", () => {
+    const { container } = render(<SyncStatusPill syncStatus="" />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

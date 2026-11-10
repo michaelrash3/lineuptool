@@ -33,6 +33,53 @@ const ThemeToggle = () => {
   );
 };
 
+// Save status for the header and In-Game mode. "Saving" that hasn't
+// finished after a few seconds means the device can't reach the server (no
+// signal at the field): say so plainly — the changes are kept on the phone
+// and go out on their own once there's signal.
+const NOT_SYNCED_AFTER_MS = 4000;
+export const SyncStatusPill = ({
+  syncStatus,
+  className = "",
+}: {
+  syncStatus: string;
+  className?: string;
+}) => {
+  const saving = syncStatus === "Saving" || syncStatus === "Creating";
+  const [stuck, setStuck] = React.useState(false);
+  React.useEffect(() => {
+    setStuck(false);
+    if (!saving) return undefined;
+    const t = setTimeout(() => setStuck(true), NOT_SYNCED_AFTER_MS);
+    return () => clearTimeout(t);
+  }, [saving]);
+  if (!syncStatus) return null;
+  return (
+    <div
+      role="status"
+      className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${
+        stuck ? "text-warnfg" : "text-ink-3"
+      } ${className}`}
+    >
+      {saving ? (
+        stuck ? (
+          <Icons.Alert className="w-3 h-3" />
+        ) : (
+          <Icons.Refresh
+            className="w-3 h-3 animate-spin"
+            style={{ color: "var(--info-fg)" }}
+          />
+        )
+      ) : (
+        <Icons.Cloud className="w-3 h-3 text-win" />
+      )}
+      {saving && stuck
+        ? "Not synced yet — saved on this device, sends when there's signal"
+        : syncStatus}
+    </div>
+  );
+};
+
 export const LoginScreen = ({
   logoUrl,
   primaryColor,
@@ -435,19 +482,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
               </div>
             )}
           </div>
-          {syncStatus && (
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-ink-3">
-              {syncStatus === "Saving" || syncStatus === "Creating" ? (
-                <Icons.Refresh
-                  className="w-3 h-3 animate-spin"
-                  style={{ color: "var(--info-fg)" }}
-                />
-              ) : (
-                <Icons.Cloud className="w-3 h-3 text-win" />
-              )}
-              {syncStatus}
-            </div>
-          )}
+          <SyncStatusPill syncStatus={syncStatus} />
         </div>
       </div>
     </header>
