@@ -3,6 +3,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // A coach's account — signed in with Google or an email link. An
+    // ANONYMOUS session is a parent who used a public form (the portals sign
+    // in anonymously, and that sign-in persists in their browser): it may read
+    // the sanitized public mirror and submit the forms, and nothing else — it
+    // can never create a team, join one, or resolve an invite code.
+    function isCoachAccount() {
+      return request.auth != null
+        && request.auth.token.get('firebase', {}).get('sign_in_provider', '') != 'anonymous';
+    }
+
     match /artifacts/{appId}/users/{uid}/settings/{docId} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
@@ -202,7 +212,7 @@ service cloud.firestore {
       // disappear from the fleet. createTeam writes NEW_TEAM_DOC
       // (src/constants/ui.ts), which seeds none of them; backup restore
       // merges onto an existing doc and strips them too (backupSanitizer).
-      allow create: if isSignedIn()
+      allow create: if isCoachAccount()
                     && request.resource.data.ownerId == request.auth.uid
                     && !('evaluationEvents' in request.resource.data)
                     && !('tryoutSignups' in request.resource.data)
@@ -221,16 +231,23 @@ service cloud.firestore {
       // teamName; the constrained self-join update rule still lets the invited
       // user add themselves to this team doc without reading it.
 
-      // Join-code self-join path. Caller may only modify members + coachRoles,
-      // can never shrink the members list, and must add themselves as a
-      // member by the end of the write. The base-update rule's ownerId
-      // protection still applies on top of this — a code-holder cannot
-      // rewrite the ownership shape.
-      allow update: if isSignedIn()
+      // Join-code self-join path. The caller must PROVE the code: the write
+      // carries lastJoin {uid, code} and the code must equal this team's
+      // current joinCode. (Before, the rule only checked that the team HAD a
+      // code — anyone who learned a team id could add themselves.) Coach
+      // accounts only: a parent's anonymous form session can never join. The
+      // caller may only modify members + coachRoles (+ the proof), can never
+      // shrink the members list, and must add themselves as a member by the
+      // end of the write. The base-update rule's ownerId protection still
+      // applies on top of this — a code-holder cannot rewrite the ownership
+      // shape.
+      allow update: if isCoachAccount()
                     && resource.data.joinCode != null
+                    && request.resource.data.lastJoin.uid == request.auth.uid
+                    && request.resource.data.lastJoin.code == resource.data.joinCode
                     && request.resource.data.diff(resource.data)
                          .affectedKeys()
-                         .hasOnly(['members', 'coachRoles'])
+                         .hasOnly(['members', 'coachRoles', 'lastJoin'])
                     && membersAppendOnly()
                     // The caller may add exactly themselves — never smuggle
                     // extra uids into members in the same write.
@@ -599,11 +616,15 @@ service cloud.firestore {
     // Sanitized invite lookup, keyed by join code. Replaces the old "read the
     // whole team doc if it has a join code" rule: a code-holder resolves the
     // code to a teamId + teamName here (nothing private), then performs the
-    // constrained self-join update against the real team doc. Maintained by the
-    // coach client (see regenerateJoinCode / invite backfill in App.tsx).
+    // constrained self-join update against the real team doc (which re-checks
+    // the code). Maintained by the coach client (see regenerateJoinCode /
+    // invite backfill in TeamProvider).
     match /artifacts/{appId}/public/data/teamInvites/{code} {
       function teamData(teamId) {
         return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;
+      }
+      function teamDataAfter(teamId) {
+        return getAfter(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;
       }
       function isMemberOfTeam(teamId) {
         return request.auth != null
@@ -612,17 +633,25 @@ service cloud.firestore {
                   && request.auth.uid in teamData(teamId).members));
       }
 
-      // Any signed-in user may read an invite to resolve a join code. The doc
-      // is sanitized — only teamId, teamName, and updatedAt.
-      allow read: if request.auth != null;
-      // Only a member of the referenced team may create/update the invite, and
-      // the teamId it points at must be one the caller actually belongs to (so
-      // a code can't be squatted to redirect joiners at someone else's team).
-      allow create, update: if request.auth != null
+      // A coach account may look up ONE invite by its code — `get`, never
+      // `list`: listing would hand out every team's code. The doc is
+      // sanitized — only teamId, teamName, and updatedAt.
+      allow get: if isCoachAccount();
+      // Only a member of the team may create its invite, and only for the
+      // team's REAL current code — so a code can't be planted for another
+      // team, and a team can't squat a code it doesn't hold. (getAfter: the
+      // code may be set in the same batch.)
+      allow create: if isCoachAccount()
         && request.resource.data.teamId is string
-        && isMemberOfTeam(request.resource.data.teamId);
+        && isMemberOfTeam(request.resource.data.teamId)
+        && teamDataAfter(request.resource.data.teamId).joinCode == code;
+      // Refresh (the backfill write / a team rename) — by a member of the team
+      // the invite ALREADY points at, and never repointed elsewhere.
+      allow update: if isCoachAccount()
+        && request.resource.data.teamId == resource.data.teamId
+        && isMemberOfTeam(resource.data.teamId);
       // Code rotation deletes the stale invite; limited to a team member.
-      allow delete: if request.auth != null && isMemberOfTeam(resource.data.teamId);
+      allow delete: if isCoachAccount() && isMemberOfTeam(resource.data.teamId);
     }
   }
 }

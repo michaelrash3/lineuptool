@@ -63,8 +63,8 @@ export const useInviteFlows = ({
   // for backward compatibility and because the self-join rule gates on it.
   const regenerateJoinCode = useCallback(() => {
     const teamData = teamDataRef.current || {};
-    // Crockford-ish alphabet (no I/O/0/1) over a CSPRNG. 6 chars × 31 symbols ≈
-    // 887M combinations, so a stale-but-valid code isn't trivially brute-forced.
+    // Crockford-ish alphabet (no I/O/0/1) over a CSPRNG. 6 chars × 32 symbols ≈
+    // 1.07B combinations, so a stale-but-valid code isn't trivially brute-forced.
     const code = randomCode(6, "ABCDEFGHJKLMNPQRSTUVWXYZ23456789");
     const prevCode = String(teamData.joinCode || "")
       .trim()
@@ -152,11 +152,14 @@ export const useInviteFlows = ({
 
         // Atomic self-join: arrayUnion adds the caller without read-modify-write
         // of the whole members array (no lost concurrent joins), and the dotted
-        // path sets only this user's coachRoles entry. Both are exactly what the
-        // self-join security rule permits — the joiner never reads the team doc.
+        // path sets only this user's coachRoles entry. `lastJoin` is the proof
+        // the rules check: the code must be the team's CURRENT join code (a
+        // team id alone no longer lets anyone in). Exactly what the self-join
+        // security rule permits — the joiner never reads the team doc.
         await updateDoc(teamRef(teamId), {
           members: arrayUnion(user.uid),
           [`coachRoles.${user.uid}`]: "assistant",
+          lastJoin: { uid: user.uid, code },
         });
 
         // Persist membership in user settings so re-login/reload keeps the

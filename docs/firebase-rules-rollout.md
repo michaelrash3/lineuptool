@@ -130,18 +130,30 @@ Expected: read/write allowed on team doc, but only app-allowed actions should be
 
 ### 3) Join by team code
 
-Expected: signed-in caller resolves the code via the sanitized
-`teamInvites/{code}` lookup (only `teamId`/`teamName`/`updatedAt`), then adds
-self to `members` + own `coachRoles` entry only. A non-member can NOT read the
-full team doc just because a code exists (that rule was removed).
+Expected: a signed-in COACH account (Google / email link — never an anonymous
+parent-form session) resolves the code via the sanitized `teamInvites/{code}`
+lookup (only `teamId`/`teamName`/`updatedAt`; `get` only — invites can't be
+listed), then adds self to `members` + own `coachRoles` entry, carrying
+`lastJoin: { uid, code }`. The rules require that code to equal the team's
+CURRENT `joinCode` — knowing a team id is not enough. A non-member can NOT read
+the full team doc just because a code exists (that rule was removed).
 
 - Use a valid 6-char code.
-- Confirm the invite lookup exposes only sanitized fields.
+- Confirm the invite lookup exposes only sanitized fields, and that listing
+  `teamInvites` is denied.
 - Confirm join succeeds (self only, role `assistant` only — the self-join path
   can no longer grant `head`; promotion to head is done by an existing head via
   Settings).
+- Confirm a join without the code, with a wrong or rotated-out code, or from an
+  anonymous session is denied.
 - Confirm a non-member cannot read the full team doc, add a different user
   (alone or alongside themselves), set a bogus role, or edit arbitrary fields.
+- Confirm an invite can only be created for the team's real current code and
+  can't be repointed at another team (only that team's members may refresh or
+  delete it).
+- Rollout note: rules and client ship together. A PWA still running a cached
+  pre-change bundle sends the join without `lastJoin` and is denied with the
+  "make sure the code is current" message until it reloads.
 
 ### 4) Public Tryouts Portal
 

@@ -644,7 +644,9 @@ const MainShell = () => {
         isSigningIn={isSigningIn}
         onSignIn={async () => {
           if (isSigningIn) return;
-          if (auth.currentUser) {
+          // Already signed in as a coach. (An anonymous session left by a
+          // public parent form doesn't count — signing in replaces it.)
+          if (auth.currentUser && !auth.currentUser.isAnonymous) {
             clearRedirectPending();
             return;
           }

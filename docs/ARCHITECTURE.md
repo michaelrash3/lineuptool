@@ -222,9 +222,10 @@ Screen action     ←useTeam()── action callback ─────→ persistT
 `firestore.rules` (~370 lines) encodes four overlapping permission lanes on the team doc:
 
 1. **Owner/member**: full read/write (`allow read, write: if isMember(resource.data)`)
-2. **Bootstrap**: `allow create` when `ownerId` matches the caller — used by `createTeam` and the `bootstrapDefaultTeam` fallback
-3. **Join by code**: `allow update` when only `members` + `coachRoles` change and the team has a `joinCode` — used by `joinTeamByCode` in `src/hooks/useInviteFlows.ts`
-4. **Public tryouts**: `allow update` when only `tryoutSignups` changes and `tryoutsOpen == true` (and a sibling lane for `interestSignups`) — used by `TryoutsPortal.tsx` (anonymous-auth). There is deliberately **no** public _read_ of the team doc; the portal reads branding/config from the `teamPublic` mirror instead. The mirror has its own match block: `allow read` for any signed-in caller, `allow write` only for a member of the underlying team (verified via a `get()` on the real team doc).
+2. **Bootstrap**: `allow create` when `ownerId` matches the caller and the caller is a coach account (not an anonymous parent-form session) — used by `createTeam` and the `bootstrapDefaultTeam` fallback
+3. **Join by code**: `allow update` when only `members` + `coachRoles` (+ the `lastJoin` proof) change, and `lastJoin.code` equals the team's current `joinCode` — used by `joinTeamByCode` in `src/hooks/useInviteFlows.ts`. Coach accounts only. Codes resolve through `teamInvites/{code}`, which can be fetched one at a time but never listed
+
+Anonymous sessions belong to parents: the portals sign in anonymously and that session persists in the browser. The coach app treats one as signed out (`TeamProvider`'s auth listener), and the rules' `isCoachAccount()` keeps it out of team creation, joining, and invite lookups — it can read the `teamPublic` mirror and submit the forms, nothing else. 4. **Public tryouts**: `allow update` when only `tryoutSignups` changes and `tryoutsOpen == true` (and a sibling lane for `interestSignups`) — used by `TryoutsPortal.tsx` (anonymous-auth). There is deliberately **no** public _read_ of the team doc; the portal reads branding/config from the `teamPublic` mirror instead. The mirror has its own match block: `allow read` for any signed-in caller, `allow write` only for a member of the underlying team (verified via a `get()` on the real team doc).
 
 User settings docs are uid-scoped: `allow read, write: if request.auth.uid == uid`.
 

@@ -11,7 +11,13 @@ import { isValidIsoDate } from "./dates";
 // ownerId/members/coachRoles set could lock the current coaches out or trip
 // the rules-layer ownership guards mid-write. joinCode rides along because a
 // stale code would desync from the /teamInvites lookup doc.
-const ACL_KEYS = ["ownerId", "members", "coachRoles", "joinCode"] as const;
+const ACL_KEYS = [
+  "ownerId",
+  "members",
+  "coachRoles",
+  "joinCode",
+  "lastJoin",
+] as const;
 
 // Legacy array keys retired by the subcollection migration
 // (docs/firestore-data-migration.md). Backups predate that or carry the

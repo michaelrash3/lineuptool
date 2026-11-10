@@ -140,6 +140,8 @@ describe("joinTeamByCode", () => {
     expect(ref.path).toBe("artifacts/lineup-app/public/data/teams/team-9");
     expect(patch.members).toEqual({ __arrayUnion: "u1" });
     expect(patch["coachRoles.u1"]).toBe("assistant");
+    // The proof the rules check: who is joining, with which (normalized) code.
+    expect(patch.lastJoin).toEqual({ uid: "u1", code: "ABCD28" });
     // User-settings write persists the joined team.
     expect(mockSetDoc).toHaveBeenCalledTimes(1);
     expect(switchTeam).toHaveBeenCalledWith("team-9");
