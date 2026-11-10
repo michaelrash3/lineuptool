@@ -310,10 +310,17 @@ doc is already hijack-proof.
 
 **Phase 2 (to do, once every team has its link doc):**
 
-1. Backfill every team: `node scripts/backfill-portal-links.mjs` (dry run),
-   then `--write` (needs `firebase-admin` and a service account — see the
-   script header; emulator-tested by `scripts/test-backfill-portal-links.mjs`).
-   Review any `CONFLICT` / `SKIPPED duplicate` lines by hand.
+1. Backfill every team. Easiest: GitHub → **Actions** → **Backfill
+   parent-form links** → **Run workflow**, first with mode `dry-run` (reads
+   only, lists what it would create), then with `write`. The results are on
+   the run's summary page. It uses the `FIREBASE_SERVICE_ACCOUNT_JSON` secret,
+   whose service account also needs the **Cloud Datastore User** role (or
+   **Firebase Admin**) for this; without it the run fails with
+   `PERMISSION_DENIED` and changes nothing. (Or run the script locally:
+   `node scripts/backfill-portal-links.mjs`, then `--write`, with
+   `firebase-admin` and a service-account key; see the script header. It is
+   emulator-tested by `scripts/test-backfill-portal-links.mjs`.) Review any
+   `CONFLICT` / `SKIPPED duplicate` lines by hand.
 2. Remove the fallback query from `resolvePortalTeam` (`src/utils/portalLinks.ts`).
 3. Change `teamPublic`'s `allow read` to `allow get` in `firestore.rules`, so
    nobody can list every team's mirror (team ids, branding, the public coach
