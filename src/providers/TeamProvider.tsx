@@ -2306,6 +2306,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // ----- Player CRUD ----- (extracted to src/hooks/usePlayerCrud.ts)
   const {
     addPlayer,
+    addPlayers,
     addSubPlayer,
     addSubToTournament,
     updatePlayer,
@@ -3489,6 +3490,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       updateFinances,
       updateTeamArrays,
       addPlayer,
+      addPlayers,
       addSubPlayer,
       addSubToTournament,
       updatePlayer,
@@ -3583,6 +3585,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       updateFinances,
       updateTeamArrays,
       addPlayer,
+      addPlayers,
       addSubPlayer,
       addSubToTournament,
       updatePlayer,

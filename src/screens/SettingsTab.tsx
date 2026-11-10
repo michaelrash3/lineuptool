@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { TEAM_AGE_OPTIONS } from "../constants/ui";
 import { normalizeVenmoLink } from "../utils/venmo";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { Icons } from "../icons";
@@ -606,9 +607,9 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
       </h3>
       <p className="text-[11px] text-ink-3 font-medium mb-3">
         Share this 6-character code with anyone you want to invite as an
-        assistant coach. They tap <strong>Join Team</strong> in the header and
-        enter it. Head coaches can promote them later via Coach Roles below.
-        Regenerate any time to rotate the code.
+        assistant coach. They pick <strong>Join a team with a code</strong> from
+        the team menu at the top and enter it. Head coaches can promote them
+        later via Coach Roles below. Regenerate any time to rotate the code.
       </p>
       {code ? (
         <div className="space-y-3">
@@ -659,8 +660,8 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
               filename={`${team.name || "team"}-join-code-${code}`}
             />
             <p className="text-[10px] font-medium text-ink-3 leading-snug flex-1 min-w-0">
-              Have an assistant coach scan this with their phone — they'll land
-              in-app on Join Team with the code pre-filled.
+              Have an assistant coach scan this with their phone — once they
+              sign in, they're added to the team automatically.
             </p>
           </div>
         </div>
@@ -1100,14 +1101,11 @@ export const SettingsTab = memo(() => {
                           }
                           className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
                         >
-                          <option value="6U">6U</option>
-                          <option value="7U">7U</option>
-                          <option value="8U">8U</option>
-                          <option value="9U">9U</option>
-                          <option value="10U">10U</option>
-                          <option value="11U to 12U">11U to 12U</option>
-                          <option value="13U to 14U">13U to 14U</option>
-                          <option value="15U to 18U">15U to 18U</option>
+                          {TEAM_AGE_OPTIONS.map((age) => (
+                            <option key={age} value={age}>
+                              {age}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div>

@@ -183,7 +183,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     sections: [
       {
         heading: "Joining",
-        body: "If your head coach already set the team up, ask for the 6-character join code and enter it on the welcome screen (or via Join Team in the header). You'll come in as an assistant coach.",
+        body: "If your head coach already set the team up, ask for the 6-character join code and enter it on the welcome screen (or pick “Join a team with a code” from the team menu at the top). You'll come in as an assistant coach.",
       },
       {
         heading: "Creating",
@@ -1148,6 +1148,7 @@ export const TAB_TO_HELP_CATEGORY: Record<string, HelpCategoryId> = {
   evaluation: "evaluations",
   tryouts: "tryouts-recruiting",
   interest: "tryouts-recruiting",
+  families: "parent-portals",
   playerInfo: "parent-portals",
   availability: "parent-portals",
   finances: "finances",

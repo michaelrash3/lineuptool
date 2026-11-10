@@ -246,6 +246,18 @@ export const EVAL_GROUPS_KID_PITCH_ADDONS: EvalGroup[] = [
 export const isKidPitchFormat = (pitchingFormat?: string): boolean =>
   (pitchingFormat || "").toLowerCase().includes("kid");
 
+// Age groups a team can be (Settings › Team and the new-team form).
+export const TEAM_AGE_OPTIONS = [
+  "6U",
+  "7U",
+  "8U",
+  "9U",
+  "10U",
+  "11U to 12U",
+  "13U to 14U",
+  "15U to 18U",
+] as const;
+
 // The pitching formats a team of this league + age may legally play. Single
 // source of truth for every format select and self-heal write. Order matters:
 // [0] is the fallback when a stored value becomes disallowed.

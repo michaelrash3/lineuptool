@@ -78,10 +78,7 @@ import {
   m,
   FadeSlideIn,
 } from "./components/motion";
-import {
-  OnboardingTutorial,
-  onboardingHasBeenCompleted,
-} from "./components/OnboardingTutorial";
+import { OnboardingTutorial } from "./components/OnboardingTutorial";
 import {
   useLocation,
   useNavigate,
@@ -160,6 +157,9 @@ const PlayerProfilePage = lazy(() =>
   import("./components/PlayerProfilePage").then((m) => ({
     default: m.PlayerProfilePage,
   })),
+);
+const FamiliesPage = lazy(() =>
+  import("./screens/FamiliesPage").then((m) => ({ default: m.FamiliesPage })),
 );
 const HomeTab = lazy(() =>
   import("./screens/HomeTab").then((m) => ({ default: m.HomeTab })),
@@ -513,19 +513,9 @@ const MainShell = () => {
     if (user) setIsSigningIn(false);
   }, [user]);
 
-  // Only auto-open the onboarding tour once the user actually has a team to
-  // see — otherwise the tutorial scrim would open on top of the /welcome
-  // page (which is inescapable until a team exists) on first sign-in.
-  useEffect(() => {
-    if (
-      authReady &&
-      user &&
-      teams.length > 0 &&
-      !onboardingHasBeenCompleted()
-    ) {
-      setTutorialOpen(true);
-    }
-  }, [authReady, user, teams.length]);
+  // The orientation tour no longer opens by itself on first sign-in (15
+  // steps, and any tap closed it for good). A new head coach gets the Getting
+  // started checklist on Home instead; the tour replays from Help anytime.
 
   // Global keyboard shortcuts. Disabled while typing in form fields. Active
   // anywhere in the app:
@@ -797,20 +787,21 @@ const MainShell = () => {
     icon: Icons.Users,
     label: "Tryouts",
   };
-  // Head-only "Interest" tab. Keep it visible for heads even before the
-  // first lead so coaches can always open the inbox and confirm whether a
-  // dated submission landed in Interest or Tryouts.
-  const interestButton = !isAssistant
-    ? { id: "interest", icon: Icons.Clipboard, label: "Interest" }
-    : null;
-  // Head-only "Player Info" inbox for parent-submitted sizing/logistics.
-  const playerInfoButton = !isAssistant
-    ? { id: "playerInfo", icon: Icons.Users, label: "Player Info" }
-    : null;
-  // Head-only "Availability" calendar for parent-submitted absences.
-  const availabilityButton = !isAssistant
-    ? { id: "availability", icon: Icons.Calendar, label: "Availability" }
-    : null;
+  // Head-only "Families": ONE entry for the parent-form inboxes (Interest,
+  // Player Info, Availability) instead of three. It stays lit on each inbox
+  // page (`matches`), and shows while any of the three modules is on.
+  const familiesButton =
+    !isAssistant &&
+    ["interest", "playerInfo", "availability"].some((id) =>
+      featureEnabled(team, id),
+    )
+      ? {
+          id: "families",
+          icon: Icons.Users,
+          label: "Families",
+          matches: ["interest", "playerInfo", "availability"],
+        }
+      : null;
   const navButtons = (
     isAssistant
       ? [
@@ -831,9 +822,7 @@ const MainShell = () => {
           { id: "stats", icon: Icons.Chart, label: "Stats" },
           { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
           tryoutsButton,
-          ...(interestButton ? [interestButton] : []),
-          ...(playerInfoButton ? [playerInfoButton] : []),
-          ...(availabilityButton ? [availabilityButton] : []),
+          ...(familiesButton ? [familiesButton] : []),
           { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
           // Money is the head coach's business alone — assistants never see
           // the Finances tab (mirrors the Settings route gate below).
@@ -1104,6 +1093,12 @@ const MainShell = () => {
                     ) : (
                       <TryoutAddPage />
                     )
+                  }
+                />
+                <Route
+                  path="/families"
+                  element={
+                    isAssistant ? <Navigate to="/" replace /> : <FamiliesPage />
                   }
                 />
                 <Route

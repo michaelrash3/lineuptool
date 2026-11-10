@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { GettingStartedCard } from "./home/GettingStartedCard";
 import { attIsPresent, attIsAbsent } from "../utils/attendance";
 import type { Player, Game, Practice } from "../types";
 import { Icons } from "../icons";
@@ -2003,6 +2004,21 @@ export const HomeTab = memo(() => {
 
   return (
     <div className="space-y-8">
+      <GettingStartedCard
+        // Keyed by team: the dismissed flag is per team, so switching teams
+        // must re-read it rather than carry the last team's choice over.
+        key={activeTeamId || "no-team"}
+        team={team}
+        teamId={activeTeamId}
+        isHead={isHead}
+        onAddPlayers={() => openAddPlayer()}
+        onAddGame={() => {
+          setActiveTab("schedule");
+          setIsAddingGame(true);
+        }}
+        onOpenSchedule={() => setActiveTab("schedule")}
+        onInviteCoaches={() => navigate("/settings/staff")}
+      />
       <UpNextPanel
         isHead={isHead}
         promptStatus={promptStatus}

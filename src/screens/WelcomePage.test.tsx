@@ -44,9 +44,43 @@ describe("WelcomePage", () => {
     fireEvent.change(screen.getByLabelText("Team name"), {
       target: { value: "Hawks" },
     });
+    // Age group is asked up front now (it drives pitch rules and defense).
+    fireEvent.click(screen.getByRole("button", { name: /Create Team/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /Pick your age group/,
+    );
+    fireEvent.change(screen.getByLabelText(/Age group/i), {
+      target: { value: "10U" },
+    });
+    // 10U only plays Kid Pitch, so there's nothing to choose.
+    expect(screen.getByText(/Kid Pitch — the only option/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Create Team/i }));
     await waitFor(() =>
-      expect(onCreate).toHaveBeenCalledWith("Hawks", "USSSA"),
+      expect(onCreate).toHaveBeenCalledWith("Hawks", "USSSA", {
+        teamAge: "10U",
+        pitchingFormat: "Kid Pitch",
+      }),
+    );
+  });
+
+  it("asks who pitches when the age and level allow more than one", async () => {
+    const onCreate = vi.fn().mockResolvedValue(true);
+    render(<WelcomePage onCreate={onCreate} />);
+    fireEvent.click(screen.getByRole("button", { name: /Tournament/ }));
+    fireEvent.change(screen.getByLabelText(/Age group/i), {
+      target: { value: "8U" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Create Team/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /Pick who pitches/,
+    );
+    fireEvent.click(screen.getByRole("radio", { name: "Coach Pitch" }));
+    fireEvent.click(screen.getByRole("button", { name: /Create Team/i }));
+    await waitFor(() =>
+      expect(onCreate).toHaveBeenCalledWith("My Team", "USSSA", {
+        teamAge: "8U",
+        pitchingFormat: "Coach Pitch",
+      }),
     );
   });
 

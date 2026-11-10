@@ -1237,6 +1237,7 @@ export interface TeamContextValue {
   createTeam: (
     name?: string,
     leagueRuleSet?: "NKB" | "USSSA",
+    setup?: { teamAge?: string; pitchingFormat?: string },
   ) => void | Promise<any>;
   [key: string]: any;
 }

@@ -32,6 +32,26 @@ interface UsePlayerCrudArgs {
   teamId?: string | null;
 }
 
+// The record a brand-new roster player starts as (addPlayer / addPlayers).
+const newPlayerRecord = (form: any) => ({
+  id: form.id || genId("p"),
+  name: String(form.name || "").trim(),
+  number: form.number || "",
+  bats: form.bats || "R",
+  throws: form.throws || "R",
+  present: true,
+  restrictions: [],
+  // Catcher is just "C" in this list — a new player isn't a catcher until the
+  // coach adds C to their comfortable positions.
+  comfortablePositions: Array.isArray(form.comfortablePositions)
+    ? form.comfortablePositions
+    : [],
+  stats: blankStats(),
+  pitching: { recentPitches: 0, lastPitchDate: null },
+  // Scheduled-absence dates (ISO yyyy-mm-dd), managed on the profile.
+  absences: [],
+});
+
 export const usePlayerCrud = ({
   teamDataRef,
   updateTeamArrays,
@@ -43,27 +63,23 @@ export const usePlayerCrud = ({
 }: UsePlayerCrudArgs) => {
   const addPlayer = useCallback(
     (form: any) => {
-      const id = form.id || genId("p");
-      const newPlayer = {
-        id,
-        name: form.name.trim(),
-        number: form.number || "",
-        bats: form.bats || "R",
-        throws: form.throws || "R",
-        present: true,
-        restrictions: [],
-        // Catcher is just "C" in this list — a new player isn't a catcher
-        // until the coach adds C to their comfortable positions.
-        comfortablePositions: Array.isArray(form.comfortablePositions)
-          ? form.comfortablePositions
-          : [],
-        stats: blankStats(),
-        pitching: { recentPitches: 0, lastPitchDate: null },
-        // Scheduled-absence dates (ISO yyyy-mm-dd), managed on the profile.
-        absences: [],
-      };
+      const newPlayer = newPlayerRecord(form);
       updateTeamArrays({ op: "append", key: "players", entries: [newPlayer] });
-      return id;
+      return newPlayer.id;
+    },
+    [updateTeamArrays],
+  );
+
+  // Several players in ONE write (a pasted roster). Same new-player shape as
+  // addPlayer.
+  const addPlayers = useCallback(
+    (forms: Array<{ name: string; number?: string }>) => {
+      const entries = (forms || [])
+        .filter((f) => f && String(f.name || "").trim())
+        .map(newPlayerRecord);
+      if (entries.length === 0) return 0;
+      updateTeamArrays({ op: "append", key: "players", entries });
+      return entries.length;
     },
     [updateTeamArrays],
   );
@@ -435,6 +451,7 @@ export const usePlayerCrud = ({
 
   return {
     addPlayer,
+    addPlayers,
     addSubPlayer,
     addSubToTournament,
     updatePlayer,
