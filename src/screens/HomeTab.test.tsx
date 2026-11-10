@@ -345,4 +345,42 @@ describe("HomeTab", () => {
     fireEvent.click(screen.getByRole("button", { name: /Playing time/i }));
     expect(await screen.findByText("PLAYING TIME PAGE")).toBeInTheDocument();
   });
+
+  it("offers to resume a game already under way at the inning it's on", () => {
+    const today = {
+      id: "g-today",
+      date: "2026-06-18",
+      time: "18:00",
+      opponent: "Rivals",
+      status: "scheduled",
+      lineup: [{ P: { id: "p1", name: "Ada" } }],
+      battingLineup: [],
+    };
+    const renderWith = (game: Record<string, unknown>) =>
+      renderWithProviders(
+        <MemoryRouter>
+          <HomeTab />
+        </MemoryRouter>,
+        {
+          team: {
+            team: { ...emptyTeam, games: [game] },
+            teams: [{ id: "t1", name: "Hawks" }],
+            activeTeamId: "t1",
+            record: { wins: 0, losses: 0, ties: 0 },
+            user: { uid: "u1" },
+            currentRole: "head",
+          },
+          ui: { setIsAddingGame: jest.fn(), openAddPlayer: jest.fn() },
+        },
+      );
+    const { unmount } = renderWith(today);
+    expect(
+      screen.getByRole("button", { name: /start game/i }),
+    ).toBeInTheDocument();
+    unmount();
+    renderWith({ ...today, liveInning: 3 });
+    expect(
+      screen.getByRole("button", { name: /resume · inning 4/i }),
+    ).toBeInTheDocument();
+  });
 });

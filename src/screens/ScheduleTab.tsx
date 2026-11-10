@@ -249,9 +249,7 @@ export const ScheduleTab = memo(() => {
     setOpponentName,
     openPlayerProfile,
     setInGameId,
-    setInGameInning,
     setInGameSelection,
-    setInGameUndoStack,
   } = useUI();
 
   const {
@@ -2161,10 +2159,8 @@ export const ScheduleTab = memo(() => {
                         {canStartInGame && (
                           <button
                             onClick={() => {
-                              setInGameId(game.id);
-                              setInGameInning(0);
                               setInGameSelection(null);
-                              setInGameUndoStack([]);
+                              setInGameId(game.id);
                             }}
                             className="flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md whitespace-nowrap"
                           >
@@ -2450,10 +2446,8 @@ export const ScheduleTab = memo(() => {
                         {pgCanStartInGame && (
                           <button
                             onClick={() => {
-                              setInGameId(pg.id);
-                              setInGameInning(0);
                               setInGameSelection(null);
-                              setInGameUndoStack([]);
+                              setInGameId(pg.id);
                             }}
                             className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-md bg-green-600 hover:bg-green-700 text-white transition-transform hover:-translate-y-0.5 whitespace-nowrap"
                           >

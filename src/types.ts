@@ -273,6 +273,10 @@ export interface Game {
   // other changes don't undo it). See InGameView + the engine's
   // stickyOverridesById.
   manualLocks?: Record<string, string>;
+  // The inning In-Game mode is on (0-based), saved as the head coach steps
+  // through the game so reopening resumes there and an assistant's view
+  // follows along. Absent = not started.
+  liveInning?: number;
   attendance?: Record<PlayerId, boolean>;
   gameType?: GameType;
   // Marks an exhibition/scrimmage: stays on the schedule and is playable, but

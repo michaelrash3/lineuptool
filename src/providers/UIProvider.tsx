@@ -128,6 +128,22 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Sync attendance/firstInning/lineup with the selected game
   const gamesRef = useRef(team.team.games);
+  // Opening In-Game mode. A DIFFERENT game starts where it was left (its saved
+  // liveInning) with a fresh undo history; re-opening the SAME game — after
+  // closing it to check the schedule, say — comes back exactly as it was, undo
+  // included. Covers every way in: Home, Schedule, and a reload of
+  // /in-game/:gameId.
+  const lastInGameIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!inGameId || inGameId === lastInGameIdRef.current) return;
+    lastInGameIdRef.current = inGameId;
+    const g = (gamesRef.current || []).find((x: Game) => x.id === inGameId);
+    const total = Array.isArray(g?.lineup) ? g!.lineup!.length : 0;
+    const live = typeof g?.liveInning === "number" ? g.liveInning : 0;
+    setInGameInning(Math.min(Math.max(0, live), Math.max(0, total - 1)));
+    setInGameSelection(null);
+    setInGameUndoStack([]);
+  }, [inGameId]);
   useEffect(() => {
     gamesRef.current = team.team.games;
   }, [team.team.games]);

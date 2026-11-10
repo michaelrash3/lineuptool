@@ -101,9 +101,7 @@ const UpcomingGameCard = memo(
       setCurrentGameAttendance,
       setScoringGameId,
       setInGameId,
-      setInGameInning,
       setInGameSelection,
-      setInGameUndoStack,
       setIsAddingGame,
     } = useUI();
 
@@ -299,12 +297,16 @@ const UpcomingGameCard = memo(
     };
     // Drop straight into live In-Game mode from the dashboard — the one-tap
     // gameday action once a lineup exists.
+    // Re-opening resumes where the coach left off (UIProvider restores the
+    // saved inning for a game it hasn't been opened on yet).
     const startGame = () => {
-      setInGameId(game.id);
-      setInGameInning(0);
       setInGameSelection(null);
-      setInGameUndoStack([]);
+      setInGameId(game.id);
     };
+    const resumeInning =
+      typeof game.liveInning === "number" && game.liveInning > 0
+        ? game.liveInning + 1
+        : null;
     // On gameday the dashboard flips into "Start Game" mode: the live in-game
     // launch becomes the headline CTA and lineup/score edits drop to secondary
     // outline chips. Until a lineup exists you can't start, so "Plan Lineup"
@@ -474,7 +476,10 @@ const UpcomingGameCard = memo(
                     onClick={startGame}
                     className="flex-1 sm:flex-none text-sm px-7 py-3.5 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-lg bg-green-600 text-white hover:bg-green-700"
                   >
-                    <Icons.Forward className="w-4 h-4" /> Start Game
+                    <Icons.Forward className="w-4 h-4" />{" "}
+                    {resumeInning
+                      ? `Resume · Inning ${resumeInning}`
+                      : "Start Game"}
                   </button>
                 ) : (
                   // No lineup yet — you can't start, so making one is the

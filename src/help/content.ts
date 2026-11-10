@@ -581,6 +581,14 @@ export const HELP_TOPICS: HelpTopic[] = [
         body: "Whatever you set for the inning you're on is exactly what that inning becomes — nothing is refused and nothing else in it moves. If a move breaks a rule (a kid who isn't set as a catcher, or catching after pitching the same day), it still goes in and you get a heads-up. Every inning after it is then re-planned around what has actually happened: kids who already sat sit less, a catcher partway through a block finishes it, and the arm on the mound keeps the ball.",
       },
       {
+        heading: "Counting pitches",
+        body: "In Kid Pitch games each pitcher in the Pitchers panel has −1 / +1 / +5 buttons and shows what's left of today's limit. The count saves to their arm-care log as this game's outing, so rest-day rules see it right away; if you later import the GameChanger box score, its numbers replace yours.",
+      },
+      {
+        heading: "Closing and resuming",
+        body: "Close whenever you need the rest of the app — the lineup is saved and the inning is remembered. Home then shows Resume · Inning N, and Undo still works when you come back. An assistant watching the game follows your inning.",
+      },
+      {
         heading: "Finishing up",
         body: "Save & Finalize records the score, archives the lineup as played, and unlocks the evaluation prompt on Home.",
       },

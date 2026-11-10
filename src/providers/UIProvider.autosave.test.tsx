@@ -331,3 +331,42 @@ describe("UIProvider — lineup autosave", () => {
     expect(uiApi.lineup[0]["1B"].id).toBe(roster[3].id);
   });
 });
+
+describe("UIProvider — opening In-Game mode", () => {
+  const threeInnings = {
+    id: "ta-g3",
+    opponent: "Owls",
+    date: "2026-05-15",
+    lineup: [
+      ...slimLineup(roster),
+      ...slimLineup(roster),
+      ...slimLineup(roster),
+    ],
+    battingLineup: slimBatting(roster),
+    liveInning: 2,
+  };
+  const withThird = () =>
+    emitCollection(`${teamPath("ta")}/games`, [
+      { id: "ta-g1", data: gameWith(slimLineup(roster), slimBatting(roster)) },
+      { id: threeInnings.id, data: threeInnings },
+    ]);
+
+  it("resumes a game at its saved inning, and re-opening keeps undo", async () => {
+    await mount();
+    await withThird();
+    act(() => uiApi.setInGameId("ta-g3"));
+    await waitFor(() => expect(uiApi.inGameInning).toBe(2));
+
+    // Some undo history, then close and re-open the SAME game.
+    act(() => uiApi.setInGameUndoStack([{ lineup: [], locks: {} }]));
+    act(() => uiApi.setInGameId(null));
+    act(() => uiApi.setInGameId("ta-g3"));
+    expect(uiApi.inGameUndoStack).toHaveLength(1);
+    expect(uiApi.inGameInning).toBe(2);
+
+    // A DIFFERENT game starts fresh.
+    act(() => uiApi.setInGameId("ta-g1"));
+    await waitFor(() => expect(uiApi.inGameUndoStack).toHaveLength(0));
+    expect(uiApi.inGameInning).toBe(0);
+  });
+});
