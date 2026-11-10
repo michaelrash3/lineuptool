@@ -1,0 +1,77 @@
+# One-off, run by hand: creates the missing parent-form link docs
+# (portalLinks/{tryoutShareId} -> { teamId }) for every team, using
+# scripts/backfill-portal-links.mjs. Phase 2 of section 10 in
+# docs/firebase-rules-rollout.md can't ship until every team has one.
+#
+# How to run: GitHub -> Actions -> "Backfill parent-form links" -> Run
+# workflow. Leave "mode" on dry-run first: it only READS and lists what it
+# would create. Then run it again with "write".
+#
+# Uses the same FIREBASE_SERVICE_ACCOUNT_JSON secret as the rules deploy.
+# That account also needs read/write access to Firestore data: the
+# "Cloud Datastore User" role (or "Firebase Admin"). Without it the run
+# fails with PERMISSION_DENIED and changes nothing.
+
+name: Backfill parent-form links
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run only reports; write creates the missing link docs"
+        type: choice
+        options: [dry-run, write]
+        default: dry-run
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      # firebase-admin is not a repo dependency, so install it next to a
+      # copy of the script (ESM resolves packages from the script's folder).
+      # Pinned, like the rules deploy's toolchain.
+      - name: Install firebase-admin
+        run: |
+          mkdir -p "$RUNNER_TEMP/backfill"
+          cp scripts/backfill-portal-links.mjs "$RUNNER_TEMP/backfill/"
+          cd "$RUNNER_TEMP/backfill"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund firebase-admin@14.5.0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+
+      - name: Backfill (${{ inputs.mode }})
+        env:
+          GOOGLE_CLOUD_PROJECT: lineupgenerator-79159
+          MODE: ${{ inputs.mode }}
+        run: |
+          flag=""
+          if [ "$MODE" = "write" ]; then flag="--write"; fi
+          # Keep going past a failure long enough to put the output in the
+          # run summary, then fail the step with the script's own status (a
+          # bare `| tee` would hide it and show a green run).
+          set +e
+          node "$RUNNER_TEMP/backfill/backfill-portal-links.mjs" $flag 2>&1 | tee out.txt
+          status=${PIPESTATUS[0]}
+          {
+            echo "### Parent-form link backfill ($MODE)"
+            echo '```'
+            cat out.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
