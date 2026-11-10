@@ -7,7 +7,11 @@ import { auth } from "../firebase";
 import { useConfirm, useTeam, useUI, useToast } from "../contexts";
 import { RecordBadge, Eyebrow } from "./shared";
 import { useTheme } from "../hooks/useTheme";
-import { APP_NAME } from "../constants/ui";
+import {
+  APP_NAME,
+  TEAM_AGE_OPTIONS,
+  allowedPitchingFormats,
+} from "../constants/ui";
 import { TAB_TO_PATH } from "../hooks/useMainShellRouting";
 
 // Light/dark toggle — sun in dark mode (tap to go light), moon in light mode.
@@ -30,6 +34,53 @@ const ThemeToggle = () => {
         <Icons.Moon className="w-4 h-4" />
       )}
     </button>
+  );
+};
+
+// Save status for the header and In-Game mode. "Saving" that hasn't
+// finished after a few seconds means the device can't reach the server (no
+// signal at the field): say so plainly — the changes are kept on the phone
+// and go out on their own once there's signal.
+const NOT_SYNCED_AFTER_MS = 4000;
+export const SyncStatusPill = ({
+  syncStatus,
+  className = "",
+}: {
+  syncStatus: string;
+  className?: string;
+}) => {
+  const saving = syncStatus === "Saving" || syncStatus === "Creating";
+  const [stuck, setStuck] = React.useState(false);
+  React.useEffect(() => {
+    setStuck(false);
+    if (!saving) return undefined;
+    const t = setTimeout(() => setStuck(true), NOT_SYNCED_AFTER_MS);
+    return () => clearTimeout(t);
+  }, [saving]);
+  if (!syncStatus) return null;
+  return (
+    <div
+      role="status"
+      className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${
+        stuck ? "text-warnfg" : "text-ink-3"
+      } ${className}`}
+    >
+      {saving ? (
+        stuck ? (
+          <Icons.Alert className="w-3 h-3" />
+        ) : (
+          <Icons.Refresh
+            className="w-3 h-3 animate-spin"
+            style={{ color: "var(--info-fg)" }}
+          />
+        )
+      ) : (
+        <Icons.Cloud className="w-3 h-3 text-win" />
+      )}
+      {saving && stuck
+        ? "Not synced yet — saved on this device, sends when there's signal"
+        : syncStatus}
+    </div>
   );
 };
 
@@ -156,6 +207,11 @@ export const OfflineBanner = memo(() => {
   );
 });
 
+// Sentinel values for the team picker's action entries. Team ids are
+// Firestore auto-ids, so these can never collide with a real team.
+const NEW_TEAM_OPTION = "__bench_new_team__";
+const JOIN_TEAM_OPTION = "__bench_join_team__";
+
 export const AppHeader = memo(({ navButtons = [] }: any) => {
   const {
     team,
@@ -184,6 +240,11 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
   const [newTeamType, setNewTeamType] = React.useState<"" | "NKB" | "USSSA">(
     "",
   );
+  // ...and an age group: it drives defense size, pitch rules and the lineup
+  // engine, so it isn't left to the silent 8U default either. Who pitches
+  // starts as the first format that league + age allows (Settings' own
+  // fallback) and is changeable in Settings.
+  const [newTeamAge, setNewTeamAge] = React.useState("");
   // Sign-out runs through the app-wide confirm dialog (useConfirm) — the
   // one overlay system destructive confirms are consolidated on.
   const [signingOut, setSigningOut] = React.useState(false);
@@ -241,8 +302,13 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
           boxShadow: `0 0 18px 1px ${team.primaryColor}`,
         }}
       />
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4 md:gap-5">
+      {/* One compact row. On a phone the old header (80px logo, stacked
+          team picker, then a second bar of New/Join buttons) ate a fifth of
+          the screen before any lineup showed; New Team and Join Team now live
+          in the team picker itself, and their form bar only appears while
+          one of them is open. */}
+      <div className="w-full px-3 sm:px-6 lg:px-8 py-2 md:py-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="flex items-center gap-2 sm:gap-3 md:gap-4 min-w-0">
           <NavDrawer
             navButtons={navButtons}
             activeTab={activeTab}
@@ -256,19 +322,19 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
             <img
               src={team.logoUrl}
               alt="Team Logo"
-              className="w-16 h-16 md:w-20 md:h-20 object-contain p-1"
+              className="w-10 h-10 md:w-14 md:h-14 shrink-0 object-contain"
             />
           ) : (
-            <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-surface border border-line shadow-sm">
+            <div className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl bg-surface border border-line shadow-sm">
               <Icons.Clipboard
-                className="w-6 h-6"
+                className="w-5 h-5"
                 style={{ color: team.primaryColor }}
               />
             </div>
           )}
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-black uppercase tracking-tight leading-none text-ink">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 md:gap-3 min-w-0">
+              <h1 className="text-lg md:text-2xl font-black uppercase tracking-tight leading-none text-ink truncate">
                 {activeTeamName}
               </h1>
               <RecordBadge
@@ -278,12 +344,12 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                 tertiaryColor={team.tertiaryColor}
               />
             </div>
-            <p className="text-xs uppercase tracking-widest font-extrabold mt-1 text-ink-3">
+            <p className="text-[10px] md:text-xs uppercase tracking-widest font-extrabold mt-1 text-ink-3 truncate">
               {subtitle}
             </p>
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
           {showViewAsChip && (
             <div className="flex items-center gap-2 bg-warn-bg border border-line rounded-xl px-3 py-2 shadow-sm">
               <span className="text-[10px] font-black uppercase tracking-widest text-warnfg whitespace-nowrap">
@@ -299,27 +365,45 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
             </div>
           )}
           <select
+            aria-label="Switch team"
             value={activeTeamId}
-            onChange={(e) => switchTeam(e.target.value)}
-            className="p-3 outline-none flex-1 sm:w-64 text-sm font-black uppercase tracking-wider cursor-pointer rounded-xl bg-surface hover:bg-surface-2 transition-colors border border-line shadow-sm"
+            onChange={(e) => {
+              const v = e.target.value;
+              // The two action entries open their form; the picker itself
+              // stays on the current team (it's controlled by activeTeamId).
+              if (v === NEW_TEAM_OPTION) {
+                setIsJoiningTeam(false);
+                setIsAddingTeam(true);
+              } else if (v === JOIN_TEAM_OPTION) {
+                setIsAddingTeam(false);
+                setIsJoiningTeam(true);
+              } else {
+                switchTeam(v);
+              }
+            }}
+            className="px-3 py-2 outline-none flex-1 min-w-0 sm:flex-none sm:w-56 text-sm font-black uppercase tracking-wider cursor-pointer rounded-xl bg-surface hover:bg-surface-2 transition-colors border border-line shadow-sm"
           >
             {teams.map((t: any) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>
             ))}
+            <option disabled>──────────</option>
+            <option value={NEW_TEAM_OPTION}>＋ New team…</option>
+            <option value={JOIN_TEAM_OPTION}>Join a team with a code…</option>
           </select>
-          {/* Theme, Settings and Sign Out now live in the hamburger nav
-              drawer (top-left), pinned at its foot alongside the navigation.
-              Sign Out stays reachable for everyone — including a head who got
-              demoted by the ownership-race bug — because the drawer trigger is
-              always present in the header. */}
+          <SyncStatusPill syncStatus={syncStatus} className="shrink-0" />
+          {/* Theme, Settings and Sign Out live in the hamburger nav drawer
+              (top-left), pinned at its foot alongside the navigation. Sign Out
+              stays reachable for everyone — including a head who got demoted
+              by the ownership-race bug — because the drawer trigger is always
+              present in the header. */}
         </div>
       </div>
 
-      <div className="bg-surface-2 text-ink print:hidden relative z-10 border-b border-line shadow-inner">
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 w-full sm:max-w-md">
+      {(isJoiningTeam || isAddingTeam) && (
+        <div className="bg-surface-2 text-ink print:hidden relative z-10 border-t border-line shadow-inner">
+          <div className="w-full px-3 sm:px-6 lg:px-8 py-2 flex items-center gap-2 sm:max-w-xl">
             {isJoiningTeam ? (
               <form
                 onSubmit={async (e) => {
@@ -344,6 +428,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                   onChange={(e) =>
                     setJoinCodeInput(e.target.value.toUpperCase())
                   }
+                  aria-label="Team code"
                   placeholder="TEAM CODE"
                   maxLength={8}
                   className="p-2 text-xs outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 uppercase tracking-widest font-mono bg-surface border border-line text-ink rounded-lg shadow-inner"
@@ -374,18 +459,25 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (!newTeamType) return;
-                  createTeam(newTeamName, newTeamType);
+                  if (!newTeamType || !newTeamAge) return;
+                  createTeam(newTeamName, newTeamType, {
+                    teamAge: newTeamAge,
+                    pitchingFormat: allowedPitchingFormats(
+                      newTeamType,
+                      newTeamAge,
+                    )[0],
+                  });
                 }}
-                className="flex items-center gap-2 w-full"
+                className="flex flex-wrap items-center gap-2 w-full"
               >
                 <input
                   autoFocus
                   type="text"
                   value={newTeamName}
                   onChange={(e) => setNewTeamName(e.target.value)}
+                  aria-label="New team name"
                   placeholder="NEW TEAM NAME"
-                  className="p-2 text-xs outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 uppercase bg-surface border border-line text-ink rounded-lg shadow-inner"
+                  className="p-2 text-xs outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 min-w-[9rem] uppercase bg-surface border border-line text-ink rounded-lg shadow-inner"
                 />
                 <select
                   value={newTeamType}
@@ -393,15 +485,30 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                     setNewTeamType(e.target.value as "" | "NKB" | "USSSA")
                   }
                   title="Team type"
+                  aria-label="Team type"
                   className="p-2 text-xs bg-surface border border-line text-ink rounded-lg shadow-inner outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
                 >
                   <option value="">Type…</option>
                   <option value="NKB">Rec</option>
                   <option value="USSSA">Tournament</option>
                 </select>
+                <select
+                  value={newTeamAge}
+                  onChange={(e) => setNewTeamAge(e.target.value)}
+                  title="Age group"
+                  aria-label="Age group"
+                  className="p-2 text-xs bg-surface border border-line text-ink rounded-lg shadow-inner outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                >
+                  <option value="">Age…</option>
+                  {TEAM_AGE_OPTIONS.map((age) => (
+                    <option key={age} value={age}>
+                      {age}
+                    </option>
+                  ))}
+                </select>
                 <button
                   type="submit"
-                  disabled={!newTeamType}
+                  disabled={!newTeamType || !newTeamAge}
                   className="inline-flex items-center justify-center min-h-[40px] min-w-[40px] text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-40"
                   style={{
                     backgroundColor: "var(--team-primary)",
@@ -418,38 +525,10 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                   <Icons.X className="w-4 h-4" />
                 </button>
               </form>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsAddingTeam(true)}
-                  className="text-xs bg-surface border border-line text-ink-2 hover:text-ink py-2 px-4 transition-colors flex items-center gap-2 justify-center font-extrabold uppercase tracking-wider rounded-lg shadow-sm"
-                >
-                  <Icons.Plus className="w-3.5 h-3.5" /> New Team
-                </button>
-                <button
-                  onClick={() => setIsJoiningTeam(true)}
-                  className="text-xs bg-surface border border-line text-ink-2 hover:text-ink py-2 px-4 transition-colors flex items-center gap-2 justify-center font-extrabold uppercase tracking-wider rounded-lg shadow-sm"
-                >
-                  <Icons.Users className="w-3.5 h-3.5" /> Join Team
-                </button>
-              </div>
-            )}
+            ) : null}
           </div>
-          {syncStatus && (
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-ink-3">
-              {syncStatus === "Saving" || syncStatus === "Creating" ? (
-                <Icons.Refresh
-                  className="w-3 h-3 animate-spin"
-                  style={{ color: "var(--info-fg)" }}
-                />
-              ) : (
-                <Icons.Cloud className="w-3 h-3 text-win" />
-              )}
-              {syncStatus}
-            </div>
-          )}
         </div>
-      </div>
+      )}
     </header>
   );
 });
@@ -626,7 +705,11 @@ export const NavDrawer = memo(
                         icon={btn.icon}
                         label={btn.label}
                         to={TAB_TO_PATH[btn.id] || "/"}
-                        isActive={activeTab === btn.id}
+                        isActive={
+                          activeTab === btn.id ||
+                          (Array.isArray(btn.matches) &&
+                            btn.matches.includes(activeTab))
+                        }
                         onClick={close}
                       />
                     ))}

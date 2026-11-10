@@ -1,16 +1,20 @@
 import { useCallback } from "react";
-import { writeBatch, type Firestore } from "firebase/firestore";
+import { deleteDoc, writeBatch, type Firestore } from "firebase/firestore";
 import type { DocumentData } from "firebase/firestore";
 import {
   blankStats,
-  normalizeTryoutSessions,
   isRosterPlayer,
   randomCode,
   genId,
   scrubUndefined,
   coachLastNameOf,
 } from "../utils/helpers";
-import { applyMissingTryoutNumbers } from "../utils/tryouts";
+import {
+  applyMissingTryoutNumbers,
+  tryoutGradeEntryKey,
+} from "../utils/tryouts";
+import { portalLinkRef } from "../utils/portalLinks";
+import { portalScheduleRef } from "../utils/portalSchedule";
 import {
   deleteSignupDoc,
   findLegacySignupEntries,
@@ -30,7 +34,6 @@ import type {
   Player,
   PlayerInfoSubmission,
   ToastContextValue,
-  TryoutSession,
   TryoutSignup,
 } from "../types";
 import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
@@ -84,6 +87,9 @@ interface UseTryoutFlowsArgs {
   >;
   updateTeam: (patch: Record<string, unknown>) => void;
   updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
+  // Field-path writer (TeamProvider.updateTeamFieldPaths): each [path, value]
+  // lands on its own leaf of the team doc. Tryout grades use it.
+  updateTeamFieldPaths?: (pairs: Array<[string[], unknown]>) => void;
   toast: ToastContextValue;
   user:
     | { uid: string; displayName?: string | null; email?: string | null }
@@ -147,6 +153,7 @@ export const useTryoutFlows = ({
   rawAvailabilitySubmissionsRef,
   updateTeam,
   updateTeamArrays,
+  updateTeamFieldPaths,
   toast,
   user,
   activeTeamId,
@@ -167,10 +174,19 @@ export const useTryoutFlows = ({
   }, [toast]);
 
   const generateTryoutShareId = useCallback(() => {
+    const prev = String(teamDataRef.current?.tryoutShareId || "").trim();
     const id = randomCode(12, SLUG_ALPHABET);
     updateTeam({ tryoutShareId: id, tryoutsOpen: true, tryoutsPhase: "open" });
+    // The new link's owned doc is created by TeamProvider's backfill; the old
+    // one is cleaned up here (best-effort — a stale doc is already inert, the
+    // forms check the mirror's current share id).
+    if (prev && prev !== id && db) {
+      deleteDoc(portalLinkRef(db, appId, prev)).catch(() => {});
+      // ...and so is the old link's availability-form schedule, if any.
+      deleteDoc(portalScheduleRef(db, appId, prev)).catch(() => {});
+    }
     return id;
-  }, [updateTeam]);
+  }, [updateTeam, teamDataRef, db, appId]);
 
   const generateTryoutDateLink = useCallback(
     (rawDate: any) => {
@@ -779,164 +795,86 @@ export const useTryoutFlows = ({
     return appliedSubIds.size;
   }, [db, appId, teamId, teamDataRef, updateTeamArrays, signupWriteFailed]);
 
-  // Tryout grades live in date-grouped tryoutSessions, separate from the
-  // roster evaluationEvents collection. Each date has one session; each
-  // evaluator owns a grades map keyed by signup id inside that session.
-  // The upsert runs inside a mapEntries map against the LATEST sessions —
-  // two evaluators grading simultaneously each rewrite only this one array,
-  // resolved from fresh state. normalizeTryoutSessions still folds in legacy
-  // grades stored on evaluationEvents; those come from the call-time team
-  // snapshot (legacy data is static, so a snapshot read is safe).
+  // Tryout grades: each coach's grade for each kid is its own leaf in the
+  // team doc's tryoutGradeEntries map (see foldTryoutGradeEntries). They used
+  // to be saved by rewriting the WHOLE tryoutSessions array from this
+  // device's copy — so with 3–5 coaches grading on weak signal, whoever saved
+  // last (or came back online last) erased everyone else's grades since. Leaf
+  // writes from different coaches, and from one coach on different kids,
+  // merge on the server. Legacy grades already in tryoutSessions still read
+  // (TeamProvider folds both).
+  const tryoutDateFor = (teamData: any, signupId: string, raw?: any) => {
+    const signup = (teamData.tryoutSignups || []).find(
+      (s: any) => s.id === signupId,
+    );
+    return String(
+      raw || signup?.tryoutDate || new Date().toISOString().slice(0, 10),
+    );
+  };
+  const gradeWrites = (
+    uid: string,
+    coachRole: any,
+    evaluatorName: string,
+    items: Array<{ date: string; signupId: string; grades: any }>,
+  ): Array<[string[], unknown]> => {
+    const now = Date.now();
+    const pairs: Array<[string[], unknown]> = [];
+    const stamped = new Set<string>();
+    for (const it of items) {
+      const sessionId = `tryout-${it.date.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+      const key = tryoutGradeEntryKey(sessionId, uid);
+      const base = ["tryoutGradeEntries", key];
+      if (!stamped.has(key)) {
+        stamped.add(key);
+        pairs.push(
+          [[...base, "sessionId"], sessionId],
+          [[...base, "date"], it.date],
+          [[...base, "evaluatorId"], uid],
+          [[...base, "coachRole"], coachRole || "Assistant"],
+          // Denormalized so the shared coach-evals panel can show WHO
+          // recorded each read without an auth roundtrip.
+          [[...base, "evaluatorName"], evaluatorName],
+          [[...base, "updatedAt"], now],
+        );
+      }
+      pairs.push([[...base, "grades", it.signupId], { ...it.grades }]);
+    }
+    return pairs;
+  };
+
   const saveTryoutEvaluation = useCallback(
     (signupId: any, grades: any, coachRole: any, rawDate?: any) => {
-      if (!user || !signupId) return;
-      const teamData = teamDataRef.current;
-      const uid = user.uid;
-      const signup = (teamData.tryoutSignups || []).find(
-        (s: any) => s.id === signupId,
+      if (!user || !signupId || !updateTeamFieldPaths) return;
+      const date = tryoutDateFor(teamDataRef.current, signupId, rawDate);
+      updateTeamFieldPaths(
+        gradeWrites(user.uid, coachRole, coachLastNameOf(user), [
+          { date, signupId, grades },
+        ]),
       );
-      const date = String(
-        rawDate || signup?.tryoutDate || new Date().toISOString().slice(0, 10),
-      );
-      const sessionId = `tryout-${date.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-      const legacyAux = {
-        evaluationEvents: teamData.evaluationEvents,
-        tryoutSignups: teamData.tryoutSignups,
-      };
-      const now = Date.now();
-      updateTeamArrays({
-        op: "mapEntries",
-        key: "tryoutSessions",
-        map: (items: TryoutSession[]) => {
-          const sessions = normalizeTryoutSessions({
-            ...legacyAux,
-            tryoutSessions: items,
-          });
-          const existing = sessions.find((s: any) => s.id === sessionId);
-          const session = existing || {
-            id: sessionId,
-            date,
-            label: `Tryout · ${date}`,
-            createdAt: now,
-            signupIds: [],
-            gradesByEvaluator: {},
-          };
-          const evaluator = session.gradesByEvaluator?.[uid] || {
-            coachRole: coachRole || "Assistant",
-            evaluatorId: uid,
-            grades: {},
-          };
-          const nextSession = {
-            ...session,
-            updatedAt: now,
-            signupIds: Array.from(
-              new Set([...(session.signupIds || []), signupId]),
-            ),
-            gradesByEvaluator: {
-              ...(session.gradesByEvaluator || {}),
-              [uid]: {
-                ...evaluator,
-                coachRole: coachRole || evaluator.coachRole || "Assistant",
-                evaluatorId: uid,
-                // Denormalized so the shared coach-evals panel can show WHO
-                // recorded each read without an auth roundtrip.
-                evaluatorName: coachLastNameOf(user),
-                updatedAt: now,
-                grades: {
-                  ...(evaluator.grades || {}),
-                  [signupId]: { ...grades },
-                },
-              },
-            },
-          };
-          return existing
-            ? sessions.map((s: any) => (s.id === sessionId ? nextSession : s))
-            : [...sessions, nextSession];
-        },
-      });
     },
-    [user, teamDataRef, updateTeamArrays],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user, teamDataRef, updateTeamFieldPaths],
   );
 
   const saveTryoutEvaluations = useCallback(
     (entries: any[], coachRole: any) => {
-      if (!user) return;
+      if (!user || !updateTeamFieldPaths) return;
       const teamData = teamDataRef.current;
-      const uid = user.uid;
-      const legacyAux = {
-        evaluationEvents: teamData.evaluationEvents,
-        tryoutSignups: teamData.tryoutSignups,
-      };
-      // Resolve each entry's session date from the snapshot signup list —
-      // input mapping, not state derivation.
-      const resolved = (entries || [])
+      const items = (entries || [])
         .filter((entry: any) => entry?.signupId)
-        .map((entry: any) => {
-          const signup = (teamData.tryoutSignups || []).find(
-            (s: any) => s.id === entry.signupId,
-          );
-          const date = String(
-            entry.date ||
-              signup?.tryoutDate ||
-              new Date().toISOString().slice(0, 10),
-          );
-          return { ...entry, date };
-        });
-      if (resolved.length === 0) return;
-      const now = Date.now();
-      updateTeamArrays({
-        op: "mapEntries",
-        key: "tryoutSessions",
-        map: (items: TryoutSession[]) => {
-          const sessions = normalizeTryoutSessions({
-            ...legacyAux,
-            tryoutSessions: items,
-          });
-          const byId = new Map(
-            sessions.map((session: any) => [session.id, session]),
-          );
-          for (const entry of resolved) {
-            const sessionId = `tryout-${entry.date.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-            const session: any = byId.get(sessionId) || {
-              id: sessionId,
-              date: entry.date,
-              label: `Tryout · ${entry.date}`,
-              createdAt: now,
-              signupIds: [],
-              gradesByEvaluator: {},
-            };
-            const evaluator = session.gradesByEvaluator?.[uid] || {
-              coachRole: coachRole || "Assistant",
-              evaluatorId: uid,
-              grades: {},
-            };
-            byId.set(sessionId, {
-              ...session,
-              updatedAt: now,
-              signupIds: Array.from(
-                new Set([...(session.signupIds || []), entry.signupId]),
-              ),
-              gradesByEvaluator: {
-                ...(session.gradesByEvaluator || {}),
-                [uid]: {
-                  ...evaluator,
-                  coachRole: coachRole || evaluator.coachRole || "Assistant",
-                  evaluatorId: uid,
-                  evaluatorName: coachLastNameOf(user),
-                  updatedAt: now,
-                  grades: {
-                    ...(evaluator.grades || {}),
-                    [entry.signupId]: { ...(entry.grades || {}) },
-                  },
-                },
-              },
-            });
-          }
-          return [...byId.values()];
-        },
-      });
+        .map((entry: any) => ({
+          signupId: entry.signupId,
+          grades: entry.grades,
+          date: tryoutDateFor(teamData, entry.signupId, entry.date),
+        }));
+      if (items.length === 0) return;
+      // ONE write for the whole batch.
+      updateTeamFieldPaths(
+        gradeWrites(user.uid, coachRole, coachLastNameOf(user), items),
+      );
     },
-    [user, teamDataRef, updateTeamArrays],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user, teamDataRef, updateTeamFieldPaths],
   );
 
   // Accept-offer flow. Tryout accepts are oriented to the NEXT season by

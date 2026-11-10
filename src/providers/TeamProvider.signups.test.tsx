@@ -1508,7 +1508,50 @@ describe("TeamProvider games translation (Phase 3a)", () => {
           items.map((g) => ({ ...g, teamScore: 9 })) as any[],
       });
     });
-    expect(lastBatch().set).toHaveBeenCalledTimes(1);
+    // An existing game's doc is UPDATED with just the changed field.
+    expect(lastBatch().update).toHaveBeenCalledTimes(1);
+    expect(lastBatch().update.mock.calls[0][1]).toEqual({ teamScore: 9 });
+  });
+
+  it("an edit to one field of a game never rewrites its other fields", async () => {
+    // Two coaches, one game: this device saves the score while its copy of
+    // the lineup is stale. Only teamScore may go out — a full-doc set would
+    // put the stale lineup back over the other coach's swap.
+    await mountProvider();
+    await emitDoc(teamPath("t1"), teamDoc({ games: [] }));
+    await emitCollection(subPath("t1", "games"), [
+      {
+        id: "g9",
+        data: {
+          id: "g9",
+          date: "2026-06-01",
+          opponent: "Jets",
+          // Stored lineups are already slim ({id, name, number}).
+          lineup: [{ P: { id: "p1", name: "Ada", number: "7" } }],
+          notes: "old note",
+        },
+      },
+    ]);
+    await act(async () => {
+      teamApi.updateTeamArrays({
+        op: "mapEntries",
+        key: "games",
+        map: (items: any[]) =>
+          items.map((g) => {
+            // Change the score and drop the note (cleared by omission).
+            const { notes: _n, ...rest } = g;
+            return { ...rest, teamScore: 4 };
+          }) as any[],
+      });
+    });
+    const batch = lastBatch();
+    expect(batch.set).not.toHaveBeenCalled();
+    const fields = batch.update.mock.calls[0][1];
+    expect(Object.keys(fields).sort()).toEqual(["notes", "teamScore"]);
+    expect(fields.teamScore).toBe(4);
+    // Omission still clears: an explicit delete, not a silent keep.
+    expect(fields.notes).toEqual({ __deleteField: true });
+    expect(fields).not.toHaveProperty("lineup");
   });
 
   it("still allows an APPEND before the lane lands — it can only add", async () => {
@@ -1835,7 +1878,8 @@ describe("TeamProvider players translation (Phase 3b)", () => {
         map: (items: any[]) => items.map((p) => ({ ...p, number: "99" })),
       });
     });
-    expect(lastBatch().set).toHaveBeenCalledTimes(1);
+    expect(lastBatch().update).toHaveBeenCalledTimes(1);
+    expect(lastBatch().update.mock.calls[0][1]).toEqual({ number: "99" });
   });
 
   it("still allows an APPEND before the lane lands — RosterRecoveryCard depends on it", async () => {

@@ -273,6 +273,10 @@ export interface Game {
   // other changes don't undo it). See InGameView + the engine's
   // stickyOverridesById.
   manualLocks?: Record<string, string>;
+  // The inning In-Game mode is on (0-based), saved as the head coach steps
+  // through the game so reopening resumes there and an assistant's view
+  // follows along. Absent = not started.
+  liveInning?: number;
   attendance?: Record<PlayerId, boolean>;
   gameType?: GameType;
   // Marks an exhibition/scrimmage: stays on the schedule and is playable, but
@@ -729,6 +733,11 @@ export interface Team {
   // Optional feature modules the head turned OFF in Settings (absent/empty =
   // everything on). See src/constants/features.ts for the toggleable catalog.
   disabledFeatures?: TeamFeatureId[];
+  // Publish the team's game / practice DAYS (dates only) to the parent
+  // availability form. Off unless the head turns it on; false = turned off
+  // after being on (so the published days get taken down). See
+  // src/utils/portalSchedule.ts.
+  availabilityShowsSchedule?: boolean;
   // Tryouts (PR M)
   tryoutShareId?: string;
   // Which season the public signup page recruits for — "current" shows the
@@ -1233,6 +1242,7 @@ export interface TeamContextValue {
   createTeam: (
     name?: string,
     leagueRuleSet?: "NKB" | "USSSA",
+    setup?: { teamAge?: string; pitchingFormat?: string },
   ) => void | Promise<any>;
   [key: string]: any;
 }

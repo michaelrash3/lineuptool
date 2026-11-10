@@ -3,6 +3,7 @@ import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
 import { auth } from "../firebase";
 import { useConfirm } from "../contexts";
+import { TEAM_AGE_OPTIONS, allowedPitchingFormats } from "../constants/ui";
 import {
   Button,
   Eyebrow,
@@ -25,6 +26,7 @@ interface WelcomePageProps {
   onCreate?: (
     name: string,
     leagueRuleSet?: "NKB" | "USSSA",
+    setup?: { teamAge?: string; pitchingFormat?: string },
   ) => Promise<any> | any;
   onJoin?: (code: string) => Promise<any> | any;
 }
@@ -34,6 +36,18 @@ export const WelcomePage = ({ onCreate, onJoin }: WelcomePageProps) => {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState<"create" | "join" | null>(null);
   const [teamType, setTeamType] = useState<"NKB" | "USSSA" | null>(null);
+  const [teamAge, setTeamAge] = useState("");
+  const [pickedFormat, setPickedFormat] = useState("");
+  // Only the formats this league + age can actually play (9U+ is always Kid
+  // Pitch, Rec 6-8U is Machine Pitch, …) — the same rule Settings enforces.
+  const formats =
+    teamType && teamAge ? allowedPitchingFormats(teamType, teamAge) : [];
+  const pitchingFormat =
+    formats.length === 1
+      ? formats[0]
+      : formats.includes(pickedFormat)
+        ? pickedFormat
+        : "";
   const [error, setError] = useState("");
   const [signingOut, setSigningOut] = useState(false);
   // Sign-out runs through the app-wide confirm dialog (useConfirm) — the one
@@ -98,12 +112,23 @@ export const WelcomePage = ({ onCreate, onJoin }: WelcomePageProps) => {
       setError("Pick a team type — Rec or Tournament.");
       return;
     }
+    if (!teamAge) {
+      setError("Pick your age group.");
+      return;
+    }
+    if (!pitchingFormat) {
+      setError("Pick who pitches — kids, coaches or a machine.");
+      return;
+    }
     setBusy("create");
     setError("");
     try {
       // Empty name falls back to "My Team" — matches the prior bootstrap default.
       const finalName = trimmedName || "My Team";
-      const result = await onCreate?.(finalName, teamType);
+      const result = await onCreate?.(finalName, teamType, {
+        teamAge,
+        pitchingFormat,
+      });
       if (result === false) {
         setError("We couldn't create your team. Please try again.");
       }
@@ -233,8 +258,8 @@ export const WelcomePage = ({ onCreate, onJoin }: WelcomePageProps) => {
                   Start a new team
                 </h3>
                 <p className="t-body text-xs mt-1">
-                  Name your team and pick a type — both changeable later in
-                  Settings.
+                  Name your team, pick its type, age group and who pitches — all
+                  changeable later in Settings.
                 </p>
               </div>
             </div>
@@ -272,6 +297,69 @@ export const WelcomePage = ({ onCreate, onJoin }: WelcomePageProps) => {
                   </div>
                 </button>
               ))}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+              <label className="block">
+                <span className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+                  Age group
+                </span>
+                <select
+                  value={teamAge}
+                  onChange={(e) => {
+                    setError("");
+                    setTeamAge(e.target.value);
+                  }}
+                  className={`${FORM_INPUT_CLASS} w-full font-bold`}
+                  style={FORM_INPUT_RING_STYLE}
+                >
+                  <option value="">Pick one</option>
+                  {TEAM_AGE_OPTIONS.map((age) => (
+                    <option key={age} value={age}>
+                      {age}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div>
+                <span className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+                  Who pitches
+                </span>
+                {formats.length === 0 ? (
+                  <p className="t-body text-xs text-ink-3 py-2">
+                    Pick a team type and age group first.
+                  </p>
+                ) : formats.length === 1 ? (
+                  <p className="t-body text-xs font-bold text-ink py-2">
+                    {formats[0]} — the only option at this age and level.
+                  </p>
+                ) : (
+                  <div
+                    className="flex flex-wrap gap-1.5"
+                    role="radiogroup"
+                    aria-label="Who pitches"
+                  >
+                    {formats.map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        role="radio"
+                        aria-checked={pitchingFormat === f}
+                        onClick={() => {
+                          setError("");
+                          setPickedFormat(f);
+                        }}
+                        className={`min-h-[40px] px-3 rounded-lg border text-xs font-bold ${
+                          pitchingFormat === f
+                            ? "border-[var(--team-primary)] ring-2 ring-[var(--team-primary)] bg-surface-2"
+                            : "border-line bg-surface"
+                        }`}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch gap-2">
               <input

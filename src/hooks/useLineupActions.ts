@@ -10,7 +10,7 @@ import {
   isHardRestricted,
 } from "../lineupEngine/eligibility";
 import { removeFromInning } from "../lineup/inGameSwap";
-import { sameDayRoleSets, genId, playsGame } from "../utils/helpers";
+import { sameDayRoleSets, genId, playsGame, slimGame } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 // Lineup generation, undo, save, templates, and mid-game player removal —
@@ -624,13 +624,15 @@ export const useLineupActions = ({
         return;
       }
       const trimmed = (name || "").trim() || "Untitled Template";
-      const tpl = {
+      // Slim like a game ({id, name, number} per slot) — a template straight
+      // off the engine is ~330 KB and two or three fill the team doc.
+      const tpl = slimGame({
         id: genId("tpl"),
         name: trimmed,
         lineup,
         battingLineup,
         createdAt: new Date().toISOString(),
-      };
+      } as any);
       const existing = Array.isArray(teamDataRef.current.lineupTemplates)
         ? teamDataRef.current.lineupTemplates
         : [];

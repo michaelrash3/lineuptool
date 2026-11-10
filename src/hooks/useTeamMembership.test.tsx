@@ -65,3 +65,44 @@ describe("addCurrentUserToMembers", () => {
     expect(updateTeam).not.toHaveBeenCalled();
   });
 });
+
+describe("removeMember", () => {
+  it("lets the owner remove a coach, role and all", () => {
+    const { updateTeam, result } = setup(
+      {
+        ownerId: "owner",
+        members: ["owner", "a1", "a2"],
+        coachRoles: { owner: "head", a1: "assistant", a2: "head" },
+      },
+      { uid: "owner" },
+    );
+    let ok = false;
+    act(() => {
+      ok = result.current.removeMember("a2");
+    });
+    expect(ok).toBe(true);
+    expect(updateTeam).toHaveBeenCalledWith({
+      members: ["owner", "a1"],
+      coachRoles: { owner: "head", a1: "assistant" },
+    });
+  });
+
+  it("is owner-only, and never removes the owner or a non-member", () => {
+    const team = {
+      ownerId: "owner",
+      members: ["owner", "a1"],
+      coachRoles: { a1: "head" },
+    };
+    const notOwner = setup(team, { uid: "a1" });
+    act(() => {
+      notOwner.result.current.removeMember("owner");
+    });
+    const owner = setup(team, { uid: "owner" });
+    act(() => {
+      owner.result.current.removeMember("owner");
+      owner.result.current.removeMember("stranger");
+    });
+    expect(notOwner.updateTeam).not.toHaveBeenCalled();
+    expect(owner.updateTeam).not.toHaveBeenCalled();
+  });
+});

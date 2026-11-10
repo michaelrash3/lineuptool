@@ -590,3 +590,20 @@ body::before {
     animation: none !important;
   }
 }
+
+/* Phones: iOS Safari zooms the whole page in whenever a focused field's text
+   is under 16px, and leaves it zoomed after — most of our inputs are
+   text-xs/text-sm, so typing a name or a score knocked the layout sideways.
+   Pinning form text to 16px on touch phones stops the zoom without the
+   `maximum-scale=1` viewport hack, which would also block a coach's own
+   pinch-zoom on Android. !important because Tailwind's text-* utilities are
+   class selectors and would otherwise win over these element selectors. */
+@media (max-width: 639px) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(
+      [type="color"]
+    ):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

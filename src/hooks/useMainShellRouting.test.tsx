@@ -29,13 +29,27 @@ describe("useMainShellRouting — feature switches", () => {
       "stats",
       "depthChart",
       "tryouts",
-      "interest",
-      "playerInfo",
-      "availability",
+      // One entry for the three parent-form inboxes.
+      "families",
       "evaluation",
       "finances",
       "settings",
     ]);
+  });
+
+  it("drops Families only when all three parent inboxes are off", () => {
+    const some = renderHook(() =>
+      useMainShellRouting(baseArgs({ disabledFeatures: ["interest"] })),
+    );
+    expect(some.result.current.tabOrder).toContain("families");
+    const all = renderHook(() =>
+      useMainShellRouting(
+        baseArgs({
+          disabledFeatures: ["interest", "playerInfo", "availability"],
+        }),
+      ),
+    );
+    expect(all.result.current.tabOrder).not.toContain("families");
   });
 
   it("drops disabled features from the tab order for head AND assistant", () => {
@@ -49,9 +63,7 @@ describe("useMainShellRouting — feature switches", () => {
       "schedule",
       "stats",
       "depthChart",
-      "interest",
-      "playerInfo",
-      "availability",
+      "families",
       "evaluation",
       "settings",
     ]);

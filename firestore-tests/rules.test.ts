@@ -14,6 +14,7 @@ import {
   deleteDoc,
   deleteField,
   doc,
+  FieldPath,
   getDoc,
   getDocs,
   query,
@@ -133,6 +134,10 @@ const playerDocPath = (teamId: string, playerId: string) =>
   ] as const;
 const mirrorPath = (teamId: string) =>
   ["artifacts", APP_ID, "public", "data", "teamPublic", teamId] as const;
+const portalLinkPath = (slug: string) =>
+  ["artifacts", APP_ID, "public", "data", "portalLinks", slug] as const;
+const portalSchedulePath = (slug: string) =>
+  ["artifacts", APP_ID, "public", "data", "portalSchedules", slug] as const;
 const invitePath = (code: string) =>
   ["artifacts", APP_ID, "public", "data", "teamInvites", code] as const;
 const settingsPath = (uid: string, docId = "teams") =>
@@ -2249,6 +2254,331 @@ describe("public mirror", () => {
         { name: "Hawks 2" },
         { merge: true },
       ),
+    );
+  });
+});
+
+// Tryout grades are saved as per-coach leaves of tryoutGradeEntries (a
+// whole-array rewrite of tryoutSessions erased other coaches' grades). The
+// leaf write must be a plain member write.
+describe("per-coach tryout grade leaves", () => {
+  const leaf = (uid: string, signupId: string) =>
+    new FieldPath(
+      "tryoutGradeEntries",
+      `tryout-2026-06-18__${uid}`,
+      "grades",
+      signupId,
+    );
+  it("lets an assistant save their own grade leaf", async () => {
+    await assertSucceeds(
+      updateDoc(
+        doc(dbFor(ASSISTANT), ...teamPath("team-1")),
+        leaf(ASSISTANT, "s1"),
+        { arm: 4 },
+      ),
+    );
+  });
+  it("denies an outsider (and a parent's anonymous session)", async () => {
+    await assertFails(
+      updateDoc(
+        doc(dbFor(OUTSIDER), ...teamPath("team-1")),
+        leaf(OUTSIDER, "s1"),
+        { arm: 4 },
+      ),
+    );
+    await assertFails(
+      updateDoc(
+        doc(anonFor("parent-uid"), ...teamPath("team-1")),
+        leaf("parent-uid", "s1"),
+        { arm: 4 },
+      ),
+    );
+  });
+});
+
+describe("coach Venmo link", () => {
+  const team = (uid: string) => doc(dbFor(uid), ...teamPath("team-1"));
+  it("lets a head coach set a real Venmo link, or clear it", async () => {
+    await assertSucceeds(
+      updateDoc(team(OWNER), { coachVenmoLink: "https://venmo.com/u/Coach" }),
+    );
+    await assertSucceeds(
+      updateDoc(team(COHEAD), {
+        coachVenmoLink: "https://account.venmo.com/u/Coach",
+      }),
+    );
+    await assertSucceeds(updateDoc(team(OWNER), { coachVenmoLink: "" }));
+  });
+  it("denies an assistant changing it", async () => {
+    await assertFails(
+      updateDoc(team(ASSISTANT), {
+        coachVenmoLink: "https://venmo.com/u/Mine",
+      }),
+    );
+  });
+  it("denies anything that isn't an https Venmo address", async () => {
+    for (const bad of [
+      "javascript:alert(1)",
+      "https://evil.example/pay",
+      "http://venmo.com/u/Coach",
+      "https://venmo.com.evil.example/u/x",
+    ])
+      await assertFails(updateDoc(team(OWNER), { coachVenmoLink: bad }));
+  });
+  it("never blocks other saves on a team whose stored link predates the check", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
+        coachVenmoLink: "venmo.com/u/legacy",
+      });
+    });
+    await assertSucceeds(updateDoc(team(ASSISTANT), { notes: "still saves" }));
+  });
+});
+
+describe("removing a coach", () => {
+  it("lets the owner remove a coach and delete their role", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        members: arrayRemove(ASSISTANT),
+        [`coachRoles.${ASSISTANT}`]: deleteField(),
+      }),
+    );
+  });
+  it("denies a co-head or an assistant removing someone else", async () => {
+    await assertFails(
+      updateDoc(doc(dbFor(COHEAD), ...teamPath("team-1")), {
+        members: arrayRemove(ASSISTANT),
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        members: arrayRemove(COHEAD),
+      }),
+    );
+  });
+  it("a removed coach loses access to the team", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
+        members: arrayRemove(ASSISTANT),
+        [`coachRoles.${ASSISTANT}`]: deleteField(),
+      });
+    });
+    await assertFails(getDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1"))));
+  });
+});
+
+describe("parent-form link docs (portalLinks)", () => {
+  // team-1's share id is "share-1" (seeded above).
+  it("lets a member create the link for their team's current share id", async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(ASSISTANT), ...portalLinkPath("share-1")), {
+        teamId: "team-1",
+        createdAt: 1,
+      }),
+    );
+  });
+  it("lets anyone signed in (a parent's form session too) look one up — but never list", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), ...portalLinkPath("share-1")), {
+        teamId: "team-1",
+      });
+    });
+    await assertSucceeds(
+      getDoc(doc(anonFor("parent-uid"), ...portalLinkPath("share-1"))),
+    );
+    await assertFails(
+      getDocs(
+        collection(
+          anonFor("parent-uid"),
+          "artifacts",
+          APP_ID,
+          "public",
+          "data",
+          "portalLinks",
+        ),
+      ),
+    );
+  });
+  it("denies a link for a slug that isn't the team's share id (no squatting)", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), ...portalLinkPath("someone-elses-slug")), {
+        teamId: "team-1",
+      }),
+    );
+  });
+  it("denies a non-member, an anonymous session, and extra fields", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...portalLinkPath("share-1")), {
+        teamId: "team-1",
+      }),
+    );
+    await assertFails(
+      setDoc(doc(anonFor("parent-uid"), ...portalLinkPath("share-1")), {
+        teamId: "team-1",
+      }),
+    );
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), ...portalLinkPath("share-1")), {
+        teamId: "team-1",
+        note: "x",
+      }),
+    );
+  });
+  it("can never be repointed at another team — even by a team with the same share id", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), ...portalLinkPath("share-1")), {
+        teamId: "team-1",
+      });
+      await setDoc(doc(ctx.firestore(), ...teamPath("team-evil")), {
+        name: "Hawks",
+        ownerId: OUTSIDER,
+        members: [OUTSIDER],
+        tryoutShareId: "share-1",
+      });
+    });
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...portalLinkPath("share-1")), {
+        teamId: "team-evil",
+      }),
+    );
+    await assertFails(
+      deleteDoc(doc(dbFor(OUTSIDER), ...portalLinkPath("share-1"))),
+    );
+    // Its own members may clean it up.
+    await assertSucceeds(
+      deleteDoc(doc(dbFor(OWNER), ...portalLinkPath("share-1"))),
+    );
+  });
+});
+
+describe("availability-form schedule days (portalSchedules)", () => {
+  // team-1's share id is "share-1" (seeded above). The owned link doc is what
+  // ties the slug to the team, so each test seeds it.
+  const days = { gameDays: ["2026-05-16"], practiceDays: ["2026-05-12"] };
+  const seedLink = (teamId = "team-1") =>
+    testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), ...portalLinkPath("share-1")), {
+        teamId,
+      });
+    });
+
+  it("lets a member publish dates for their team's current link", async () => {
+    await seedLink();
+    await assertSucceeds(
+      setDoc(doc(dbFor(ASSISTANT), ...portalSchedulePath("share-1")), {
+        teamId: "team-1",
+        ...days,
+        updatedAt: 1,
+      }),
+    );
+    // ...and take them down again.
+    await assertSucceeds(
+      deleteDoc(doc(dbFor(OWNER), ...portalSchedulePath("share-1"))),
+    );
+  });
+
+  it("lets a parent's form session read it by its link — but never list", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), ...portalSchedulePath("share-1")), {
+        teamId: "team-1",
+        ...days,
+      });
+    });
+    await assertSucceeds(
+      getDoc(doc(anonFor("parent-uid"), ...portalSchedulePath("share-1"))),
+    );
+    await assertFails(
+      getDocs(
+        collection(
+          anonFor("parent-uid"),
+          "artifacts",
+          APP_ID,
+          "public",
+          "data",
+          "portalSchedules",
+        ),
+      ),
+    );
+  });
+
+  it("denies a parent, an outsider, extra fields and oversized lists", async () => {
+    await seedLink();
+    const ref = (db: any) => doc(db, ...portalSchedulePath("share-1"));
+    await assertFails(
+      setDoc(ref(anonFor("parent-uid")), { teamId: "team-1", ...days }),
+    );
+    await assertFails(
+      setDoc(ref(dbFor(OUTSIDER)), { teamId: "team-1", ...days }),
+    );
+    // Only dates: an opponent or a location never rides along.
+    await assertFails(
+      setDoc(ref(dbFor(OWNER)), {
+        teamId: "team-1",
+        ...days,
+        locations: ["Field 3"],
+      }),
+    );
+    await assertFails(
+      setDoc(ref(dbFor(OWNER)), {
+        teamId: "team-1",
+        gameDays: Array.from({ length: 151 }, () => "2026-05-16"),
+        practiceDays: [],
+      }),
+    );
+  });
+
+  it("denies a slug that isn't the team's share id, or whose link is another team's", async () => {
+    await seedLink();
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), ...portalSchedulePath("not-our-slug")), {
+        teamId: "team-1",
+        ...days,
+      }),
+    );
+    // A team that copied share-1 still can't publish under it: the owned
+    // link doc names team-1.
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), ...teamPath("team-evil")), {
+        name: "Hawks",
+        ownerId: OUTSIDER,
+        members: [OUTSIDER],
+        tryoutShareId: "share-1",
+      });
+    });
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...portalSchedulePath("share-1")), {
+        teamId: "team-evil",
+        ...days,
+      }),
+    );
+  });
+
+  it("denies publishing before the link doc exists", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), ...portalSchedulePath("share-1")), {
+        teamId: "team-1",
+        ...days,
+      }),
+    );
+  });
+
+  it("can't be moved to another team once written", async () => {
+    await seedLink();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), ...portalSchedulePath("share-1")), {
+        teamId: "team-1",
+        ...days,
+      });
+    });
+    // The OUTSIDER's team can't take it over, nor delete it.
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...portalSchedulePath("share-1")), {
+        teamId: "team-evil",
+        ...days,
+      }),
+    );
+    await assertFails(
+      deleteDoc(doc(dbFor(OUTSIDER), ...portalSchedulePath("share-1"))),
     );
   });
 });

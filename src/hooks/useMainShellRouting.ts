@@ -12,6 +12,7 @@ export const TAB_TO_PATH: Record<string, string> = {
   depthChart: "/depth-chart",
   evaluation: "/evaluation",
   tryouts: "/tryouts",
+  families: "/families",
   interest: "/interest",
   playerInfo: "/player-info",
   availability: "/availability",
@@ -92,14 +93,19 @@ export const useMainShellRouting = ({
           "stats",
           "depthChart",
           "tryouts",
-          "interest",
-          "playerInfo",
-          "availability",
+          "families",
           "evaluation",
           "finances",
           "settings",
         ];
-    return order.filter((t) => featureEnabled(team, t));
+    // "families" groups three toggleable inboxes — it's in the order while
+    // any of them is on.
+    const familiesOn = ["interest", "playerInfo", "availability"].some((id) =>
+      featureEnabled(team, id),
+    );
+    return order.filter((t) =>
+      t === "families" ? familiesOn : featureEnabled(team, t),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAssistant, (disabledFeatures || []).join(",")]);
 

@@ -43,6 +43,26 @@ export const useTeamMembership = ({
     [teamDataRef, updateTeam],
   );
 
+  // Remove a coach from the team (owner only — the rules let only the owner
+  // shrink the member list). Their role goes with them; the caller rotates
+  // the join code afterward so the old one can't bring them back.
+  const removeMember = useCallback(
+    (uid: string): boolean => {
+      const teamData = teamDataRef.current;
+      if (!user || user.uid !== teamData.ownerId) return false;
+      if (!uid || uid === teamData.ownerId) return false;
+      const members = Array.isArray(teamData.members) ? teamData.members : [];
+      if (!members.includes(uid)) return false;
+      const { [uid]: _dropped, ...roles } = teamData.coachRoles || {};
+      updateTeam({
+        members: members.filter((m) => m !== uid),
+        coachRoles: roles,
+      });
+      return true;
+    },
+    [user, teamDataRef, updateTeam],
+  );
+
   const addCurrentUserToMembers = useCallback(() => {
     if (!user) return;
     const teamData = teamDataRef.current;
@@ -77,6 +97,7 @@ export const useTeamMembership = ({
 
   return {
     setCoachRole,
+    removeMember,
     addCurrentUserToMembers,
     addCoach,
     removeCoach,

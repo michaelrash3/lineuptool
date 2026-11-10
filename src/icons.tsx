@@ -33,6 +33,7 @@ import {
   Lock,
   Unlock,
   RefreshCw,
+  Undo2,
   Printer,
   AlertTriangle,
   Forward,
@@ -175,6 +176,9 @@ export const Icons: Record<string, IconComponent> = {
   Lock,
   Unlock,
   Refresh: RefreshCw,
+  // Undo has its own glyph — it used to share Refresh's circular arrows with
+  // Re-roll, the In-Game button and the saving spinner.
+  Undo: Undo2,
   Printer,
   Alert: AlertTriangle,
   Forward,

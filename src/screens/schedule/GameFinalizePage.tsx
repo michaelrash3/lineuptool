@@ -30,8 +30,8 @@ export const GameFinalizePage = memo(() => {
       title="Final Score"
       onBack={back}
     >
-      {/* Pitch counts are no longer entered by hand — they're pulled from
-          the imported GameChanger box score after the game. */}
+      {/* Pitch counts come from the In-Game counter (saved as this game's
+          outing) or the imported GameChanger box score, which replaces it. */}
       <div className="cc-card overflow-hidden">
         <ScoreEditor
           game={game}

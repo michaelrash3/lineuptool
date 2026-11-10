@@ -478,4 +478,71 @@ describe("SettingsTab — eval categories", () => {
       screen.queryByRole("button", { name: /kid-pitch starter set/ }),
     ).not.toBeInTheDocument();
   });
+
+  it("lets the owner remove a coach, and changes the team code with it", async () => {
+    const removeMember = jest.fn(() => true);
+    const regenerateJoinCode = jest.fn();
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/settings/staff"]}>
+        {settingsRoutes}
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...teamData,
+            ownerId: "owner",
+            members: ["owner", "asst-1"],
+            coachRoles: { "asst-1": "assistant" },
+            coachContacts: [{ uid: "asst-1", name: "Pat Lee" }],
+          },
+          user: { uid: "owner" },
+          currentRole: "head",
+          realRole: "head",
+          removeMember,
+          regenerateJoinCode,
+        },
+        ui: {
+          isAddingCoach: false,
+          setIsAddingCoach: jest.fn(),
+          newCoachForm: {},
+          setNewCoachForm: jest.fn(),
+        },
+      },
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /remove pat lee from the team/i }),
+    );
+    expect(removeMember).toHaveBeenCalledWith("asst-1");
+    expect(regenerateJoinCode).toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it("shows no Remove button to a coach who isn't the owner", () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/settings/staff"]}>
+        {settingsRoutes}
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...teamData,
+            ownerId: "owner",
+            members: ["owner", "asst-1", "cohead"],
+            coachRoles: { "asst-1": "assistant", cohead: "head" },
+          },
+          user: { uid: "cohead" },
+          currentRole: "head",
+          realRole: "head",
+        },
+        ui: {
+          isAddingCoach: false,
+          setIsAddingCoach: jest.fn(),
+          newCoachForm: {},
+          setNewCoachForm: jest.fn(),
+        },
+      },
+    );
+    expect(screen.queryByRole("button", { name: /from the team/i })).toBeNull();
+  });
 });

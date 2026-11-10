@@ -109,6 +109,12 @@ service cloud.firestore {
           .hasOnly([request.auth.uid]);
       }
 
+      function venmoLinkOk(v) {
+        return v == ''
+          || (v is string && v.size() <= 200
+              && v.matches('https://(www[.]|account[.])?venmo[.]com/[^ <>"]*'));
+      }
+
       function isLegitimateAutoClaim() {
         // Team is genuinely unowned AND caller becomes the new owner AND no
         // other members exist on the previous doc. Mirrors the client-side
@@ -145,6 +151,14 @@ service cloud.firestore {
                     // with a plain coachRoles write and then sail through the
                     // finances gate above.
                     && (untouched('coachRoles') || isHeadCoach())
+                    // The Venmo link lands in offer letters families pay
+                    // from: only a head may change it, and only to a real
+                    // https Venmo address (or clear it). Checked only when it
+                    // CHANGES, so a legacy value already stored never blocks
+                    // the team's other saves.
+                    && (untouched('coachVenmoLink')
+                        || (isHeadCoach()
+                            && venmoLinkOk(request.resource.data.get('coachVenmoLink', ''))))
                     // evaluationEvents is a DROPPED legacy field (finding 3.1
                     // — rounds live in the evalRounds subcollection below).
                     // Ratchet: a doc still carrying the array may rewrite or
@@ -611,6 +625,82 @@ service cloud.firestore {
       allow read: if request.auth != null;
       // Only a member of the real team can create/update/delete the mirror.
       allow write: if isTeamMember();
+    }
+
+    // Parent-form links, keyed by the link's slug (the team's tryoutShareId):
+    // { teamId }. The forms resolve a slug HERE first — one document, by id —
+    // so a link can't be hijacked by another team publishing a mirror with the
+    // same share id (the listable mirror query is only the fallback for teams
+    // whose link doc doesn't exist yet; see docs/firebase-rules-rollout.md).
+    match /artifacts/{appId}/public/data/portalLinks/{slug} {
+      function linkTeam(teamId) {
+        return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;
+      }
+      function linkTeamAfter(teamId) {
+        return getAfter(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;
+      }
+      function isLinkTeamMember(teamId) {
+        return request.auth != null
+          && (linkTeam(teamId).ownerId == request.auth.uid
+              || (linkTeam(teamId).members != null
+                  && request.auth.uid in linkTeam(teamId).members));
+      }
+      // Any signed-in session (a parent's anonymous one included) may look up
+      // ONE link by its slug — `get`, never `list`.
+      allow get: if request.auth != null;
+      // Created by a member, only for their team's CURRENT share id, holding
+      // nothing but the team id. Create-once: there is no update, so a link
+      // can never be repointed at another team.
+      allow create: if isCoachAccount()
+        && request.resource.data.keys().hasOnly(['teamId', 'createdAt'])
+        && request.resource.data.teamId is string
+        && isLinkTeamMember(request.resource.data.teamId)
+        && linkTeamAfter(request.resource.data.teamId).tryoutShareId == slug;
+      // A rotated-out link is cleaned up by a member of its team.
+      allow delete: if isCoachAccount() && isLinkTeamMember(resource.data.teamId);
+    }
+
+    // Game and practice DAYS for the parent availability form, keyed by the
+    // form link's slug (the team's tryoutShareId): { teamId, gameDays,
+    // practiceDays, updatedAt } — bare yyyy-mm-dd dates, nothing else. Kept
+    // out of teamPublic on purpose: that mirror is listable, so dates there
+    // would publish every team's schedule. Here a reader needs the link.
+    // Published only when the head coach turns it on (see
+    // src/utils/portalSchedule.ts).
+    match /artifacts/{appId}/public/data/portalSchedules/{slug} {
+      function schedTeam(teamId) {
+        return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;
+      }
+      function isSchedTeamMember(teamId) {
+        return request.auth != null
+          && (schedTeam(teamId).ownerId == request.auth.uid
+              || (schedTeam(teamId).members != null
+                  && request.auth.uid in schedTeam(teamId).members));
+      }
+      // The slug's owned link doc (create-once, never repointed) must name
+      // the same team — so a team that copies another's share id can't
+      // squat this doc and show families its own dates.
+      function linkIsTeams(teamId) {
+        return exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/portalLinks/$(slug))
+          && get(/databases/$(database)/documents/artifacts/$(appId)/public/data/portalLinks/$(slug)).data.teamId == teamId;
+      }
+      // ONE doc by its slug — `get`, never `list`.
+      allow get: if request.auth != null;
+      // Written by a member, only under their team's CURRENT share id and
+      // link, with only these fields and short lists, and never moved to
+      // another team.
+      allow create, update: if isCoachAccount()
+        && request.resource.data.keys().hasOnly(['teamId', 'gameDays', 'practiceDays', 'updatedAt'])
+        && request.resource.data.teamId is string
+        && request.resource.data.gameDays is list
+        && request.resource.data.gameDays.size() <= 150
+        && request.resource.data.practiceDays is list
+        && request.resource.data.practiceDays.size() <= 150
+        && isSchedTeamMember(request.resource.data.teamId)
+        && schedTeam(request.resource.data.teamId).tryoutShareId == slug
+        && linkIsTeams(request.resource.data.teamId)
+        && (resource == null || resource.data.teamId == request.resource.data.teamId);
+      allow delete: if isCoachAccount() && isSchedTeamMember(resource.data.teamId);
     }
 
     // Sanitized invite lookup, keyed by join code. Replaces the old "read the

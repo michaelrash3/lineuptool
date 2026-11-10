@@ -2,6 +2,7 @@ import {
   assembleGames,
   assemblePlayers,
   diffEntityArrays,
+  entityFieldPatch,
   gameUnionOrder,
   playerUnionOrder,
   stableStringify,
@@ -240,5 +241,41 @@ describe("playerUnionOrder / assemblePlayers", () => {
     expect(assemblePlayers(undefined, [{ id: "p1", name: "Ada" }])).toEqual([
       { id: "p1", name: "Ada" },
     ]);
+  });
+});
+
+describe("entityFieldPatch", () => {
+  const del = () => ({ __delete: true });
+  it("carries only the top-level fields that changed", () => {
+    expect(
+      entityFieldPatch(
+        { id: "g1", teamScore: 1, lineup: [{ P: { id: "a" } }] },
+        { id: "g1", teamScore: 2, lineup: [{ P: { id: "a" } }] },
+        del,
+      ),
+    ).toEqual({ teamScore: 2 });
+  });
+  it("turns a field dropped by omission into an explicit delete", () => {
+    expect(
+      entityFieldPatch(
+        { id: "p1", name: "Ada", health: { status: "out" } },
+        { id: "p1", name: "Ada" },
+        del,
+      ),
+    ).toEqual({ health: { __delete: true } });
+  });
+  it("adds new fields and ignores key order", () => {
+    expect(
+      entityFieldPatch(
+        { id: "p1", stats: { ab: 3, h: 1 } },
+        { id: "p1", stats: { h: 1, ab: 3 }, number: "7" },
+        del,
+      ),
+    ).toEqual({ number: "7" });
+  });
+  it("returns null when nothing changed", () => {
+    expect(
+      entityFieldPatch({ id: "g1", a: 1 }, { id: "g1", a: 1 }, del),
+    ).toBeNull();
   });
 });

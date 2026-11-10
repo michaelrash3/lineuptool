@@ -1,5 +1,5 @@
 import React from "react";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AvailabilityTab } from "./AvailabilityTab";
 import { renderWithProviders } from "../test-utils";
@@ -113,5 +113,37 @@ describe("AvailabilityTab", () => {
     });
     // 1 of 2 active players has submitted.
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
+  });
+});
+
+describe("AvailabilityTab — showing game and practice days on the form", () => {
+  const toggle = () =>
+    screen.queryByRole("checkbox", {
+      name: /show game and practice days on the availability form/i,
+    });
+
+  it("is off until the head coach turns it on", () => {
+    const updateTeam = jest.fn();
+    setup({}, { updateTeam });
+    expect(toggle()).not.toBeChecked();
+    fireEvent.click(toggle()!);
+    expect(updateTeam).toHaveBeenCalledWith({
+      availabilityShowsSchedule: true,
+    });
+  });
+
+  it("turns off to false (so the published days come down)", () => {
+    const updateTeam = jest.fn();
+    setup({ availabilityShowsSchedule: true }, { updateTeam });
+    expect(toggle()).toBeChecked();
+    fireEvent.click(toggle()!);
+    expect(updateTeam).toHaveBeenCalledWith({
+      availabilityShowsSchedule: false,
+    });
+  });
+
+  it("isn't offered to an assistant", () => {
+    setup({}, { currentRole: "assistant" });
+    expect(toggle()).not.toBeInTheDocument();
   });
 });

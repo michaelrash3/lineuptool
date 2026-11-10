@@ -18,6 +18,7 @@ import {
   setDoc,
   getDoc,
   getDocs,
+  deleteDoc,
   collection,
   query,
   where,
@@ -27,9 +28,18 @@ import {
   arrayUnion,
   arrayRemove,
   deleteField,
+  FieldPath,
   DocumentSnapshot,
   FirestoreError,
 } from "firebase/firestore";
+import { foldTryoutGradeEntries } from "../utils/tryouts";
+import { portalLinkRef } from "../utils/portalLinks";
+import {
+  buildPortalSchedule,
+  portalScheduleRef,
+} from "../utils/portalSchedule";
+import { dateToIsoLocal } from "../utils/dates";
+import { featureEnabled } from "../constants/features";
 import { auth, db, appId } from "../firebase";
 import {
   TeamContext,
@@ -69,6 +79,7 @@ import {
   assembleGames,
   assemblePlayers,
   diffEntityArrays,
+  entityFieldPatch,
   type EntityDiff,
 } from "../utils/teamEntityDocs";
 import {
@@ -102,6 +113,7 @@ import {
   withFinanceKeyDeletes,
   type FinanceUpdate,
 } from "../utils/financeUpdates";
+import { WHOLE_MAP_FIELDS, withMapKeyDeletes } from "../utils/mapKeyDeletes";
 import {
   applyTeamArrayUpdate,
   buildTeamArrayPayload,
@@ -173,6 +185,36 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [loadingActive, setLoadingActive] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
+  // Writes in flight. The "Saving / Synced" label used to be ONE shared value
+  // that every finished write cleared 1.5 s later — even with other writes
+  // still pending — so the header could read clean while changes were stuck
+  // on the device. Now it stays "Saving" until the LAST pending write lands.
+  // (A write made offline stays pending — its promise resolves only when the
+  // server acknowledges it — so this also reads "not synced" at a field with
+  // no signal.)
+  const pendingWritesRef = useRef(0);
+  const syncClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const beginWrite = useCallback(() => {
+    pendingWritesRef.current += 1;
+    if (syncClearTimerRef.current) {
+      clearTimeout(syncClearTimerRef.current);
+      syncClearTimerRef.current = null;
+    }
+    setSyncStatus("Saving");
+  }, []);
+  const endWrite = useCallback((ok: boolean) => {
+    pendingWritesRef.current = Math.max(0, pendingWritesRef.current - 1);
+    if (pendingWritesRef.current > 0) return;
+    if (!ok) {
+      setSyncStatus("");
+      return;
+    }
+    setSyncStatus("Synced");
+    syncClearTimerRef.current = setTimeout(() => {
+      syncClearTimerRef.current = null;
+      if (pendingWritesRef.current === 0) setSyncStatus("");
+    }, 1500);
+  }, []);
   const [genError, setGenError] = useState(""); // login screen only
 
   const previousLineupRef = useRef<{
@@ -756,7 +798,18 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         teamDocServerConfirmedRef.current = activeTeamId;
       }
       if (snap.exists()) {
-        const raw = snap.data();
+        const rawDoc = snap.data();
+        // Per-coach tryout grades (tryoutGradeEntries) fold into
+        // tryoutSessions here, once, so every reader sees one shape.
+        const raw = rawDoc?.tryoutGradeEntries
+          ? {
+              ...rawDoc,
+              tryoutSessions: foldTryoutGradeEntries(
+                rawDoc.tryoutSessions,
+                rawDoc.tryoutGradeEntries,
+              ),
+            }
+          : rawDoc;
         // Legacy signup ARRAYS, captured for the signup subscriptions' union
         // and the lazy backfill. No schema migration touches them, so one
         // capture up front covers both branches below.
@@ -1323,6 +1376,18 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             .filter((g): g is Game => g != null),
         };
       }
+      // Lineup templates hold a lineup + batting order too — and used to be
+      // saved straight off the engine, every slot a FULL player record plus
+      // scoring data (~330 KB for one 12-kid template). Two or three of those
+      // filled the 1 MB team doc and failed every save. Slim them like games.
+      if (Array.isArray(toPersist.lineupTemplates)) {
+        toPersist = {
+          ...toPersist,
+          lineupTemplates: toPersist.lineupTemplates
+            .map((t) => slimGame(t as any))
+            .filter(Boolean) as Team["lineupTemplates"],
+        };
+      }
       // Player photos were removed from the app — they lived as inline base64 on
       // each player and pushed this single team doc toward the 1 MB cap. Never
       // write photoUrl back, so any leftover bytes are dropped on the next save.
@@ -1351,6 +1416,21 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         if (adjusted !== toPersist.finances) {
           toPersist = { ...toPersist, finances: adjusted as Team["finances"] };
         }
+      }
+      // The same deep-merge trap for the other whole-map fields (Depth Chart
+      // reset, award "back to auto", unhiding an eval category): a dropped
+      // key must go out as an explicit delete or it reverts on the next
+      // snapshot. See WHOLE_MAP_FIELDS for why only these fields.
+      for (const [field, depth] of Object.entries(WHOLE_MAP_FIELDS)) {
+        if (!(field in toPersist)) continue;
+        const adjusted = withMapKeyDeletes(
+          (teamDataRef.current as any)?.[field],
+          (toPersist as any)[field],
+          deleteField,
+          depth,
+        );
+        if (adjusted !== (toPersist as any)[field])
+          toPersist = { ...toPersist, [field]: adjusted } as Partial<Team>;
       }
       // Scrub any undefined values from the tree — Firestore rejects them.
       toPersist = scrubUndefined(toPersist) as Partial<Team>;
@@ -1413,7 +1493,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         });
       }
 
-      setSyncStatus("Saving");
+      beginWrite();
       try {
         const ref = doc(
           db,
@@ -1463,12 +1543,11 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         } else {
           await setDoc(ref, toPersist, { merge: true });
         }
-        setSyncStatus("Synced");
-        setTimeout(() => setSyncStatus(""), 1500);
+        endWrite(true);
         lastPersistErrorRef.current = null;
         return true;
       } catch (e) {
-        setSyncStatus("");
+        endWrite(false);
         const code = errCode(e);
         const message = errMessage(e);
         lastPersistErrorRef.current = { code, message };
@@ -1491,6 +1570,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       warnDocSizeOnce,
       rosterEmptinessServerConfirmed,
       rawEntityArrayRef,
+      beginWrite,
+      endWrite,
     ],
   );
 
@@ -1617,6 +1698,83 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     });
   }, [activeTeamId, user, teamData?.joinCode, teamData?.name]);
 
+  // Backfill the owned parent-form link doc (portalLinks/{shareId} →
+  // teamId) for the active team. The forms resolve a link through it first —
+  // so another team can't hijack the link with a look-alike mirror — and fall
+  // back to the legacy mirror query only while it's missing. Fires once per
+  // (team, share id); a member's create is exactly what the rules allow.
+  const lastPortalLinkBackfillRef = useRef("");
+  // `${teamId}:${slug}` once that link doc is known to exist — the
+  // availability-form schedule below is only allowed under a confirmed link.
+  const [portalLinkReadyKey, setPortalLinkReadyKey] = useState("");
+  useEffect(() => {
+    if (!activeTeamId || !user) return;
+    if (loadedTeamIdRef.current !== activeTeamId) return;
+    const slug = String(teamData?.tryoutShareId || "").trim();
+    if (!slug) return;
+    const key = `${activeTeamId}:${slug}`;
+    if (lastPortalLinkBackfillRef.current === key) return;
+    lastPortalLinkBackfillRef.current = key;
+    const ref = portalLinkRef(db, appId, slug);
+    getDoc(ref)
+      .then((snap) =>
+        snap.exists()
+          ? undefined
+          : setDoc(ref, { teamId: activeTeamId, createdAt: Date.now() }),
+      )
+      .then(() => setPortalLinkReadyKey(key))
+      .catch(() => {
+        // Retry on the next change; a missing link doc only means the forms
+        // use the fallback lookup for now.
+        lastPortalLinkBackfillRef.current = "";
+      });
+  }, [activeTeamId, user, teamData?.tryoutShareId]);
+
+  // Game and practice DAYS for the parent availability form — only while the
+  // head coach has it on (team.availabilityShowsSchedule), only bare dates,
+  // and in a get-only doc keyed by the form link (see utils/portalSchedule).
+  // Rewritten when the dates change; taken down when the coach turns it off
+  // or the Availability module is off. A team that never turned it on writes
+  // and reads nothing here.
+  const lastPortalScheduleRef = useRef("");
+  useEffect(() => {
+    if (!activeTeamId || !user) return;
+    if (loadedTeamIdRef.current !== activeTeamId) return;
+    const slug = String(teamData?.tryoutShareId || "").trim();
+    if (!slug || portalLinkReadyKey !== `${activeTeamId}:${slug}`) return;
+    const flag = teamData?.availabilityShowsSchedule;
+    if (flag !== true && flag !== false) return;
+    const sched =
+      flag === true && featureEnabled(teamData, "availability")
+        ? buildPortalSchedule(teamData, dateToIsoLocal(new Date()))
+        : null;
+    const key = `${activeTeamId}:${slug}:${sched ? JSON.stringify(sched) : "off"}`;
+    if (lastPortalScheduleRef.current === key) return;
+    lastPortalScheduleRef.current = key;
+    const ref = portalScheduleRef(db, appId, slug);
+    const write = sched
+      ? setDoc(ref, { teamId: activeTeamId, ...sched, updatedAt: Date.now() })
+      : getDoc(ref).then((snap) =>
+          snap.exists() ? deleteDoc(ref) : undefined,
+        );
+    write.catch(() => {
+      // Retry on the next change. Families just see a plain calendar.
+      lastPortalScheduleRef.current = "";
+    });
+    // Deps are the fields the schedule is built from, not the whole team
+    // object (which changes on every unrelated edit).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeTeamId,
+    user,
+    portalLinkReadyKey,
+    teamData?.tryoutShareId,
+    teamData?.availabilityShowsSchedule,
+    teamData?.disabledFeatures,
+    teamData?.games,
+    teamData?.practices,
+  ]);
+
   const updateTeam = useCallback(
     (updates: Partial<Team>, opts?: { allowEmptyPlayers?: boolean }) => {
       // Snapshot the prior value of every key we're about to optimistically
@@ -1693,7 +1851,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         scrub: scrubUndefined,
       });
       if (!payload) return; // resolved as a no-op (e.g. id already removed)
-      setSyncStatus("Saving");
+      beginWrite();
       const ref = doc(
         db,
         "artifacts",
@@ -1705,12 +1863,11 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       );
       updateDoc(ref, payload).then(
         () => {
-          setSyncStatus("Synced");
-          setTimeout(() => setSyncStatus(""), 1500);
+          endWrite(true);
           lastPersistErrorRef.current = null;
         },
         (e) => {
-          setSyncStatus("");
+          endWrite(false);
           const code = errCode(e);
           const message = errMessage(e);
           lastPersistErrorRef.current = { code, message };
@@ -1740,7 +1897,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         },
       );
     },
-    [activeTeamId, toast, warnDocSizeOnce],
+    [activeTeamId, toast, warnDocSizeOnce, beginWrite, endWrite],
   );
 
   // Concurrency-safe mutations for the top-level team arrays (players / games
@@ -1819,10 +1976,20 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // team-doc array payload. The op still computes "the next array" against
       // the assembled union — through the SAME applyTeamArrayUpdate, so the
       // slimGame + scrubUndefined gates keep applying — and the union diff
-      // (added/changed → full-entry set, removed → delete) becomes batch ops.
-      // Full-entry set, never a merge: several writers clear game fields by
-      // omission, which a merge would silently resurrect.
-      const entitySets: Array<{ key: SignupCollectionKey; entry: any }> = [];
+      // becomes batch ops: added → full-entry set, removed → delete, and
+      // CHANGED → an update of only the top-level fields that changed (see
+      // entityFieldPatch), so one coach's edit can't revert another coach's
+      // concurrent edit to a different field of the same game or player.
+      // Fields cleared by omission go out as explicit deletes, never a merge
+      // that would silently resurrect them.
+      const entitySets: Array<{
+        key: SignupCollectionKey;
+        entry: any;
+        // Set when the entry already has its own doc: only these fields are
+        // written (an update), so a concurrent edit to another field of the
+        // same game/player survives. Absent = new entry → full-doc set.
+        fields?: Record<string, unknown>;
+      }> = [];
       const entityDeletes: Array<{ key: SignupCollectionKey; id: string }> = [];
       let hasPayload = false;
       for (const rawUpdate of updates) {
@@ -1838,8 +2005,24 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             prevTeam[laneKey] as any[],
             patch[laneKey] as any[],
           );
+          const prevById = new Map<string, any>(
+            ((prevTeam[laneKey] as any[]) || [])
+              .filter((e: any) => e && e.id)
+              .map((e: any) => [e.id, e]),
+          );
+          const existingDocIds = signupSubIdsRef.current[laneKey];
           for (const entry of diff.sets) {
-            entitySets.push({ key: laneKey, entry });
+            const before = prevById.get(entry.id);
+            if (before && existingDocIds?.has(entry.id)) {
+              const fields = entityFieldPatch(
+                scrubUndefined(before) as Record<string, unknown>,
+                scrubUndefined(entry) as Record<string, unknown>,
+                deleteField,
+              );
+              if (fields) entitySets.push({ key: laneKey, entry, fields });
+            } else {
+              entitySets.push({ key: laneKey, entry });
+            }
           }
           for (const id of diff.deletes) {
             entityDeletes.push({ key: laneKey, id });
@@ -1891,7 +2074,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       }
       setTeamData((p: any) => ({ ...p, ...patch })); // optimistic
       if (!hasPayload) return; // resolved as a no-op (e.g. id already removed)
-      setSyncStatus("Saving");
+      beginWrite();
       const ref = doc(
         db,
         "artifacts",
@@ -1922,12 +2105,17 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
                 b.delete(signupDocRef(db, appId, activeTeamId, key, id)),
           ),
           ...entitySets.map(
-            ({ key, entry }) =>
+            ({ key, entry, fields }) =>
               (b: ReturnType<typeof writeBatch>) =>
-                b.set(
-                  signupDocRef(db, appId, activeTeamId, key, entry.id),
-                  scrubUndefined(entry) as Record<string, unknown>,
-                ),
+                fields
+                  ? b.update(
+                      signupDocRef(db, appId, activeTeamId, key, entry.id),
+                      fields,
+                    )
+                  : b.set(
+                      signupDocRef(db, appId, activeTeamId, key, entry.id),
+                      scrubUndefined(entry) as Record<string, unknown>,
+                    ),
           ),
         ];
         const hasDocPayload = Object.keys(payload).length > 0;
@@ -1946,12 +2134,11 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       };
       write().then(
         () => {
-          setSyncStatus("Synced");
-          setTimeout(() => setSyncStatus(""), 1500);
+          endWrite(true);
           lastPersistErrorRef.current = null;
         },
         (e) => {
-          setSyncStatus("");
+          endWrite(false);
           const code = errCode(e);
           const message = errMessage(e);
           lastPersistErrorRef.current = { code, message };
@@ -1977,7 +2164,14 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         },
       );
     },
-    [activeTeamId, toast, rawEntityArrayRef, rosterEmptinessServerConfirmed],
+    [
+      activeTeamId,
+      toast,
+      rawEntityArrayRef,
+      rosterEmptinessServerConfirmed,
+      beginWrite,
+      endWrite,
+    ],
   );
 
   // One-time reclaim: player photos were removed from the app. Any team saved
@@ -2005,6 +2199,22 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     });
     updateTeam({ players: stripped });
   }, [activeTeamId, teamData.players, updateTeam]);
+
+  // One-time reclaim for lineup templates saved before they were slimmed (see
+  // the persist gate): rewrite them once per team so the bytes are freed even
+  // if nobody saves or deletes a template again. Same guard as the photo pass.
+  const templateSlimAttemptedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!activeTeamId || templateSlimAttemptedRef.current.has(activeTeamId))
+      return;
+    if (loadedTeamIdRef.current !== activeTeamId) return;
+    const templates = teamData.lineupTemplates;
+    if (!Array.isArray(templates) || templates.length === 0) return;
+    const slimmed = templates.map((t) => slimGame(t as any));
+    if (JSON.stringify(slimmed) === JSON.stringify(templates)) return;
+    templateSlimAttemptedRef.current.add(activeTeamId);
+    updateTeam({ lineupTemplates: slimmed as Team["lineupTemplates"] });
+  }, [activeTeamId, teamData.lineupTemplates, updateTeam]);
 
   // Player Info replace-on-resubmit. The public portal can only ever ADD a
   // playerInfoSubmissions entry (its own per-entry doc — the rules deny a
@@ -2152,6 +2362,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // ----- Player CRUD ----- (extracted to src/hooks/usePlayerCrud.ts)
   const {
     addPlayer,
+    addPlayers,
     addSubPlayer,
     addSubToTournament,
     updatePlayer,
@@ -2296,6 +2507,49 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // team.tryoutSignups[]. Coach side reads from the same array; impact
   // analysis compares against returning roster.
 
+  // Write individual fields of the team doc by path — each value lands on its
+  // own leaf, so two coaches' writes to different leaves merge instead of the
+  // later one replacing the whole parent. Used for per-coach tryout grades.
+  // The team-doc listener reflects the write locally right away (latency
+  // compensation), so no optimistic copy is needed here.
+  const updateTeamFieldPaths = useCallback(
+    (pairs: Array<[string[], unknown]>) => {
+      if (!activeTeamId || pairs.length === 0) return;
+      const ref = doc(
+        db,
+        "artifacts",
+        appId,
+        "public",
+        "data",
+        "teams",
+        activeTeamId,
+      );
+      const flat: unknown[] = [];
+      for (const [path, value] of pairs.slice(1))
+        flat.push(new FieldPath(...path), scrubUndefined(value));
+      beginWrite();
+      updateDoc(
+        ref,
+        new FieldPath(...pairs[0][0]),
+        scrubUndefined(pairs[0][1]),
+        ...(flat as []),
+      ).then(
+        () => endWrite(true),
+        (e) => {
+          endWrite(false);
+          console.error("[updateTeamFieldPaths] write failed", errCode(e));
+          toast.push({
+            kind: "error",
+            title: "Save failed",
+            message:
+              "That change didn't save. Check your connection and try again.",
+          });
+        },
+      );
+    },
+    [activeTeamId, beginWrite, endWrite, toast],
+  );
+
   const {
     generateTryoutShareId,
     generateTryoutDateLink,
@@ -2328,6 +2582,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     rawAvailabilitySubmissionsRef,
     updateTeam,
     updateTeamArrays,
+    updateTeamFieldPaths,
     toast,
     user,
     activeTeamId,
@@ -2336,11 +2591,12 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     teamId: activeTeamId,
   });
 
-  const { setCoachRole, addCoach, removeCoach } = useTeamMembership({
-    teamDataRef,
-    updateTeam,
-    user,
-  });
+  const { setCoachRole, removeMember, addCoach, removeCoach } =
+    useTeamMembership({
+      teamDataRef,
+      updateTeam,
+      user,
+    });
   const { regenerateJoinCode, joinTeamByCode } = useInviteFlows({
     user,
     teams,
@@ -3290,6 +3546,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       updateFinances,
       updateTeamArrays,
       addPlayer,
+      addPlayers,
       addSubPlayer,
       addSubToTournament,
       updatePlayer,
@@ -3375,6 +3632,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       deleteLineupTemplate,
       removePlayerMidGame,
       setCoachRole,
+      removeMember,
       regenerateJoinCode,
       joinTeamByCode,
     }),
@@ -3383,6 +3641,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       updateFinances,
       updateTeamArrays,
       addPlayer,
+      addPlayers,
       addSubPlayer,
       addSubToTournament,
       updatePlayer,
@@ -3468,6 +3727,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       deleteLineupTemplate,
       removePlayerMidGame,
       setCoachRole,
+      removeMember,
       regenerateJoinCode,
       joinTeamByCode,
     ],

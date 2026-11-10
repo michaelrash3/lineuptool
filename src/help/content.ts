@@ -183,7 +183,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     sections: [
       {
         heading: "Joining",
-        body: "If your head coach already set the team up, ask for the 6-character join code and enter it on the welcome screen (or via Join Team in the header). You'll come in as an assistant coach.",
+        body: "If your head coach already set the team up, ask for the 6-character join code and enter it on the welcome screen (or pick “Join a team with a code” from the team menu at the top). You'll come in as an assistant coach.",
       },
       {
         heading: "Creating",
@@ -480,6 +480,10 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         body: "Don't like a result? Regenerate as often as you want (G on the keyboard), or lock the cells you're sure about first.",
       },
+      {
+        heading: "It saves itself",
+        body: "Every build, re-roll, swap, batting-order move and attendance tap saves on its own a moment later — switching games or closing the app won't lose it. If another coach changes the same game while you're editing, autosave pauses and you choose: Save Game Data keeps yours, reopening the game loads theirs.",
+      },
     ],
     related: ["lineup-locks-editing", "batting-order", "game-types-and-flags"],
     cta: { label: "Open Schedule", tab: "schedule" },
@@ -575,6 +579,14 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         heading: "Your change is what happened",
         body: "Whatever you set for the inning you're on is exactly what that inning becomes — nothing is refused and nothing else in it moves. If a move breaks a rule (a kid who isn't set as a catcher, or catching after pitching the same day), it still goes in and you get a heads-up. Every inning after it is then re-planned around what has actually happened: kids who already sat sit less, a catcher partway through a block finishes it, and the arm on the mound keeps the ball.",
+      },
+      {
+        heading: "Counting pitches",
+        body: "In Kid Pitch games each pitcher in the Pitchers panel has −1 / +1 / +5 buttons and shows what's left of today's limit. The count saves to their arm-care log as this game's outing, so rest-day rules see it right away; if you later import the GameChanger box score, its numbers replace yours.",
+      },
+      {
+        heading: "Closing and resuming",
+        body: "Close whenever you need the rest of the app — the lineup is saved and the inning is remembered. Home then shows Resume · Inning N, and Undo still works when you come back. An assistant watching the game follows your inning.",
       },
       {
         heading: "Finishing up",
@@ -903,13 +915,17 @@ export const HELP_TOPICS: HelpTopic[] = [
     title: "The availability portal",
     summary:
       "Parents submit the dates their kid can't make; you merge them onto the roster.",
-    keywords: "availability parent portal absence submit vacation dates merge",
+    keywords:
+      "availability parent portal absence submit vacation dates merge game practice days calendar",
     sections: [
       {
         body: "Share the availability link and parents mark the dates their kid is out — no account needed. Submissions that clearly match a roster player merge onto that player's absences; ambiguous ones wait in a match queue for you to resolve.",
       },
       {
         body: "Once merged, the lineup generator benches the player for those dates automatically.",
+      },
+      {
+        body: "Turn on “Show game and practice days on the form” in the Availability tab and the form's calendar marks the days you play or practice, so families know which dates matter. It shares dates only — no times, places or opponents — with anyone who has the link. Off until you turn it on.",
       },
     ],
     related: ["absences-departed", "share-links-qr"],
@@ -1136,6 +1152,7 @@ export const TAB_TO_HELP_CATEGORY: Record<string, HelpCategoryId> = {
   evaluation: "evaluations",
   tryouts: "tryouts-recruiting",
   interest: "tryouts-recruiting",
+  families: "parent-portals",
   playerInfo: "parent-portals",
   availability: "parent-portals",
   finances: "finances",

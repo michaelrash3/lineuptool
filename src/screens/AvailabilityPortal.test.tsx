@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { getDocs } from "firebase/firestore";
+import { getDoc, getDocs } from "firebase/firestore";
 import { newSignupId, upsertSignupDoc } from "../utils/tryoutSignupDocs";
 
 vi.mock("../firebase", () => ({ auth: {}, appId: "app", db: {} }));
@@ -11,6 +11,12 @@ vi.mock("firebase/auth", () => ({
 vi.mock("firebase/firestore", () => ({
   collection: vi.fn(() => ({})),
   getDocs: vi.fn(),
+  // The owned link doc (portalLinks/{slug}). Absent by default, so the
+  // existing tests exercise the legacy mirror-query fallback.
+  doc: vi.fn((...path: unknown[]) => ({ __path: path.slice(1).join("/") })),
+  getDoc: vi.fn(() =>
+    Promise.resolve({ exists: () => false, metadata: { fromCache: false } }),
+  ),
   query: vi.fn(() => ({})),
   where: vi.fn(() => ({})),
 }));
@@ -24,6 +30,7 @@ vi.mock("../utils/tryoutSignupDocs", () => ({
 import { AvailabilityPortal } from "./AvailabilityPortal";
 
 const mockGetDocs = getDocs as unknown as ReturnType<typeof vi.fn>;
+const mockGetDoc = getDoc as unknown as ReturnType<typeof vi.fn>;
 const mockNewSignupId = newSignupId as unknown as ReturnType<typeof vi.fn>;
 const mockUpsert = upsertSignupDoc as unknown as ReturnType<typeof vi.fn>;
 
@@ -125,5 +132,133 @@ describe("AvailabilityPortal", () => {
     expect(
       await screen.findByText(/can't open this page/i),
     ).toBeInTheDocument();
+  });
+});
+
+// Weak signal at the ball field: the lookup can't reach the server and the
+// browser's (empty) offline cache answers instead. That must read as a
+// connection problem with a retry — never as "your link is dead".
+describe("AvailabilityPortal — offline vs. a dead link", () => {
+  const renderAt = () =>
+    render(
+      <MemoryRouter initialEntries={["/p/abc"]}>
+        <Routes>
+          <Route path="/p/:slug" element={<AvailabilityPortal />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  it("says it couldn't connect, and Try again re-runs the lookup", async () => {
+    mockGetDocs.mockReset();
+    mockGetDocs
+      .mockResolvedValueOnce({
+        empty: true,
+        docs: [],
+        metadata: { fromCache: true },
+      })
+      .mockResolvedValueOnce({
+        empty: false,
+        docs: [mirrorDoc],
+        metadata: { fromCache: false },
+      });
+    renderAt();
+    expect(
+      await screen.findByText(/couldn't reach this team's page/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/not found or has been deactivated/i)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    await waitFor(() => expect(mockGetDocs).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByText(/can't open this page/i)).toBeNull(),
+    );
+  });
+
+  it("still says a link is dead when the server says so — with no retry", async () => {
+    mockGetDocs.mockReset();
+    mockGetDocs.mockResolvedValueOnce({
+      empty: true,
+      docs: [],
+      metadata: { fromCache: false },
+    });
+    renderAt();
+    expect(
+      await screen.findByText(/not found or has been deactivated/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /try again/i })).toBeNull();
+  });
+});
+
+describe("AvailabilityPortal — the team's game and practice days", () => {
+  const now = new Date();
+  const iso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  // Today (local) is always on the first calendar shown and never "past".
+  const today = iso(now);
+  const day = String(now.getDate());
+
+  const withSchedule = (sched: Record<string, unknown> | null) =>
+    mockGetDoc.mockImplementation((ref: { __path?: string }) =>
+      Promise.resolve(
+        String(ref?.__path || "").includes("portalSchedules") && sched
+          ? { exists: () => true, data: () => sched }
+          : { exists: () => false, metadata: { fromCache: false } },
+      ),
+    );
+  afterEach(() => mockGetDoc.mockReset());
+
+  it("marks the days the coach shared, with a legend", async () => {
+    withSchedule({ teamId: "team1", gameDays: [today], practiceDays: [] });
+    renderPortal();
+    expect(
+      await screen.findByRole("button", { name: `${day}, game` }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Game day")).toBeInTheDocument();
+    expect(screen.queryByText("Practice")).not.toBeInTheDocument();
+  });
+
+  it("can mark a day as both", async () => {
+    withSchedule({ teamId: "team1", gameDays: [today], practiceDays: [today] });
+    renderPortal();
+    expect(
+      await screen.findByRole("button", { name: `${day}, game and practice` }),
+    ).toBeInTheDocument();
+  });
+
+  it("ignores a schedule that belongs to another team", async () => {
+    withSchedule({ teamId: "someone-else", gameDays: [today] });
+    renderPortal();
+    await screen.findByText("Submit Availability");
+    // Let the schedule lookup settle.
+    await waitFor(() => expect(mockGetDoc).toHaveBeenCalled());
+    expect(screen.queryByText("Game day")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: day })).toBeInTheDocument();
+  });
+
+  it("shows a plain calendar when nothing is shared", async () => {
+    withSchedule(null);
+    renderPortal();
+    await screen.findByText("Submit Availability");
+    expect(screen.queryByText("Game day")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: day })).toBeInTheDocument();
+  });
+
+  it("lets a family mark today — the local today, not UTC's", async () => {
+    // 8pm on May 9 in Los Angeles is already May 10 in UTC. The old UTC
+    // "today" greyed May 9 out as past while it was still May 9 at home.
+    const prevTz = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-10T03:00:00Z"));
+    try {
+      withSchedule(null);
+      renderPortal();
+      await screen.findByText("Submit Availability");
+      expect(screen.getByText("May 2026")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "9" })).not.toBeDisabled();
+      expect(screen.getByRole("button", { name: "8" })).toBeDisabled();
+    } finally {
+      vi.useRealTimers();
+      process.env.TZ = prevTz;
+    }
   });
 });

@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { collection, getDocs, query, where } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
 import { auth, appId, db } from "../firebase";
 import { APP_NAME } from "../constants/ui";
@@ -14,6 +13,7 @@ import {
 import { newSignupId, upsertSignupDoc } from "../utils/tryoutSignupDocs";
 import { applyTeamInkVars } from "../utils/contrast";
 import { reportError } from "../utils/errorReporter";
+import { resolvePortalTeam } from "../utils/portalLinks";
 import { Button, Eyebrow } from "../components/shared";
 import { Icons } from "../icons";
 
@@ -103,6 +103,9 @@ export const PlayerInfoPortal = () => {
   const { slug } = useParams();
   const linkSlug = (slug || "").trim();
   const [phase, setPhase] = useState("loading");
+  // Bumped by "Try again" on a connection error to re-run the lookup.
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [canRetry, setCanRetry] = useState(false);
   const [team, setTeam] = useState<any>(null);
   const [teamDocId, setTeamDocId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -169,36 +172,40 @@ export const PlayerInfoPortal = () => {
         // Resolve the team from the sanitized public mirror by the SAME share
         // id the Tryouts Portal uses — never the full team doc. Submissions are
         // written to the real team doc by id below.
-        const mirrorRef = collection(
-          db,
-          "artifacts",
-          appId,
-          "public",
-          "data",
-          "teamPublic",
-        );
-        const shareSnap = await getDocs(
-          query(mirrorRef, where("tryoutShareId", "==", linkSlug)),
-        );
+        // The owned link doc first, the legacy mirror query as fallback —
+        // see resolvePortalTeam. Never the full team doc.
+        const found = await resolvePortalTeam(db, appId, linkSlug);
         if (cancelled) return;
 
-        if (!shareSnap.empty) {
-          const teamDoc = shareSnap.docs[0];
-          const data = teamDoc.data();
+        if (found.status === "found") {
+          const data = found.data;
           setTeam(data);
-          setTeamDocId(teamDoc.id);
+          setTeamDocId(found.teamId);
           applyThemeColors(data);
           setPhase("form");
           return;
         }
 
+        // Nothing found from this browser's offline cache is NOT "no such
+        // link": with weak signal the lookup can't reach the server. Say so,
+        // and offer a retry, rather than telling a family their link is dead.
+        if (found.status === "offline") {
+          setError(
+            "Couldn't reach this team's page — your signal may be weak. Check your connection and try again.",
+          );
+          setCanRetry(true);
+          setPhase("error");
+          return;
+        }
         setError("Link not found or has been deactivated.");
+        setCanRetry(false);
         setPhase("error");
       } catch (err) {
         reportError(err, { source: "PlayerInfoPortal.init", linkSlug });
         setError(
           "Couldn't load this team's page. The link may be invalid or your network may be down.",
         );
+        setCanRetry(true);
         setPhase("error");
       }
     };
@@ -206,7 +213,7 @@ export const PlayerInfoPortal = () => {
     return () => {
       cancelled = true;
     };
-  }, [linkSlug]);
+  }, [linkSlug, loadAttempt]);
 
   const handleSubmit = async (e: any) => {
     e?.preventDefault?.();
@@ -292,6 +299,20 @@ export const PlayerInfoPortal = () => {
             title="Can't open this page"
           >
             {error}
+            {canRetry && (
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setPhase("loading");
+                  setLoadAttempt((n) => n + 1);
+                }}
+                className="mt-5 w-full min-h-[48px] rounded-xl font-black uppercase tracking-wider text-sm text-white"
+                style={{ backgroundColor: "var(--team-primary)" }}
+              >
+                Try again
+              </button>
+            )}
           </PhaseCard>
         </div>
       </PortalShell>

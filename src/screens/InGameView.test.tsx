@@ -61,6 +61,7 @@ const renderInGame = ({
   team?: Record<string, unknown>;
 } = {}) => {
   const updateGame = vi.fn();
+  const updatePlayer = vi.fn();
   const finalizeGame = vi.fn();
   const removePlayerMidGame = vi.fn();
   const setPlayerHealth = vi.fn();
@@ -74,6 +75,7 @@ const renderInGame = ({
         currentRole: role,
         realRole: role,
         updateGame,
+        updatePlayer,
         finalizeGame,
         removePlayerMidGame,
         setPlayerHealth,
@@ -94,6 +96,7 @@ const renderInGame = ({
   return {
     ...utils,
     updateGame,
+    updatePlayer,
     finalizeGame,
     removePlayerMidGame,
     setPlayerHealth,
@@ -559,5 +562,82 @@ describe("InGameView edits are facts, and the rest of the game re-plans", () => 
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("InGameView — inning memory, closing, pitch counts", () => {
+  it("saves the inning on the game as the head coach steps through it", () => {
+    const twoInnings = makeGame({ lineup: [oneInning(), oneInning()] });
+    const { updateGame, uiValue } = renderInGame({ game: twoInnings });
+    fireEvent.click(screen.getByLabelText("Next inning"));
+    expect(uiValue.setInGameInning).toHaveBeenCalledWith(1);
+    expect(updateGame).toHaveBeenCalledWith("g1", { liveInning: 1 });
+  });
+
+  it("an assistant's view follows the head coach's saved inning", () => {
+    const game = makeGame({
+      lineup: [oneInning(), oneInning(), oneInning()],
+      liveInning: 2,
+    });
+    const { uiValue, updateGame } = renderInGame({ role: "assistant", game });
+    expect(uiValue.setInGameInning).toHaveBeenCalledWith(2);
+    expect(updateGame).not.toHaveBeenCalled();
+  });
+
+  it("closing keeps the undo history (it survives until another game opens)", () => {
+    const { uiValue } = renderInGame({
+      ui: { inGameUndoStack: [{ lineup: [oneInning()], locks: {} }] },
+    });
+    fireEvent.click(screen.getByLabelText("Close in-game mode"));
+    expect(uiValue.setInGameId).toHaveBeenCalledWith(null);
+    expect(uiValue.setInGameUndoStack).not.toHaveBeenCalled();
+  });
+
+  it("counts pitches for the pitcher and saves them as this game's outing", () => {
+    const { updatePlayer } = renderInGame();
+    fireEvent.click(screen.getByLabelText("Five more pitches for Alice"));
+    fireEvent.click(screen.getByLabelText("One more pitch for Alice"));
+    expect(
+      screen.getByLabelText("Alice: 6 pitches this game"),
+    ).toBeInTheDocument();
+    const [id, patch] =
+      updatePlayer.mock.calls[updatePlayer.mock.calls.length - 1];
+    expect(id).toBe("p1");
+    // ONE outing for this game, tagged with its id — what a later box-score
+    // import replaces.
+    const outings = patch.pitching.log.filter((o: any) => o.gameId === "g1");
+    expect(outings).toEqual([
+      expect.objectContaining({ date: "2026-07-01", pitches: 6, gameId: "g1" }),
+    ]);
+  });
+
+  it("taking the count back to zero removes this game's outing", () => {
+    const game = makeGame();
+    const { updatePlayer } = renderInGame({
+      game,
+      team: {
+        players: [
+          {
+            ...alice,
+            pitching: {
+              log: [{ date: "2026-07-01", pitches: 1, gameId: "g1" }],
+            },
+          },
+          bob,
+          cara,
+          dave,
+          evan,
+        ],
+      },
+    });
+    expect(
+      screen.getByLabelText("Alice: 1 pitches this game"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("One fewer pitch for Alice"));
+    const [, patch] =
+      updatePlayer.mock.calls[updatePlayer.mock.calls.length - 1];
+    expect((patch.pitching.log || []).some((o: any) => o.gameId === "g1")).toBe(
+      false,
+    );
   });
 });

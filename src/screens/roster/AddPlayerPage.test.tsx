@@ -77,4 +77,41 @@ describe("AddPlayerPage", () => {
     renderPage({ currentRole: "assistant" });
     expect(screen.getByText("ROSTER LIST")).toBeInTheDocument();
   });
+
+  it("Save & add another adds the player and clears the form for the next", async () => {
+    const user = userEvent.setup();
+    const { addPlayer } = renderPage();
+    await user.type(nameInput(), "Ada Lopez");
+    await user.click(
+      screen.getByRole("button", { name: /save & add another/i }),
+    );
+    expect(addPlayer).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Ada Lopez" }),
+    );
+    expect(screen.getByRole("status").textContent).toMatch(/added ada lopez/i);
+    expect(nameInput()).toHaveValue("");
+    // Still on the page — no round trip to the roster.
+    expect(screen.queryByText("ROSTER LIST")).toBeNull();
+  });
+
+  it("adds a pasted list in one go", async () => {
+    window.history.replaceState({ idx: 0 }, "");
+    const user = userEvent.setup();
+    const addPlayers = jest.fn(() => 3);
+    renderPage({ addPlayers });
+    await user.click(screen.getByRole("tab", { name: /paste a list/i }));
+    await user.type(
+      screen.getByLabelText(/one player per line/i),
+      "12 Ada Lopez{enter}#7 Ben Cruz{enter}Cara Diaz",
+    );
+    expect(
+      screen.getByRole("list", { name: /players to add/i }).textContent,
+    ).toMatch(/#12 Ada Lopez.*#7 Ben Cruz.*Cara Diaz/);
+    await user.click(screen.getByRole("button", { name: /add 3 players/i }));
+    expect(addPlayers).toHaveBeenCalledWith([
+      { name: "Ada Lopez", number: "12" },
+      { name: "Ben Cruz", number: "7" },
+      { name: "Cara Diaz", number: "" },
+    ]);
+  });
 });

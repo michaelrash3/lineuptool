@@ -91,6 +91,27 @@ export const formatGameDateDisplay = (
   }).format(new Date(Date.UTC(y, m - 1, d)));
 };
 
+// A date a parent reads without decoding: "Friday, May 22", with the year
+// only when it isn't this year ("Friday, May 22, 2099"). Read from calendar
+// parts, so it never shifts a day across time zones. Unparseable input comes
+// back unchanged.
+export const formatLongDate = (
+  value: string | null | undefined,
+  now: Date = new Date(),
+): string => {
+  if (!value) return "";
+  const iso = normalizeDateToIso(value);
+  if (!iso) return String(value);
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    ...(y !== now.getFullYear() ? { year: "numeric" as const } : {}),
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(y, m - 1, d)));
+};
+
 // Compact, locale-independent date for display: zero-padded MM/DD/YYYY (e.g.
 // "10/08/2017"). Used for DOBs and submission timestamps that previously leaked
 // raw ISO ("2017-10-08") or unpadded locale strings ("6/27/2026").

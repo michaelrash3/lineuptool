@@ -4,6 +4,8 @@ import {
   formatGameDateDisplay,
   sameDayRoleSets,
   playsGame,
+  recordPitchingOuting,
+  removePitchingOutingEntry,
 } from "../utils/helpers";
 import {
   pitchBudgetFor,
@@ -14,6 +16,7 @@ import { shareLineupCard } from "../lineup/lineupCard";
 import { applySwap, getPlayerAt, fillVacatedSpot } from "../lineup/inGameSwap";
 import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog } from "../components/shared";
+import { SyncStatusPill } from "../components/Chrome";
 import { featureEnabled } from "../constants/features";
 import { useNavigate } from "react-router-dom";
 import { laterPlannedGamesForPlayer } from "../utils/tournamentPitching";
@@ -70,9 +73,11 @@ export const InGameView = memo(() => {
   const {
     team,
     updateGame,
+    updatePlayer,
     removePlayerMidGame: removePlayerMidGameAction,
     setPlayerHealth,
     currentRole,
+    syncStatus,
   } = useTeam();
   // Whether the Development module is on — gates the "also mark Out"
   // persistence hook on injury removals.
@@ -171,6 +176,27 @@ export const InGameView = memo(() => {
       flush();
     };
   }, [flush]);
+
+  // An assistant shadowing from the dugout follows the head coach's inning
+  // (saved on the game as they step through it). The head coach's own view
+  // is restored once on open (UIProvider) and then driven by their taps.
+  const followedInning = game?.liveInning;
+  useEffect(() => {
+    if (canEdit || typeof followedInning !== "number") return;
+    setInGameInning(followedInning);
+  }, [canEdit, followedInning, setInGameInning]);
+
+  // ----- Live pitch counts -----
+  // Teams without a GameChanger box score had no way to count pitches, so
+  // availability was judged from empty logs. The head coach can now tap the
+  // count up as the game goes. Taps show instantly and are written to the
+  // pitcher's log right away as ONE outing tagged with this game's id (each
+  // tap rewrites that single entry) — which is exactly what a later box-score
+  // import replaces (it dedupes on gameId), so importing never double-counts.
+  const [livePitches, setLivePitches] = useState<Record<string, number>>({});
+  useEffect(() => {
+    setLivePitches({});
+  }, [inGameId]);
 
   if (!inGameId) return null;
   if (!game) return null;
@@ -702,10 +728,59 @@ export const InGameView = memo(() => {
     return inGameSelection.playerId === sel.playerId;
   };
 
+  // Closing keeps everything: the lineup is saved, the inning is remembered,
+  // and undo survives until a DIFFERENT game is opened (see UIProvider).
   const close = () => {
+    flush();
     setInGameId(null);
     setInGameSelection(null);
-    setInGameUndoStack([]);
+  };
+
+  // Step innings. The head coach's inning is saved on the game so reopening
+  // (or a reload) resumes here and an assistant's view follows along.
+  const goToInning = (n: number) => {
+    const next = Math.min(Math.max(0, n), totalInnings - 1);
+    setInGameInning(next);
+    if (canEdit && game.liveInning !== next)
+      updateGame(game.id, { liveInning: next });
+  };
+
+  // This game's logged pitches for a pitcher: the live tally if the coach has
+  // tapped, else what the log already holds for this game.
+  const rosterById = new Map<string, any>(
+    (team.players || []).map((p: any) => [p.id, p]),
+  );
+  const loggedPitchesThisGame = (playerId: string) => {
+    const log = rosterById.get(playerId)?.pitching?.log;
+    if (!Array.isArray(log)) return 0;
+    return log
+      .filter((o: any) => o && o.gameId === game.id)
+      .reduce((sum: number, o: any) => sum + (Number(o.pitches) || 0), 0);
+  };
+  const pitchesThisGame = (playerId: string) =>
+    livePitches[playerId] ?? loggedPitchesThisGame(playerId);
+  const writePitchCount = (playerId: string, count: number) => {
+    const rp = rosterById.get(playerId);
+    if (!rp || !game.date) return;
+    const pitching = rp.pitching || {};
+    if (count > 0) {
+      updatePlayer?.(playerId, {
+        pitching: recordPitchingOuting(pitching, game.date, count, game.id),
+      });
+    } else {
+      const log = Array.isArray(pitching.log) ? pitching.log : [];
+      const idx = log.findIndex((o: any) => o && o.gameId === game.id);
+      if (idx >= 0)
+        updatePlayer?.(playerId, {
+          pitching: removePitchingOutingEntry(pitching, idx),
+        });
+    }
+  };
+  const adjustPitches = (playerId: string, delta: number) => {
+    if (!canEdit) return;
+    const next = Math.max(0, pitchesThisGame(playerId) + delta);
+    setLivePitches((cur) => ({ ...cur, [playerId]: next }));
+    writePitchCount(playerId, next);
   };
 
   const benchKids = inn.BENCH || [];
@@ -718,10 +793,14 @@ export const InGameView = memo(() => {
         <div className="px-4 py-3 flex items-center justify-between gap-3">
           <button
             onClick={close}
-            className="p-2 hover:bg-surface-2 text-ink-2 rounded-lg transition-colors"
+            className="min-w-[48px] min-h-[48px] flex flex-col items-center justify-center gap-0.5 hover:bg-surface-2 text-ink-2 rounded-lg transition-colors"
             aria-label="Close in-game mode"
+            title="Close — the lineup and inning are saved; resume from Home"
           >
             <Icons.X className="w-5 h-5" />
+            <span className="text-[10px] font-black uppercase tracking-wider">
+              Close
+            </span>
           </button>
           {(() => {
             const tScore = game.teamScore ?? 0;
@@ -762,7 +841,7 @@ export const InGameView = memo(() => {
                   <>
                     <button
                       onClick={() => setShowRemoveModal(true)}
-                      className={`relative p-2 rounded-lg transition-colors ${
+                      className={`relative min-w-[48px] min-h-[48px] flex flex-col items-center justify-center gap-0.5 rounded-lg transition-colors ${
                         removedCount > 0
                           ? "text-loss bg-loss-bg hover:bg-loss-bg"
                           : "text-ink-2 hover:bg-loss-bg hover:text-loss"
@@ -781,6 +860,9 @@ export const InGameView = memo(() => {
                       }
                     >
                       <Icons.Alert className="w-5 h-5" />
+                      <span className="text-[10px] font-black uppercase tracking-wider">
+                        Out
+                      </span>
                       {removedCount > 0 && (
                         <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-loss text-white text-[10px] font-black flex items-center justify-center leading-none tabular-nums">
                           {removedCount}
@@ -790,10 +872,13 @@ export const InGameView = memo(() => {
                     <button
                       onClick={undo}
                       disabled={inGameUndoStack.length === 0}
-                      className="p-2 text-ink-2 hover:bg-surface-2 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="min-w-[48px] min-h-[48px] flex flex-col items-center justify-center gap-0.5 text-ink-2 hover:bg-surface-2 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                       aria-label="Undo last swap"
                     >
-                      <Icons.Refresh className="w-5 h-5" />
+                      <Icons.Undo className="w-5 h-5" />
+                      <span className="text-[10px] font-black uppercase tracking-wider">
+                        Undo
+                      </span>
                     </button>
                   </>
                 );
@@ -803,6 +888,13 @@ export const InGameView = memo(() => {
         {!canEdit && (
           <div className="px-4 py-2 bg-warn-bg border-t border-line text-center text-[11px] font-black uppercase tracking-widest text-warnfg">
             View only — head coach controls lineup changes
+          </div>
+        )}
+        {/* In-game covers the app header, so its save status shows here —
+            exactly where signal is worst. */}
+        {syncStatus && (
+          <div className="px-4 py-1.5 border-t border-line flex justify-center">
+            <SyncStatusPill syncStatus={syncStatus} />
           </div>
         )}
         {showScoreEditor && canEdit && (
@@ -875,7 +967,7 @@ export const InGameView = memo(() => {
       <div className="bg-surface border-b border-line p-4">
         <div className="flex items-center justify-between gap-3 mb-3">
           <button
-            onClick={() => setInGameInning(Math.max(0, currentInning - 1))}
+            onClick={() => goToInning(currentInning - 1)}
             disabled={currentInning === 0}
             className="p-3 bg-surface-2 hover:bg-line rounded-xl text-ink font-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             aria-label="Previous inning"
@@ -893,9 +985,7 @@ export const InGameView = memo(() => {
             </div>
           </div>
           <button
-            onClick={() =>
-              setInGameInning(Math.min(totalInnings - 1, currentInning + 1))
-            }
+            onClick={() => goToInning(currentInning + 1)}
             disabled={currentInning >= totalInnings - 1}
             className="p-3 bg-surface-2 hover:bg-line rounded-xl text-ink font-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             aria-label="Next inning"
@@ -989,6 +1079,23 @@ export const InGameView = memo(() => {
                     <div className="flex flex-col gap-1.5">
                       {usedPitcherList.map(({ player, firstInning }) => {
                         const relieved = relievedIds.has(player.id);
+                        const count = pitchesThisGame(player.id);
+                        // Today's budget minus THIS game's live count (the
+                        // budget itself excludes this game's logged outing).
+                        const rp = rosterById.get(player.id);
+                        const budget = rp ? dayBudget(rp) : null;
+                        const left =
+                          budget && Number.isFinite(budget.remaining)
+                            ? budget.remaining - count
+                            : null;
+                        const leftTone =
+                          left == null
+                            ? "text-ink-3"
+                            : left <= 0
+                              ? "text-loss"
+                              : left <= 10
+                                ? "text-warnfg"
+                                : "text-ink-3";
                         return (
                           <div
                             key={player.id}
@@ -998,20 +1105,66 @@ export const InGameView = memo(() => {
                           >
                             <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
                               <span
-                                className={`text-[11px] font-bold truncate ${
+                                className={`text-[12px] font-bold truncate ${
                                   relieved ? "text-ink-3" : "text-ink"
                                 }`}
                               >
                                 {player.name}
                               </span>
-                              <span className="text-ink-3 text-[9px] font-medium shrink-0">
+                              <span className="text-ink-3 text-[10px] font-medium shrink-0">
                                 (Inn {firstInning})
                               </span>
                               {relieved && (
-                                <span className="text-[9px] font-black uppercase tracking-widest text-loss shrink-0">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-loss shrink-0">
                                   Relieved — done for this game
                                 </span>
                               )}
+                              {left != null && (
+                                <span
+                                  className={`basis-full text-[11px] font-bold tabular-nums ${leftTone}`}
+                                >
+                                  {left <= 0
+                                    ? "At today's pitch limit"
+                                    : `${left} left today`}
+                                </span>
+                              )}
+                            </div>
+                            {/* Live pitch count — taps save to this game's
+                                outing in the arm-care log. */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => adjustPitches(player.id, -1)}
+                                disabled={count <= 0}
+                                className="w-10 h-10 rounded-lg bg-surface-2 text-ink font-black text-lg disabled:opacity-30"
+                                aria-label={`One fewer pitch for ${player.name}`}
+                              >
+                                −
+                              </button>
+                              <span
+                                className="min-w-[2.5rem] text-center text-lg font-black tabular-nums text-ink"
+                                aria-label={`${player.name}: ${count} pitches this game`}
+                              >
+                                {count}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => adjustPitches(player.id, 1)}
+                                className="w-10 h-10 rounded-lg text-white font-black text-base"
+                                style={{ backgroundColor: primaryColor }}
+                                aria-label={`One more pitch for ${player.name}`}
+                              >
+                                +1
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => adjustPitches(player.id, 5)}
+                                className="w-10 h-10 rounded-lg text-white font-black text-base"
+                                style={{ backgroundColor: primaryColor }}
+                                aria-label={`Five more pitches for ${player.name}`}
+                              >
+                                +5
+                              </button>
                             </div>
                           </div>
                         );

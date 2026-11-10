@@ -128,6 +128,22 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Sync attendance/firstInning/lineup with the selected game
   const gamesRef = useRef(team.team.games);
+  // Opening In-Game mode. A DIFFERENT game starts where it was left (its saved
+  // liveInning) with a fresh undo history; re-opening the SAME game — after
+  // closing it to check the schedule, say — comes back exactly as it was, undo
+  // included. Covers every way in: Home, Schedule, and a reload of
+  // /in-game/:gameId.
+  const lastInGameIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!inGameId || inGameId === lastInGameIdRef.current) return;
+    lastInGameIdRef.current = inGameId;
+    const g = (gamesRef.current || []).find((x: Game) => x.id === inGameId);
+    const total = Array.isArray(g?.lineup) ? g!.lineup!.length : 0;
+    const live = typeof g?.liveInning === "number" ? g.liveInning : 0;
+    setInGameInning(Math.min(Math.max(0, live), Math.max(0, total - 1)));
+    setInGameSelection(null);
+    setInGameUndoStack([]);
+  }, [inGameId]);
   useEffect(() => {
     gamesRef.current = team.team.games;
   }, [team.team.games]);
@@ -154,6 +170,118 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     battingSig: string;
   } | null>(null);
 
+  // ----- Autosave -----
+  // A built, re-rolled or hand-edited lineup used to live only on screen until
+  // the coach tapped "Save Game Data" — and switching games (or closing the
+  // app) quietly threw it away. Now every coach EDIT (build / re-roll / undo,
+  // template, cell swap, batting move, attendance tap) marks the game edited,
+  // and a short debounce writes it. Loading a game into the editor is not an
+  // edit, so opening one never writes. The pending save is tied to the game
+  // it was made on (captured at edit time) and is flushed on a game switch,
+  // when the page hides, and on unmount — so it can never land on the wrong
+  // game or be lost. If another coach changes the same game while an edit is
+  // pending, autosave stands down for that game (see the conflict effect) and
+  // the coach decides with the explicit Save.
+  const AUTOSAVE_MS = 700;
+  const selectedGameIdRef = useRef(selectedGameId);
+  const latestEditorRef = useRef({
+    lineup,
+    battingLineup,
+    currentGameAttendance,
+    tournamentPlan,
+    lineupQualityPenalty,
+  });
+  useEffect(() => {
+    selectedGameIdRef.current = selectedGameId;
+    latestEditorRef.current = {
+      lineup,
+      battingLineup,
+      currentGameAttendance,
+      tournamentPlan,
+      lineupQualityPenalty,
+    };
+  });
+  const pendingAutosaveRef = useRef<{
+    gameId: string;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
+  const autosaveBlockedRef = useRef<string | null>(null);
+  const [editTick, setEditTick] = useState(0);
+  const editedGameRef = useRef<string | null>(null);
+  const markEdited = useCallback(() => {
+    editedGameRef.current = selectedGameIdRef.current;
+    setEditTick((t) => t + 1);
+  }, []);
+  const updateGameForAutosave = team.updateGame;
+  const flushAutosave = useCallback(() => {
+    const pending = pendingAutosaveRef.current;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pendingAutosaveRef.current = null;
+    if (autosaveBlockedRef.current === pending.gameId) return;
+    const s = latestEditorRef.current;
+    const patch = s.lineup
+      ? {
+          lineup: s.lineup,
+          battingLineup: s.battingLineup,
+          attendance: s.currentGameAttendance || {},
+          tournamentPlan: s.tournamentPlan || null,
+          qualityPenalty:
+            typeof s.lineupQualityPenalty === "number"
+              ? s.lineupQualityPenalty
+              : null,
+        }
+      : { attendance: s.currentGameAttendance || {} };
+    updateGameForAutosave?.(pending.gameId, patch);
+    // What's on the server is now what's on screen — so the write's own echo
+    // is never read as another coach's change.
+    if (loadedGameRef.current?.id === pending.gameId) {
+      loadedGameRef.current = {
+        id: pending.gameId,
+        lineupSig: lineupSignature(s.lineup),
+        battingSig: battingSignature(s.battingLineup),
+      };
+    }
+    setGameSaved(true);
+    setTimeout(() => setGameSaved(false), 2000);
+  }, [updateGameForAutosave]);
+  useEffect(() => {
+    if (editTick === 0) return;
+    const gameId = editedGameRef.current;
+    if (!gameId || autosaveBlockedRef.current === gameId) return;
+    if (
+      pendingAutosaveRef.current &&
+      pendingAutosaveRef.current.gameId !== gameId
+    )
+      flushAutosave();
+    if (pendingAutosaveRef.current)
+      clearTimeout(pendingAutosaveRef.current.timer);
+    pendingAutosaveRef.current = {
+      gameId,
+      timer: setTimeout(flushAutosave, AUTOSAVE_MS),
+    };
+  }, [editTick, flushAutosave]);
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden) flushAutosave();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pagehide", flushAutosave);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pagehide", flushAutosave);
+      flushAutosave();
+    };
+  }, [flushAutosave]);
+  // Attendance taps from the Game Day grid: an edit like any other.
+  const updateCurrentGameAttendance = useCallback(
+    (next: Record<string, boolean>) => {
+      setCurrentGameAttendance(next);
+      markEdited();
+    },
+    [markEdited],
+  );
+
   // The generate/re-roll Undo toast is GAME-scoped: its snapshot refuses to
   // apply once a different game is selected (useLineupActions), which would
   // leave the still-visible button a silent no-op. TeamProvider owns the
@@ -166,6 +294,10 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     // deleted game) — invalidates the toast. On first mount / first selection
     // there is no live undo toast and this is a no-op.
     dismissLineupUndoToast?.();
+    // Land any pending autosave on the game it was made on before this
+    // selection replaces the editor state.
+    flushAutosave();
+    autosaveBlockedRef.current = null;
     if (!selectedGameId) {
       loadedGameRef.current = null;
       return;
@@ -186,7 +318,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     setTournamentPlan(game.tournamentPlan || null);
     setCurrentGameAttendance(game.attendance || {});
     setGameSaved(false);
-  }, [selectedGameId, dismissLineupUndoToast]);
+  }, [selectedGameId, dismissLineupUndoToast, flushAutosave]);
 
   // Detect when a remote Firestore snapshot updates the game we're editing.
   // If the user has no unsaved local changes, silently re-sync. If they do,
@@ -234,11 +366,19 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       setBattingLineup(game.battingLineup || null);
       setCurrentGameAttendance(game.attendance || {});
     } else {
+      // Don't let autosave silently overwrite the other coach: stand down for
+      // this game until the coach saves explicitly (or reopens the game).
+      autosaveBlockedRef.current = game.id;
+      const pending = pendingAutosaveRef.current;
+      if (pending && pending.gameId === game.id) {
+        clearTimeout(pending.timer);
+        pendingAutosaveRef.current = null;
+      }
       toast.push({
         kind: "warn",
         title: "Another coach changed this game",
         message:
-          "Their lineup is on the server; yours is still on screen. Save to keep yours, or reopen the game to load theirs.",
+          "Their lineup is on the server; yours is still on screen and won't save automatically. Tap Save Game Data to keep yours, or reopen the game to load theirs.",
         duration: 8000,
       });
       // Update the snapshot so we don't fire the warning again for the
@@ -353,29 +493,39 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
         });
       });
       setSwapSelection(null);
+      markEdited();
     },
-    [swapSelection],
+    [swapSelection, markEdited],
   );
 
-  const moveBatter = useCallback((idx: number, delta: number) => {
-    setBattingLineup((cur: SlimPlayer[] | null) => {
-      if (!cur) return cur;
-      const target = idx + delta;
-      if (target < 0 || target >= cur.length) return cur;
-      const next = [...cur];
-      [next[idx], next[target]] = [next[target], next[idx]];
-      return next;
-    });
-  }, []);
+  const moveBatter = useCallback(
+    (idx: number, delta: number) => {
+      setBattingLineup((cur: SlimPlayer[] | null) => {
+        if (!cur) return cur;
+        const target = idx + delta;
+        if (target < 0 || target >= cur.length) return cur;
+        const next = [...cur];
+        [next[idx], next[target]] = [next[target], next[idx]];
+        return next;
+      });
+      markEdited();
+    },
+    [markEdited],
+  );
 
   // Drop a batter into a new slot — the batting order's drag-and-drop. The
   // move itself is pure (moveBatterTo), which also makes a no-op drag return
   // the same array and re-render nothing.
-  const reorderBatter = useCallback((from: number, to: number) => {
-    setBattingLineup((cur: SlimPlayer[] | null) =>
-      cur ? moveBatterTo(cur, from, to) : cur,
-    );
-  }, []);
+  const reorderBatter = useCallback(
+    (from: number, to: number) => {
+      if (from === to) return;
+      setBattingLineup((cur: SlimPlayer[] | null) =>
+        cur ? moveBatterTo(cur, from, to) : cur,
+      );
+      markEdited();
+    },
+    [markEdited],
+  );
 
   // Each player has their own page: /roster/<name-slug>. Callers still pass an
   // id — the identity everything else is keyed by — and the slug is derived
@@ -442,6 +592,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
         setTournamentPlan(tournament || null);
         setSwapSelection(null);
         setGameSaved(false);
+        markEdited();
       },
       applyTemplate: (
         tpl: {
@@ -458,8 +609,16 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
         setTournamentPlan(null);
         setSwapSelection(null);
         setGameSaved(false);
+        markEdited();
       },
+      // An explicit save writes everything on screen: nothing is pending any
+      // more, and autosave resumes (the coach chose their version).
       markSaved: () => {
+        if (pendingAutosaveRef.current) {
+          clearTimeout(pendingAutosaveRef.current.timer);
+          pendingAutosaveRef.current = null;
+        }
+        autosaveBlockedRef.current = null;
         setGameSaved(true);
         setTimeout(() => setGameSaved(false), 2000);
       },
@@ -488,6 +647,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       setInGameUndoStack,
       currentGameAttendance,
       setCurrentGameAttendance,
+      updateCurrentGameAttendance,
       firstInningLineup,
       setFirstInningLineup,
       lineup,
@@ -551,6 +711,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       newCoachForm,
       teamEvalGrades,
       selectedRoundId,
+      updateCurrentGameAttendance,
     ],
   );
 

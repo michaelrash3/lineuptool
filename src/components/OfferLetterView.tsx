@@ -1,4 +1,5 @@
 import React, { memo, useMemo, useState } from "react";
+import { isSafeVenmoUrl } from "../utils/venmo";
 import { Icons } from "../icons";
 import { useToast } from "../contexts";
 import { buildMailtoUrl } from "../utils/reminderDraft";
@@ -163,14 +164,19 @@ export const OfferLetterView = memo(
           {ctx.venmoLink && draft.body.includes(ctx.venmoLink) && (
             <div className="mt-2 text-xs font-bold text-ink-2 bg-surface-2 border border-line rounded-lg px-3 py-2">
               Venmo link:{" "}
-              <a
-                href={ctx.venmoLink}
-                target="_blank"
-                rel="noreferrer"
-                className="text-team-primary underline underline-offset-2"
-              >
-                {ctx.venmoLink}
-              </a>
+              {isSafeVenmoUrl(ctx.venmoLink) ? (
+                <a
+                  href={ctx.venmoLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-team-primary underline underline-offset-2"
+                >
+                  {ctx.venmoLink}
+                </a>
+              ) : (
+                // Never an <a href> for anything but a real Venmo address.
+                <span>{ctx.venmoLink}</span>
+              )}
             </div>
           )}
         </div>

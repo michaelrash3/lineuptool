@@ -12,6 +12,12 @@ vi.mock("firebase/auth", () => ({
 vi.mock("firebase/firestore", () => ({
   collection: vi.fn(() => ({})),
   getDocs: vi.fn(),
+  // The owned link doc (portalLinks/{slug}). Absent by default, so the
+  // existing tests exercise the legacy mirror-query fallback.
+  doc: vi.fn((...path: unknown[]) => ({ __path: path.slice(1).join("/") })),
+  getDoc: vi.fn(() =>
+    Promise.resolve({ exists: () => false, metadata: { fromCache: false } }),
+  ),
   query: vi.fn(() => ({})),
   where: vi.fn(() => ({})),
 }));
@@ -120,5 +126,58 @@ describe("PlayerInfoPortal", () => {
     expect(
       await screen.findByText(/can't open this page/i),
     ).toBeInTheDocument();
+  });
+});
+
+// Weak signal at the ball field: the lookup can't reach the server and the
+// browser's (empty) offline cache answers instead. That must read as a
+// connection problem with a retry — never as "your link is dead".
+describe("PlayerInfoPortal — offline vs. a dead link", () => {
+  const renderAt = () =>
+    render(
+      <MemoryRouter initialEntries={["/p/abc"]}>
+        <Routes>
+          <Route path="/p/:slug" element={<PlayerInfoPortal />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  it("says it couldn't connect, and Try again re-runs the lookup", async () => {
+    mockGetDocs.mockReset();
+    mockGetDocs
+      .mockResolvedValueOnce({
+        empty: true,
+        docs: [],
+        metadata: { fromCache: true },
+      })
+      .mockResolvedValueOnce({
+        empty: false,
+        docs: [mirrorDoc],
+        metadata: { fromCache: false },
+      });
+    renderAt();
+    expect(
+      await screen.findByText(/couldn't reach this team's page/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/not found or has been deactivated/i)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    await waitFor(() => expect(mockGetDocs).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByText(/can't open this page/i)).toBeNull(),
+    );
+  });
+
+  it("still says a link is dead when the server says so — with no retry", async () => {
+    mockGetDocs.mockReset();
+    mockGetDocs.mockResolvedValueOnce({
+      empty: true,
+      docs: [],
+      metadata: { fromCache: false },
+    });
+    renderAt();
+    expect(
+      await screen.findByText(/not found or has been deactivated/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /try again/i })).toBeNull();
   });
 });

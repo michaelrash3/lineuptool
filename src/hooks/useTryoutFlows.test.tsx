@@ -1,7 +1,8 @@
 import { vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { writeBatch } from "firebase/firestore";
+import { deleteDoc, writeBatch } from "firebase/firestore";
 import { useTryoutFlows } from "./useTryoutFlows";
+import { foldTryoutGradeEntries } from "../utils/tryouts";
 import { applyTeamOps, makeToast } from "../test-utils";
 import {
   deleteSignupDoc,
@@ -44,6 +45,8 @@ vi.mock("firebase/firestore", () => ({
     delete: vi.fn(),
     commit: vi.fn(() => Promise.resolve()),
   })),
+  deleteDoc: vi.fn(() => Promise.resolve()),
+  doc: vi.fn((_db: unknown, ...path: string[]) => ({ path: path.join("/") })),
 }));
 
 const mockUpsert = upsertSignupDoc as unknown as ReturnType<typeof vi.fn>;
@@ -112,6 +115,7 @@ const setup = (
 ) => {
   const updateTeam = jest.fn();
   const updateTeamArrays = jest.fn();
+  const updateTeamFieldPaths = jest.fn();
   const toast = makeToast();
   const teamData = {
     tryoutSignups: [],
@@ -134,6 +138,7 @@ const setup = (
       rawAvailabilitySubmissionsRef,
       updateTeam,
       updateTeamArrays,
+      updateTeamFieldPaths,
       toast,
       user,
       activeTeamId: "team-1",
@@ -142,7 +147,14 @@ const setup = (
       teamId: "team-1",
     }),
   );
-  return { result, teamData, updateTeam, updateTeamArrays, toast };
+  return {
+    result,
+    teamData,
+    updateTeam,
+    updateTeamArrays,
+    updateTeamFieldPaths,
+    toast,
+  };
 };
 
 beforeEach(() => {
@@ -150,6 +162,18 @@ beforeEach(() => {
 });
 
 describe("useTryoutFlows", () => {
+  it("rotating the share link deletes the old link's owned doc and schedule", () => {
+    const { result } = setup({ tryoutShareId: "old-slug" });
+    act(() => {
+      result.current.generateTryoutShareId();
+    });
+    const mock = deleteDoc as unknown as ReturnType<typeof vi.fn>;
+    expect(mock.mock.calls.map((c: any[]) => c[0].path)).toEqual([
+      "artifacts/test-app/public/data/portalLinks/old-slug",
+      "artifacts/test-app/public/data/portalSchedules/old-slug",
+    ]);
+  });
+
   it("generateTryoutShareId opens tryouts and returns an id", () => {
     const { result, updateTeam } = setup();
     let id = "";
@@ -440,8 +464,22 @@ describe("useTryoutFlows", () => {
     expect(legacyRemoved("tryoutSignups")).toEqual([]);
   });
 
-  it("saveTryoutEvaluation records a date-grouped tryout session", () => {
-    const { result, teamData, updateTeamArrays } = setup({
+  // Apply field-path writes the way Firestore does: each value lands on its
+  // own leaf, siblings untouched.
+  const applyFieldPaths = (doc: any, pairs: Array<[string[], unknown]>) => {
+    const out = JSON.parse(JSON.stringify(doc || {}));
+    for (const [path, value] of pairs) {
+      let node = out;
+      for (const seg of path.slice(0, -1)) node = node[seg] = node[seg] || {};
+      node[path[path.length - 1]] = value;
+    }
+    return out;
+  };
+  const sessionsAfter = (doc: any) =>
+    foldTryoutGradeEntries(doc.tryoutSessions, doc.tryoutGradeEntries);
+
+  it("saveTryoutEvaluation records the coach's grade in a date-grouped session", () => {
+    const { result, updateTeamFieldPaths, updateTeamArrays } = setup({
       tryoutSignups: [
         { id: "s1", tryoutDate: "2026-06-18" },
         { id: "s2", tryoutDate: "2026-06-18" },
@@ -450,9 +488,10 @@ describe("useTryoutFlows", () => {
     act(() =>
       result.current.saveTryoutEvaluation("s1", { fielding: 4 }, "Head"),
     );
-    const op = updateTeamArrays.mock.calls[0][0];
-    expect(op).toMatchObject({ op: "mapEntries", key: "tryoutSessions" });
-    const session = applyTeamOps(teamData, op).tryoutSessions[0];
+    // Never a whole-array rewrite any more.
+    expect(updateTeamArrays).not.toHaveBeenCalled();
+    const doc = applyFieldPaths({}, updateTeamFieldPaths.mock.calls[0][0]);
+    const session = sessionsAfter(doc)[0];
     expect(session).toMatchObject({
       id: "tryout-2026-06-18",
       date: "2026-06-18",
@@ -468,45 +507,79 @@ describe("useTryoutFlows", () => {
   });
 
   it("saveTryoutEvaluation stamps the coach's display last name for the staff panel", () => {
-    const { result, teamData, updateTeamArrays } = setup(
+    const { result, updateTeamFieldPaths } = setup(
       { tryoutSignups: [{ id: "s1", tryoutDate: "2026-06-18" }] },
       { uid: "u1", displayName: "Mike Rash" },
     );
     act(() =>
       result.current.saveTryoutEvaluation("s1", { approach: 4 }, "Head"),
     );
-    const session = applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0])
-      .tryoutSessions[0];
-    expect(session.gradesByEvaluator.u1.evaluatorName).toBe("Rash");
+    const doc = applyFieldPaths({}, updateTeamFieldPaths.mock.calls[0][0]);
+    expect(sessionsAfter(doc)[0].gradesByEvaluator.u1.evaluatorName).toBe(
+      "Rash",
+    );
   });
 
-  it("saveTryoutEvaluation upserts against the LATEST sessions — a concurrent evaluator's session survives", () => {
-    // The map re-runs against fresh state: another coach's session (created
-    // after this screen rendered) must ride through the rewrite.
-    const { result, updateTeamArrays } = setup({
-      tryoutSignups: [{ id: "s1", tryoutDate: "2026-06-18" }],
-      tryoutSessions: [],
-    });
+  it("two coaches grading at once never erase each other — in either save order", () => {
+    // The bug this fixes: each save rewrote the WHOLE sessions array from
+    // that device's copy, so the later save erased the earlier coach.
+    const signups = [{ id: "s1", tryoutDate: "2026-06-18" }];
+    const head = setup({ tryoutSignups: signups }, { uid: "head-1" });
+    const asst = setup({ tryoutSignups: signups }, { uid: "asst-1" });
     act(() =>
-      result.current.saveTryoutEvaluation("s1", { fielding: 4 }, "Head"),
+      head.result.current.saveTryoutEvaluation("s1", { arm: 5 }, "Head"),
     );
-    const op = updateTeamArrays.mock.calls[0][0];
-    const concurrent = {
-      id: "tryout-2026-06-25",
-      date: "2026-06-25",
-      label: "Tryout · 2026-06-25",
-      signupIds: ["s9"],
-      gradesByEvaluator: {},
+    act(() =>
+      asst.result.current.saveTryoutEvaluation("s1", { arm: 3 }, "Assistant"),
+    );
+    const headPairs = head.updateTeamFieldPaths.mock.calls[0][0];
+    const asstPairs = asst.updateTeamFieldPaths.mock.calls[0][0];
+    // A legacy grade already in the array must survive too.
+    const legacy = {
+      tryoutSessions: [
+        {
+          id: "tryout-2026-06-18",
+          date: "2026-06-18",
+          signupIds: ["s9"],
+          gradesByEvaluator: {
+            "old-1": { evaluatorId: "old-1", grades: { s9: { arm: 4 } } },
+          },
+        },
+      ],
     };
-    const next = applyTeamOps({ tryoutSessions: [concurrent] }, op);
-    expect(next.tryoutSessions.map((s: any) => s.id).sort()).toEqual([
-      "tryout-2026-06-18",
-      "tryout-2026-06-25",
-    ]);
+    for (const order of [
+      [headPairs, asstPairs],
+      [asstPairs, headPairs],
+    ]) {
+      const doc = applyFieldPaths(applyFieldPaths(legacy, order[0]), order[1]);
+      const g = sessionsAfter(doc)[0].gradesByEvaluator;
+      expect(g["head-1"].grades.s1).toEqual({ arm: 5 });
+      expect(g["asst-1"].grades.s1).toEqual({ arm: 3 });
+      expect(g["old-1"].grades.s9).toEqual({ arm: 4 });
+    }
+  });
+
+  it("one coach grading two kids in two saves keeps both", () => {
+    const { result, updateTeamFieldPaths } = setup({
+      tryoutSignups: [
+        { id: "s1", tryoutDate: "2026-06-18" },
+        { id: "s2", tryoutDate: "2026-06-18" },
+      ],
+    });
+    act(() => result.current.saveTryoutEvaluation("s1", { arm: 5 }, "Head"));
+    act(() => result.current.saveTryoutEvaluation("s2", { arm: 2 }, "Head"));
+    const doc = applyFieldPaths(
+      applyFieldPaths({}, updateTeamFieldPaths.mock.calls[0][0]),
+      updateTeamFieldPaths.mock.calls[1][0],
+    );
+    expect(sessionsAfter(doc)[0].gradesByEvaluator.u1.grades).toEqual({
+      s1: { arm: 5 },
+      s2: { arm: 2 },
+    });
   });
 
   it("saveTryoutEvaluations saves multiple kids into one date session in one write", () => {
-    const { result, teamData, updateTeamArrays } = setup({
+    const { result, updateTeamFieldPaths } = setup({
       tryoutSignups: [
         { id: "s1", tryoutDate: "2026-06-18" },
         { id: "s2", tryoutDate: "2026-06-18" },
@@ -521,9 +594,9 @@ describe("useTryoutFlows", () => {
         "Head",
       ),
     );
-    expect(updateTeamArrays).toHaveBeenCalledTimes(1);
-    const session = applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0])
-      .tryoutSessions[0];
+    expect(updateTeamFieldPaths).toHaveBeenCalledTimes(1);
+    const doc = applyFieldPaths({}, updateTeamFieldPaths.mock.calls[0][0]);
+    const session = sessionsAfter(doc)[0];
     expect(session.signupIds).toEqual(["s1", "s2"]);
     expect(session.gradesByEvaluator.u1.grades).toMatchObject({
       s1: { fielding: 4 },

@@ -171,7 +171,11 @@ export const useTeamLifecycle = ({
   );
 
   const createTeam = useCallback(
-    async (name: string = "", leagueRuleSet?: "NKB" | "USSSA") => {
+    async (
+      name: string = "",
+      leagueRuleSet?: "NKB" | "USSSA",
+      setup?: { teamAge?: string; pitchingFormat?: string },
+    ) => {
       if (!user || !name.trim()) return false;
       const id = genId("team");
       setSyncStatus("Creating");
@@ -191,6 +195,13 @@ export const useTeamLifecycle = ({
           // drives the play-style (fairness vs competitive) and the rules
           // auto-config (defense size / pitching format).
           leagueRuleSet: leagueRuleSet || DEFAULT_TEAM_DATA.leagueRuleSet,
+          // Age group and pitching format are asked up front now — they
+          // drive defense size, pitch rules and the lineup engine, and the
+          // old silent 8U Kid Pitch default was wrong for most teams.
+          ...(setup?.teamAge ? { teamAge: setup.teamAge } : {}),
+          ...(setup?.pitchingFormat
+            ? { pitchingFormat: setup.pitchingFormat }
+            : {}),
           name: name.trim(),
           ownerId: user.uid,
           members: [user.uid],
@@ -623,6 +634,7 @@ export const useTeamLifecycle = ({
           // import modal starts blank, prompting the coach for the new link.
           gcCalendarUrl: "",
           tryoutSessions: [],
+          tryoutGradeEntries: {},
           // `tryoutSignups` is deliberately NOT here. Signups live in the
           // tryoutSignups SUBCOLLECTION (Phase 1) and the legacy array is being
           // retired by a deleteField drop; writing `tryoutSignups: []` would

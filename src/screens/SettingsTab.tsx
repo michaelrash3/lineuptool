@@ -1,4 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { TEAM_AGE_OPTIONS } from "../constants/ui";
+import { normalizeVenmoLink } from "../utils/venmo";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { Icons } from "../icons";
 import { QRCodeImg } from "../components/QRCodeImg";
@@ -418,6 +420,59 @@ const TeamNameField = memo(({ team, updateTeam }: any) => {
 // letters and the public page. The OPERATIONAL controls (share link, dates,
 // open/close, lifecycle, roster cap) live in the Tryouts tab
 // (components/TryoutControlsPanel.tsx).
+// The Venmo link is checked before it's saved (it lands in offer letters
+// families pay from): typed as a draft, saved on blur only if it's a real
+// Venmo address or a handle, otherwise left unsaved with a note.
+const VenmoLinkField = ({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (next: string) => void;
+}) => {
+  const [draft, setDraft] = useState(value);
+  const [bad, setBad] = useState(false);
+  useEffect(() => {
+    setDraft(value);
+    setBad(false);
+  }, [value]);
+  const commit = () => {
+    const result = normalizeVenmoLink(draft);
+    if (!result.ok) {
+      setBad(true);
+      return;
+    }
+    setBad(false);
+    setDraft(result.value);
+    if (result.value !== value) onSave(result.value);
+  };
+  return (
+    <>
+      <input
+        type="url"
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          if (bad) setBad(false);
+        }}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+        }}
+        placeholder="@CoachVenmo or https://venmo.com/u/CoachVenmo"
+        aria-invalid={bad}
+        className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
+      />
+      {bad && (
+        <p role="alert" className="text-[11px] font-bold text-loss mt-1">
+          That isn&apos;t a Venmo link. Use your @handle or a venmo.com address
+          — it isn&apos;t saved until it is.
+        </p>
+      )}
+    </>
+  );
+};
+
 const TryoutsSettingsPanel = memo(({ team, updateTeam }: any) => {
   return (
     <div>
@@ -463,12 +518,9 @@ const TryoutsSettingsPanel = memo(({ team, updateTeam }: any) => {
             <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
               Coach Venmo link
             </label>
-            <input
-              type="url"
+            <VenmoLinkField
               value={team.coachVenmoLink || ""}
-              onChange={(e) => updateTeam?.({ coachVenmoLink: e.target.value })}
-              placeholder="https://venmo.com/u/CoachVenmo"
-              className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
+              onSave={(next: string) => updateTeam?.({ coachVenmoLink: next })}
             />
           </div>
         </div>
@@ -555,9 +607,9 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
       </h3>
       <p className="text-[11px] text-ink-3 font-medium mb-3">
         Share this 6-character code with anyone you want to invite as an
-        assistant coach. They tap <strong>Join Team</strong> in the header and
-        enter it. Head coaches can promote them later via Coach Roles below.
-        Regenerate any time to rotate the code.
+        assistant coach. They pick <strong>Join a team with a code</strong> from
+        the team menu at the top and enter it. Head coaches can promote them
+        later via Coach Roles below. Regenerate any time to rotate the code.
       </p>
       {code ? (
         <div className="space-y-3">
@@ -608,8 +660,8 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
               filename={`${team.name || "team"}-join-code-${code}`}
             />
             <p className="text-[10px] font-medium text-ink-3 leading-snug flex-1 min-w-0">
-              Have an assistant coach scan this with their phone — they'll land
-              in-app on Join Team with the code pre-filled.
+              Have an assistant coach scan this with their phone — once they
+              sign in, they're added to the team automatically.
             </p>
           </div>
         </div>
@@ -780,10 +832,12 @@ export const SettingsTab = memo(() => {
     addCoach,
     removeCoach,
     setCoachRole,
+    removeMember,
     realRole,
     viewAsRole,
     setViewAsRole,
   } = useTeam();
+  const { confirm } = useConfirm();
   const { isAddingCoach, setIsAddingCoach, newCoachForm, setNewCoachForm } =
     useUI();
   const navigate = useNavigate();
@@ -1047,14 +1101,11 @@ export const SettingsTab = memo(() => {
                           }
                           className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
                         >
-                          <option value="6U">6U</option>
-                          <option value="7U">7U</option>
-                          <option value="8U">8U</option>
-                          <option value="9U">9U</option>
-                          <option value="10U">10U</option>
-                          <option value="11U to 12U">11U to 12U</option>
-                          <option value="13U to 14U">13U to 14U</option>
-                          <option value="15U to 18U">15U to 18U</option>
+                          {TEAM_AGE_OPTIONS.map((age) => (
+                            <option key={age} value={age}>
+                              {age}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div>
@@ -1461,18 +1512,42 @@ export const SettingsTab = memo(() => {
                                   : "Assistant Coach"}
                               </div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setCoachRole?.(
-                                  uid,
-                                  role === "head" ? "assistant" : "head",
-                                )
-                              }
-                              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong hover:bg-surface-2 whitespace-nowrap"
-                            >
-                              {role === "head" ? "Make Assistant" : "Make Head"}
-                            </button>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setCoachRole?.(
+                                    uid,
+                                    role === "head" ? "assistant" : "head",
+                                  )
+                                }
+                                className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong hover:bg-surface-2 whitespace-nowrap"
+                              >
+                                {role === "head"
+                                  ? "Make Assistant"
+                                  : "Make Head"}
+                              </button>
+                              {user && team.ownerId === user.uid && !isMe && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const who = contactName || "this coach";
+                                    const ok = await confirm({
+                                      title: `Remove ${who}?`,
+                                      message: `${who} loses access to this team right away. The team code changes too, so the old one can't bring them back — share the new code with anyone still joining.`,
+                                      confirmLabel: "Remove",
+                                      danger: true,
+                                    });
+                                    if (ok && removeMember?.(uid))
+                                      regenerateJoinCode?.();
+                                  }}
+                                  className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong text-loss hover:bg-loss-bg whitespace-nowrap"
+                                  aria-label={`Remove ${contactName || "coach"} from the team`}
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
