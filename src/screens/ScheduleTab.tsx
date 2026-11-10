@@ -242,6 +242,7 @@ export const ScheduleTab = memo(() => {
     tournamentPlan,
     swapSelection,
     gameSaved,
+    updateCurrentGameAttendance,
     handleCellClick,
     moveBatter,
     reorderBatter,
@@ -1227,15 +1228,19 @@ export const ScheduleTab = memo(() => {
                     return (
                       <button
                         key={p.id}
-                        onClick={() =>
-                          setCurrentGameAttendance({
+                        onClick={() => {
+                          const next = {
                             ...currentGameAttendance,
                             [p.id]:
                               currentGameAttendance[p.id] === false
                                 ? true
                                 : false,
-                          })
-                        }
+                          };
+                          // A coach's tap saves itself; an assistant's
+                          // stays a local what-if (they can't save).
+                          if (canEdit) updateCurrentGameAttendance(next);
+                          else setCurrentGameAttendance(next);
+                        }}
                         className={`text-left p-3 text-xs font-extrabold uppercase tracking-wider border rounded-xl transition-all flex justify-between items-center ${
                           currentGameAttendance[p.id] !== false
                             ? "bg-surface border-line text-ink shadow-sm hover:bg-surface-2"

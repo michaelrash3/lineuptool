@@ -122,3 +122,56 @@ describe("PlayerInfoPortal", () => {
     ).toBeInTheDocument();
   });
 });
+
+// Weak signal at the ball field: the lookup can't reach the server and the
+// browser's (empty) offline cache answers instead. That must read as a
+// connection problem with a retry — never as "your link is dead".
+describe("PlayerInfoPortal — offline vs. a dead link", () => {
+  const renderAt = () =>
+    render(
+      <MemoryRouter initialEntries={["/p/abc"]}>
+        <Routes>
+          <Route path="/p/:slug" element={<PlayerInfoPortal />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  it("says it couldn't connect, and Try again re-runs the lookup", async () => {
+    mockGetDocs.mockReset();
+    mockGetDocs
+      .mockResolvedValueOnce({
+        empty: true,
+        docs: [],
+        metadata: { fromCache: true },
+      })
+      .mockResolvedValueOnce({
+        empty: false,
+        docs: [mirrorDoc],
+        metadata: { fromCache: false },
+      });
+    renderAt();
+    expect(
+      await screen.findByText(/couldn't reach this team's page/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/not found or has been deactivated/i)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    await waitFor(() => expect(mockGetDocs).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByText(/can't open this page/i)).toBeNull(),
+    );
+  });
+
+  it("still says a link is dead when the server says so — with no retry", async () => {
+    mockGetDocs.mockReset();
+    mockGetDocs.mockResolvedValueOnce({
+      empty: true,
+      docs: [],
+      metadata: { fromCache: false },
+    });
+    renderAt();
+    expect(
+      await screen.findByText(/not found or has been deactivated/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /try again/i })).toBeNull();
+  });
+});

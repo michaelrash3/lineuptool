@@ -95,7 +95,6 @@ import { RouteAlias } from "./components/RouteAlias";
 import { ScrollRestoration } from "./components/ScrollRestoration";
 import { LoginScreen, AppHeader, OfflineBanner } from "./components/Chrome";
 import { AppLoadingScreen, ScreenLoader } from "./components/LoadingScreens";
-import { PlayerProfilePage } from "./components/PlayerProfilePage";
 import {
   slimGame,
   scrubUndefined,
@@ -154,6 +153,14 @@ import {
 // `import().then(m => ({ default: m.X }))` is the named-export shim
 // React.lazy needs — every screen here exports its component as a named
 // const, not a default.
+// The player profile (~85 KB with its development card) is a page like any
+// other — lazy, so it isn't in every first download (parents opening a form
+// link included).
+const PlayerProfilePage = lazy(() =>
+  import("./components/PlayerProfilePage").then((m) => ({
+    default: m.PlayerProfilePage,
+  })),
+);
 const HomeTab = lazy(() =>
   import("./screens/HomeTab").then((m) => ({ default: m.HomeTab })),
 );

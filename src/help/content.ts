@@ -480,6 +480,10 @@ export const HELP_TOPICS: HelpTopic[] = [
       {
         body: "Don't like a result? Regenerate as often as you want (G on the keyboard), or lock the cells you're sure about first.",
       },
+      {
+        heading: "It saves itself",
+        body: "Every build, re-roll, swap, batting-order move and attendance tap saves on its own a moment later — switching games or closing the app won't lose it. If another coach changes the same game while you're editing, autosave pauses and you choose: Save Game Data keeps yours, reopening the game loads theirs.",
+      },
     ],
     related: ["lineup-locks-editing", "batting-order", "game-types-and-flags"],
     cta: { label: "Open Schedule", tab: "schedule" },

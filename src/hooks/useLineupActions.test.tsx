@@ -130,6 +130,31 @@ describe("useLineupActions wiring", () => {
     expect(tpls[tpls.length - 1]).toMatchObject({ name: "Tournament A" });
   });
 
+  it("saveLineupTemplate stores each slot as {id, name, number}, not the engine's full record", () => {
+    const fat = {
+      id: "p1",
+      name: "Ada",
+      number: "7",
+      stats: { ab: 40, h: 12 },
+      pitching: { log: Array.from({ length: 30 }, (_, i) => ({ i })) },
+      profile: { arm: 9, contact: 8 },
+    };
+    const { result, updateTeam } = setup(
+      {},
+      {
+        lineup: [{ P: fat, BENCH: [fat] }],
+        battingLineup: [fat],
+      },
+    );
+    act(() => result.current.saveLineupTemplate("Slim"));
+    const tpls = updateTeam.mock.calls[0][0].lineupTemplates;
+    const tpl = tpls[tpls.length - 1];
+    const slim = { id: "p1", name: "Ada", number: "7" };
+    expect(tpl.lineup[0].P).toEqual(slim);
+    expect(tpl.lineup[0].BENCH).toEqual([slim]);
+    expect(tpl.battingLineup).toEqual([slim]);
+  });
+
   it("applyLineupTemplate pushes the saved template into the editor via uiBridge", () => {
     const tpl = { id: "t1", name: "T1", lineup: [], battingLineup: [] };
     const { result, uiBridge } = setup({ lineupTemplates: [tpl] });

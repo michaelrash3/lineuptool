@@ -102,6 +102,7 @@ import {
   withFinanceKeyDeletes,
   type FinanceUpdate,
 } from "../utils/financeUpdates";
+import { WHOLE_MAP_FIELDS, withMapKeyDeletes } from "../utils/mapKeyDeletes";
 import {
   applyTeamArrayUpdate,
   buildTeamArrayPayload,
@@ -1323,6 +1324,18 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             .filter((g): g is Game => g != null),
         };
       }
+      // Lineup templates hold a lineup + batting order too — and used to be
+      // saved straight off the engine, every slot a FULL player record plus
+      // scoring data (~330 KB for one 12-kid template). Two or three of those
+      // filled the 1 MB team doc and failed every save. Slim them like games.
+      if (Array.isArray(toPersist.lineupTemplates)) {
+        toPersist = {
+          ...toPersist,
+          lineupTemplates: toPersist.lineupTemplates
+            .map((t) => slimGame(t as any))
+            .filter(Boolean) as Team["lineupTemplates"],
+        };
+      }
       // Player photos were removed from the app — they lived as inline base64 on
       // each player and pushed this single team doc toward the 1 MB cap. Never
       // write photoUrl back, so any leftover bytes are dropped on the next save.
@@ -1351,6 +1364,21 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         if (adjusted !== toPersist.finances) {
           toPersist = { ...toPersist, finances: adjusted as Team["finances"] };
         }
+      }
+      // The same deep-merge trap for the other whole-map fields (Depth Chart
+      // reset, award "back to auto", unhiding an eval category): a dropped
+      // key must go out as an explicit delete or it reverts on the next
+      // snapshot. See WHOLE_MAP_FIELDS for why only these fields.
+      for (const [field, depth] of Object.entries(WHOLE_MAP_FIELDS)) {
+        if (!(field in toPersist)) continue;
+        const adjusted = withMapKeyDeletes(
+          (teamDataRef.current as any)?.[field],
+          (toPersist as any)[field],
+          deleteField,
+          depth,
+        );
+        if (adjusted !== (toPersist as any)[field])
+          toPersist = { ...toPersist, [field]: adjusted } as Partial<Team>;
       }
       // Scrub any undefined values from the tree — Firestore rejects them.
       toPersist = scrubUndefined(toPersist) as Partial<Team>;
@@ -2005,6 +2033,22 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     });
     updateTeam({ players: stripped });
   }, [activeTeamId, teamData.players, updateTeam]);
+
+  // One-time reclaim for lineup templates saved before they were slimmed (see
+  // the persist gate): rewrite them once per team so the bytes are freed even
+  // if nobody saves or deletes a template again. Same guard as the photo pass.
+  const templateSlimAttemptedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!activeTeamId || templateSlimAttemptedRef.current.has(activeTeamId))
+      return;
+    if (loadedTeamIdRef.current !== activeTeamId) return;
+    const templates = teamData.lineupTemplates;
+    if (!Array.isArray(templates) || templates.length === 0) return;
+    const slimmed = templates.map((t) => slimGame(t as any));
+    if (JSON.stringify(slimmed) === JSON.stringify(templates)) return;
+    templateSlimAttemptedRef.current.add(activeTeamId);
+    updateTeam({ lineupTemplates: slimmed as Team["lineupTemplates"] });
+  }, [activeTeamId, teamData.lineupTemplates, updateTeam]);
 
   // Player Info replace-on-resubmit. The public portal can only ever ADD a
   // playerInfoSubmissions entry (its own per-entry doc — the rules deny a

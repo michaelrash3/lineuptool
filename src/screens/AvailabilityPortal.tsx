@@ -209,6 +209,9 @@ export const AvailabilityPortal = () => {
   const { slug } = useParams();
   const linkSlug = (slug || "").trim();
   const [phase, setPhase] = useState("loading");
+  // Bumped by "Try again" on a connection error to re-run the lookup.
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [canRetry, setCanRetry] = useState(false);
   const [team, setTeam] = useState<any>(null);
   const [teamDocId, setTeamDocId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -288,13 +291,27 @@ export const AvailabilityPortal = () => {
           setPhase("form");
           return;
         }
+        // An empty answer from this browser's offline cache is NOT "no such
+        // link": with weak signal the lookup can't reach the server, and the
+        // cache (empty for a first visit) answers instead. Say so, and offer
+        // a retry, rather than telling a family their link is dead.
+        if (shareSnap.metadata?.fromCache) {
+          setError(
+            "Couldn't reach this team's page — your signal may be weak. Check your connection and try again.",
+          );
+          setCanRetry(true);
+          setPhase("error");
+          return;
+        }
         setError("Link not found or has been deactivated.");
+        setCanRetry(false);
         setPhase("error");
       } catch (err) {
         reportError(err, { source: "AvailabilityPortal.init", linkSlug });
         setError(
           "Couldn't load this team's page. The link may be invalid or your network may be down.",
         );
+        setCanRetry(true);
         setPhase("error");
       }
     };
@@ -302,7 +319,7 @@ export const AvailabilityPortal = () => {
     return () => {
       cancelled = true;
     };
-  }, [linkSlug]);
+  }, [linkSlug, loadAttempt]);
 
   const toggleDate = (iso: string) => {
     setDates((prev) => {
@@ -427,6 +444,20 @@ export const AvailabilityPortal = () => {
             title="Can't open this page"
           >
             {error}
+            {canRetry && (
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setPhase("loading");
+                  setLoadAttempt((n) => n + 1);
+                }}
+                className="mt-5 w-full min-h-[48px] rounded-xl font-black uppercase tracking-wider text-sm text-white"
+                style={{ backgroundColor: "var(--team-primary)" }}
+              >
+                Try again
+              </button>
+            )}
           </PhaseCard>
         </div>
       </PortalShell>
