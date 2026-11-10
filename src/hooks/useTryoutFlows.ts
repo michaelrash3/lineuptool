@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { writeBatch, type Firestore } from "firebase/firestore";
+import { deleteDoc, writeBatch, type Firestore } from "firebase/firestore";
 import type { DocumentData } from "firebase/firestore";
 import {
   blankStats,
@@ -13,6 +13,7 @@ import {
   applyMissingTryoutNumbers,
   tryoutGradeEntryKey,
 } from "../utils/tryouts";
+import { portalLinkRef } from "../utils/portalLinks";
 import {
   deleteSignupDoc,
   findLegacySignupEntries,
@@ -172,10 +173,16 @@ export const useTryoutFlows = ({
   }, [toast]);
 
   const generateTryoutShareId = useCallback(() => {
+    const prev = String(teamDataRef.current?.tryoutShareId || "").trim();
     const id = randomCode(12, SLUG_ALPHABET);
     updateTeam({ tryoutShareId: id, tryoutsOpen: true, tryoutsPhase: "open" });
+    // The new link's owned doc is created by TeamProvider's backfill; the old
+    // one is cleaned up here (best-effort — a stale doc is already inert, the
+    // forms check the mirror's current share id).
+    if (prev && prev !== id && db)
+      deleteDoc(portalLinkRef(db, appId, prev)).catch(() => {});
     return id;
-  }, [updateTeam]);
+  }, [updateTeam, teamDataRef, db, appId]);
 
   const generateTryoutDateLink = useCallback(
     (rawDate: any) => {

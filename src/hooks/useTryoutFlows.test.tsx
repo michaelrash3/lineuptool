@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { writeBatch } from "firebase/firestore";
+import { deleteDoc, writeBatch } from "firebase/firestore";
 import { useTryoutFlows } from "./useTryoutFlows";
 import { foldTryoutGradeEntries } from "../utils/tryouts";
 import { applyTeamOps, makeToast } from "../test-utils";
@@ -45,6 +45,8 @@ vi.mock("firebase/firestore", () => ({
     delete: vi.fn(),
     commit: vi.fn(() => Promise.resolve()),
   })),
+  deleteDoc: vi.fn(() => Promise.resolve()),
+  doc: vi.fn((_db: unknown, ...path: string[]) => ({ path: path.join("/") })),
 }));
 
 const mockUpsert = upsertSignupDoc as unknown as ReturnType<typeof vi.fn>;
@@ -160,6 +162,18 @@ beforeEach(() => {
 });
 
 describe("useTryoutFlows", () => {
+  it("rotating the share link deletes the old link's owned doc", () => {
+    const { result } = setup({ tryoutShareId: "old-slug" });
+    act(() => {
+      result.current.generateTryoutShareId();
+    });
+    const mock = deleteDoc as unknown as ReturnType<typeof vi.fn>;
+    expect(mock).toHaveBeenCalledTimes(1);
+    expect(mock.mock.calls[0][0].path).toBe(
+      "artifacts/test-app/public/data/portalLinks/old-slug",
+    );
+  });
+
   it("generateTryoutShareId opens tryouts and returns an id", () => {
     const { result, updateTeam } = setup();
     let id = "";

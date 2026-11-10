@@ -68,6 +68,12 @@ tryout config. The projection (the allowlist) is `buildPublicMirror` in
 `tryoutDates`. It **never** contains roster, schedule, evaluations, signups,
 members, ownerId, coachRoles, or joinCode.
 
+Parent-form links resolve through `artifacts/{appId}/public/data/portalLinks/{slug}`
+(`{ teamId }`) — a create-once, get-only doc owned by the team's members — and
+then this mirror **by id**, so another team can't hijack a link by publishing a
+mirror with the same share id (`resolvePortalTeam` in `src/utils/portalLinks.ts`;
+rollout phases in `docs/firebase-rules-rollout.md` §10).
+
 The mirror is upserted by an effect in `TeamProvider`
 (`src/providers/TeamProvider.tsx`) whenever a
 member's active team changes a mirrored field; a JSON guard skips no-op writes,

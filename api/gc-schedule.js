@@ -21,12 +21,17 @@ module.exports = async function handler(req, res) {
       res.statusCode = status;
       res.setHeader("content-type", contentType);
       res.setHeader("cache-control", "no-store");
+      res.setHeader("x-content-type-options", "nosniff");
       res.end(body);
       return undefined;
     }
     return new Response(body, {
       status: status,
-      headers: { "content-type": contentType, "cache-control": "no-store" },
+      headers: {
+        "content-type": contentType,
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+      },
     });
   };
   const json = (status, obj) =>
@@ -69,25 +74,49 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    // Redirects are followed BY HAND, re-checking the host on every hop: an
+    // automatic follow would let any open redirect on a gc.com host send this
+    // proxy anywhere. A real feed is a few hundred KB, so cap the body too —
+    // this endpoint must never be a free pipe for someone else's downloads.
+    const MAX_HOPS = 3;
+    const MAX_BYTES = 2 * 1024 * 1024;
+    const isGcHost = function (u) {
+      return u.protocol === "https:" && /(^|\.)gc\.com$/i.test(u.hostname);
+    };
     const controller = new AbortController();
     const timer = setTimeout(function () {
       controller.abort();
     }, 12000);
     let upstream;
+    let target = parsed;
     try {
-      upstream = await fetch(parsed.toString(), {
-        headers: {
-          Accept: "text/calendar, text/plain, */*",
-          "User-Agent": "lineuptool-schedule-import/1.0",
-        },
-        signal: controller.signal,
-      });
+      for (let hop = 0; ; hop++) {
+        upstream = await fetch(target.toString(), {
+          headers: {
+            Accept: "text/calendar, text/plain, */*",
+            "User-Agent": "lineuptool-schedule-import/1.0",
+          },
+          redirect: "manual",
+          signal: controller.signal,
+        });
+        const isRedirect = upstream.status >= 300 && upstream.status < 400;
+        if (!isRedirect) break;
+        const location = upstream.headers.get("location");
+        if (!location || hop >= MAX_HOPS) {
+          return json(502, { error: "Feed redirected too many times" });
+        }
+        const nextUrl = new URL(location, target);
+        if (!isGcHost(nextUrl)) {
+          return json(400, {
+            error: "Feed redirected outside GameChanger (gc.com)",
+          });
+        }
+        target = nextUrl;
+      }
     } catch (e) {
       const aborted = e && e.name === "AbortError";
       return json(504, {
-        error: aborted
-          ? "GameChanger feed timed out"
-          : "Could not reach feed: " + ((e && e.message) || String(e)),
+        error: aborted ? "GameChanger feed timed out" : "Could not reach feed",
       });
     } finally {
       clearTimeout(timer);
@@ -96,9 +125,16 @@ module.exports = async function handler(req, res) {
     if (!upstream.ok) {
       return json(502, { error: "Feed responded " + upstream.status });
     }
+    const declared = Number(upstream.headers.get("content-length") || 0);
+    if (declared > MAX_BYTES) {
+      return json(502, { error: "Feed is too large" });
+    }
     const text = await upstream.text();
+    if (text.length > MAX_BYTES) {
+      return json(502, { error: "Feed is too large" });
+    }
     return respond(200, text, "text/plain; charset=utf-8");
   } catch (e) {
-    return json(500, { error: (e && e.message) || "Fetch failed" });
+    return json(500, { error: "Fetch failed" });
   }
 };

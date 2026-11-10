@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { collection, getDocs, query, where } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
 import { auth, appId, db } from "../firebase";
 import { APP_NAME } from "../constants/ui";
@@ -14,6 +13,7 @@ import {
 import { newSignupId, upsertSignupDoc } from "../utils/tryoutSignupDocs";
 import { applyTeamInkVars } from "../utils/contrast";
 import { reportError } from "../utils/errorReporter";
+import { resolvePortalTeam } from "../utils/portalLinks";
 import { Button, Eyebrow } from "../components/shared";
 import { Icons } from "../icons";
 
@@ -172,34 +172,24 @@ export const PlayerInfoPortal = () => {
         // Resolve the team from the sanitized public mirror by the SAME share
         // id the Tryouts Portal uses — never the full team doc. Submissions are
         // written to the real team doc by id below.
-        const mirrorRef = collection(
-          db,
-          "artifacts",
-          appId,
-          "public",
-          "data",
-          "teamPublic",
-        );
-        const shareSnap = await getDocs(
-          query(mirrorRef, where("tryoutShareId", "==", linkSlug)),
-        );
+        // The owned link doc first, the legacy mirror query as fallback —
+        // see resolvePortalTeam. Never the full team doc.
+        const found = await resolvePortalTeam(db, appId, linkSlug);
         if (cancelled) return;
 
-        if (!shareSnap.empty) {
-          const teamDoc = shareSnap.docs[0];
-          const data = teamDoc.data();
+        if (found.status === "found") {
+          const data = found.data;
           setTeam(data);
-          setTeamDocId(teamDoc.id);
+          setTeamDocId(found.teamId);
           applyThemeColors(data);
           setPhase("form");
           return;
         }
 
-        // An empty answer from this browser's offline cache is NOT "no such
-        // link": with weak signal the lookup can't reach the server, and the
-        // cache (empty for a first visit) answers instead. Say so, and offer
-        // a retry, rather than telling a family their link is dead.
-        if (shareSnap.metadata?.fromCache) {
+        // Nothing found from this browser's offline cache is NOT "no such
+        // link": with weak signal the lookup can't reach the server. Say so,
+        // and offer a retry, rather than telling a family their link is dead.
+        if (found.status === "offline") {
           setError(
             "Couldn't reach this team's page — your signal may be weak. Check your connection and try again.",
           );

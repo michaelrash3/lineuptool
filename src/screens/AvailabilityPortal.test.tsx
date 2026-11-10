@@ -11,6 +11,12 @@ vi.mock("firebase/auth", () => ({
 vi.mock("firebase/firestore", () => ({
   collection: vi.fn(() => ({})),
   getDocs: vi.fn(),
+  // The owned link doc (portalLinks/{slug}). Absent by default, so the
+  // existing tests exercise the legacy mirror-query fallback.
+  doc: vi.fn((...path: unknown[]) => ({ __path: path.slice(1).join("/") })),
+  getDoc: vi.fn(() =>
+    Promise.resolve({ exists: () => false, metadata: { fromCache: false } }),
+  ),
   query: vi.fn(() => ({})),
   where: vi.fn(() => ({})),
 }));

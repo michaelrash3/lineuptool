@@ -32,6 +32,7 @@ import {
   FirestoreError,
 } from "firebase/firestore";
 import { foldTryoutGradeEntries } from "../utils/tryouts";
+import { portalLinkRef } from "../utils/portalLinks";
 import { auth, db, appId } from "../firebase";
 import {
   TeamContext,
@@ -1690,6 +1691,34 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     });
   }, [activeTeamId, user, teamData?.joinCode, teamData?.name]);
 
+  // Backfill the owned parent-form link doc (portalLinks/{shareId} →
+  // teamId) for the active team. The forms resolve a link through it first —
+  // so another team can't hijack the link with a look-alike mirror — and fall
+  // back to the legacy mirror query only while it's missing. Fires once per
+  // (team, share id); a member's create is exactly what the rules allow.
+  const lastPortalLinkBackfillRef = useRef("");
+  useEffect(() => {
+    if (!activeTeamId || !user) return;
+    if (loadedTeamIdRef.current !== activeTeamId) return;
+    const slug = String(teamData?.tryoutShareId || "").trim();
+    if (!slug) return;
+    const key = `${activeTeamId}:${slug}`;
+    if (lastPortalLinkBackfillRef.current === key) return;
+    lastPortalLinkBackfillRef.current = key;
+    const ref = portalLinkRef(db, appId, slug);
+    getDoc(ref)
+      .then((snap) =>
+        snap.exists()
+          ? undefined
+          : setDoc(ref, { teamId: activeTeamId, createdAt: Date.now() }),
+      )
+      .catch(() => {
+        // Retry on the next change; a missing link doc only means the forms
+        // use the fallback lookup for now.
+        lastPortalLinkBackfillRef.current = "";
+      });
+  }, [activeTeamId, user, teamData?.tryoutShareId]);
+
   const updateTeam = useCallback(
     (updates: Partial<Team>, opts?: { allowEmptyPlayers?: boolean }) => {
       // Snapshot the prior value of every key we're about to optimistically
@@ -2505,11 +2534,12 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     teamId: activeTeamId,
   });
 
-  const { setCoachRole, addCoach, removeCoach } = useTeamMembership({
-    teamDataRef,
-    updateTeam,
-    user,
-  });
+  const { setCoachRole, removeMember, addCoach, removeCoach } =
+    useTeamMembership({
+      teamDataRef,
+      updateTeam,
+      user,
+    });
   const { regenerateJoinCode, joinTeamByCode } = useInviteFlows({
     user,
     teams,
@@ -3544,6 +3574,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       deleteLineupTemplate,
       removePlayerMidGame,
       setCoachRole,
+      removeMember,
       regenerateJoinCode,
       joinTeamByCode,
     }),
@@ -3637,6 +3668,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       deleteLineupTemplate,
       removePlayerMidGame,
       setCoachRole,
+      removeMember,
       regenerateJoinCode,
       joinTeamByCode,
     ],

@@ -284,6 +284,41 @@ entries that landed before the lanes closed.
   the arrays are ratcheted (never recreatable after a team's drop), so the
   subcollection allowlist + caps are the only public write surface.
 
+### 10) Parent-form links (`portalLinks`) and the two-phase mirror lockdown
+
+Expected: a form link (the team's `tryoutShareId`) resolves through the owned
+link doc `portalLinks/{slug}` → `{ teamId }`, then that team's mirror by id.
+The link doc can be **fetched** by any signed-in session (a parent's anonymous
+one included) but never **listed**; it can only be **created** by a member of
+the team, only for the team's CURRENT share id, holding only `teamId` /
+`createdAt`; it can never be updated (so never repointed), and only the team's
+members may delete it. The coach app creates it on open and deletes the old one
+when the link is rotated; the form also checks the mirror's current share id,
+so a rotated-out link stays dead.
+
+- As a member, create `portalLinks/<team share id>` — succeeds; for any other
+  slug — denied (no squatting).
+- As a parent's anonymous session, `get` a link doc — succeeds; list the
+  collection — denied.
+- As another team's owner (even with the same share id on their own team),
+  overwrite or delete the link doc — denied.
+
+**Phase 1 (shipped):** the forms use the link doc when it exists and fall back
+to the legacy `teamPublic where tryoutShareId == slug` query when it doesn't,
+so no team's links break while their link docs are created. A team with a link
+doc is already hijack-proof.
+
+**Phase 2 (to do, once every team has its link doc):**
+
+1. Backfill every team: `node scripts/backfill-portal-links.mjs` (dry run),
+   then `--write` (needs `firebase-admin` and a service account — see the
+   script header; emulator-tested by `scripts/test-backfill-portal-links.mjs`).
+   Review any `CONFLICT` / `SKIPPED duplicate` lines by hand.
+2. Remove the fallback query from `resolvePortalTeam` (`src/utils/portalLinks.ts`).
+3. Change `teamPublic`'s `allow read` to `allow get` in `firestore.rules`, so
+   nobody can list every team's mirror (team ids, branding, the public coach
+   email).
+
 ## Sequencing the tryout-portal privacy fix
 
 The portal now reads a sanitized `teamPublic` mirror instead of the full team

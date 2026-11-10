@@ -14,6 +14,11 @@ export const WHOLE_MAP_FIELDS: Record<string, number> = {
   depthChart: 1,
   seasonAwards: 1,
   evalCategoryOverrides: 2,
+  // Every team-save writer sends the whole roles map (setCoachRole spreads
+  // it, removeMember drops one uid; a self-join is its own field-path write
+  // and a backup restore strips access keys). Removing a coach must really
+  // delete their role, or a stale "head" would outlive their membership.
+  coachRoles: 1,
   // Tryout grades are written leaf-by-leaf with field paths (never through
   // the team save); the only team-save writers are the season roll ({} —
   // clear them) and a backup restore (the whole map).
