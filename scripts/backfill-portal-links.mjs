@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /**
  * Backfill the owned parent-form link docs — portalLinks/{tryoutShareId} →
- * { teamId } — for EVERY team, so the forms can stop falling back to the
- * listable mirror query (phase 2 in docs/firebase-rules-rollout.md).
+ * { teamId } — for EVERY team. The forms find a team ONLY through this doc
+ * (phase 2 in docs/firebase-rules-rollout.md removed the fallback query), so
+ * a team without one has dead form links. Run by the "Backfill parent-form
+ * links" workflow; safe to re-run any time.
  *
  * The coach app creates a team's link doc on its own the next time a member
  * opens it; this script covers the teams whose coaches haven't, so phase 2

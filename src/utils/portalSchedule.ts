@@ -4,8 +4,8 @@
 // Published only when the head coach turns it on (team.availabilityShowsSchedule),
 // and only as bare dates: no times, places, opponents or anything else. It
 // lives in its own doc, portalSchedules/{slug} — keyed by the form link, read
-// by `get` only — and NOT in the public team mirror, which any signed-in
-// session can list (so dates there would publish every team's schedule).
+// by `get` only — and NOT in the public team mirror, which is fetched by team
+// id, and a team id isn't a secret the way the form link is.
 import { doc, type Firestore } from "firebase/firestore";
 import { dateToIsoLocal, isoToLocalDate, isValidIsoDate } from "./dates";
 

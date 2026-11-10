@@ -333,8 +333,8 @@ export const AvailabilityPortal = () => {
         reportError(err, { source: "AvailabilityPortal.signInAnonymously" });
       }
       try {
-        // The owned link doc first, the legacy mirror query as fallback —
-        // see resolvePortalTeam. Never the full team doc.
+        // The owned link doc, then the team's mirror by id — see
+        // resolvePortalTeam. Never the full team doc.
         const found = await resolvePortalTeam(db, appId, linkSlug);
         if (cancelled) return;
 

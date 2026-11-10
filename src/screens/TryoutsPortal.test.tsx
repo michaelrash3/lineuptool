@@ -1,7 +1,8 @@
 import { vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { getDocs } from "firebase/firestore";
+import { getDoc } from "firebase/firestore";
+import { answerGetDoc, portalDocs } from "./portalTestDocs";
 import { newSignupId, upsertSignupDoc } from "../utils/tryoutSignupDocs";
 
 // Stub Firebase so the public portal renders without a real backend. vi.mock is
@@ -15,15 +16,10 @@ vi.mock("firebase/auth", () => ({
 }));
 vi.mock("firebase/firestore", () => ({
   collection: vi.fn(() => ({})),
-  getDocs: vi.fn(),
-  // The owned link doc (portalLinks/{slug}). Absent by default, so the
-  // existing tests exercise the legacy mirror-query fallback.
+  // Every lookup is a single-doc get (portalLinks/{slug}, then the team's
+  // mirror by id); answerGetDoc serves them per test.
   doc: vi.fn((...path: unknown[]) => ({ __path: path.slice(1).join("/") })),
-  getDoc: vi.fn(() =>
-    Promise.resolve({ exists: () => false, metadata: { fromCache: false } }),
-  ),
-  query: vi.fn(() => ({})),
-  where: vi.fn(() => ({})),
+  getDoc: vi.fn(),
 }));
 vi.mock("../utils/tryoutSignupDocs", () => ({
   newSignupId: vi.fn(() => "signup-doc-1"),
@@ -32,14 +28,14 @@ vi.mock("../utils/tryoutSignupDocs", () => ({
 
 import { TryoutsPortal } from "./TryoutsPortal";
 
-const mockGetDocs = getDocs as unknown as ReturnType<typeof vi.fn>;
+const mockGetDoc = getDoc as unknown as ReturnType<typeof vi.fn>;
 const mockNewSignupId = newSignupId as unknown as ReturnType<typeof vi.fn>;
 const mockUpsertSignupDoc = upsertSignupDoc as unknown as ReturnType<
   typeof vi.fn
 >;
 
-// A standing share link → interest survey. First getDocs (shareId query)
-// returns the team mirror; second (dateSlug query) is empty.
+// A standing share link → interest survey: its link doc points at team1,
+// whose mirror is below.
 const mirrorDoc = {
   id: "team1",
   data: () => ({
@@ -53,8 +49,7 @@ const mirrorDoc = {
 const renderPortal = (
   doc: { id: string; data: () => Record<string, unknown> } = mirrorDoc,
 ) => {
-  mockGetDocs.mockResolvedValue({ empty: true, docs: [] });
-  mockGetDocs.mockResolvedValueOnce({ empty: false, docs: [doc] });
+  answerGetDoc(mockGetDoc, portalDocs(doc));
   return render(
     <MemoryRouter initialEntries={["/p/abc"]}>
       <Routes>
@@ -80,7 +75,7 @@ const fill = (label: RegExp, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
 beforeEach(() => {
-  mockGetDocs.mockReset();
+  mockGetDoc.mockReset();
   mockNewSignupId.mockClear();
   mockUpsertSignupDoc.mockClear();
 });
@@ -245,37 +240,23 @@ describe("TryoutsPortal — offline vs. a dead link", () => {
     );
 
   it("says it couldn't connect, and Try again re-runs the lookup", async () => {
-    mockGetDocs.mockReset();
-    mockGetDocs
-      .mockResolvedValueOnce({
-        empty: true,
-        docs: [],
-        metadata: { fromCache: true },
-      })
-      .mockResolvedValueOnce({
-        empty: false,
-        docs: [mirrorDoc],
-        metadata: { fromCache: false },
-      });
+    // Weak signal: nothing came back, and it came from the offline cache.
+    answerGetDoc(mockGetDoc, {}, { fromCache: true });
     renderAt();
     expect(
       await screen.findByText(/couldn't reach this team's page/i),
     ).toBeInTheDocument();
     expect(screen.queryByText(/not found or has been deactivated/i)).toBeNull();
+    // Signal's back: the retry finds the link and the form opens.
+    answerGetDoc(mockGetDoc, portalDocs(mirrorDoc));
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
-    await waitFor(() => expect(mockGetDocs).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(screen.queryByText(/can't open this page/i)).toBeNull(),
-    );
+    expect(await screen.findByLabelText(/first name/i)).toBeInTheDocument();
+    expect(screen.queryByText(/can't open this page/i)).toBeNull();
   });
 
   it("still says a link is dead when the server says so — with no retry", async () => {
-    mockGetDocs.mockReset();
-    mockGetDocs.mockResolvedValueOnce({
-      empty: true,
-      docs: [],
-      metadata: { fromCache: false },
-    });
+    // The server answered: there is no link doc for this slug.
+    answerGetDoc(mockGetDoc, {});
     renderAt();
     expect(
       await screen.findByText(/not found or has been deactivated/i),
