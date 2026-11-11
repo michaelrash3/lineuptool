@@ -1347,6 +1347,10 @@ export interface PlayerProfile {
   contactScore: number;
   overallScore: number;
   defensiveScore: number;
+  // 0–100, on-base first: 100 × (1.8 × OBP + bases per PA) / 2.8, both
+  // shrunk toward an average by sample size; at kid pitch through 12U a walk
+  // counts as two bases, like a double (lineupEngine/profile.ts).
+  battingValue: number;
 }
 
 // Top-level argument bundle for generateLineup / generateBattingOnly. Stays

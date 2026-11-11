@@ -50,6 +50,7 @@ export {
   calcVelocityQuality,
 } from "./lineupEngine/grades";
 export type { HittingContext, HittingTier } from "./lineupEngine/grades";
+export { hittingRates } from "./lineupEngine/profile";
 
 // --- Total score ---
 export {

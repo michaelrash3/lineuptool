@@ -65,10 +65,11 @@ export function generateBattingOrder(
   const score = (p: ProfiledPlayer, key: string) =>
     ((p.profile as unknown as Record<string, number>)[key] || 0) *
     factor.get(p.id);
-  // OPS lives on raw stats, not in the precomputed profile, so wrap it the
-  // same way for jittered selection (only used by the youth strategy).
+  // The youth strategy's "big bat" slots read the on-base-first batting
+  // value (shrunk by sample size), not raw OPS — OPS undersells getting on
+  // base, and a raw rate lets a 5-for-6 week claim the #3 spot.
   const opsScore = (p: ProfiledPlayer) =>
-    +(p.stats?.ops ?? 0) * factor.get(p.id);
+    (p.profile?.battingValue ?? 0) * factor.get(p.id);
 
   const byOverall = [...profiledPlayers].sort(
     (a, b) => score(b, "overallScore") - score(a, "overallScore"),
