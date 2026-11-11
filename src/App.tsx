@@ -1224,8 +1224,14 @@ const MainShell = () => {
         aria-label="Open help"
         whileHover={{ y: -2 }}
         whileTap={{ scale: 0.92 }}
-        className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-white font-black text-lg print:hidden"
-        style={{ backgroundColor: "var(--team-primary)" }}
+        className="fixed right-5 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-white font-black text-lg print:hidden"
+        // A screen with a bar pinned to the bottom (the game screen's lineup
+        // actions) publishes its height as --bottom-bar-h; ride above it
+        // instead of covering its buttons.
+        style={{
+          backgroundColor: "var(--team-primary)",
+          bottom: "calc(1.25rem + var(--bottom-bar-h, 0px))",
+        }}
       >
         <Icons.Help className="w-6 h-6" aria-hidden="true" />
       </m.button>

@@ -1,4 +1,4 @@
-import React, { memo, useState, useMemo, useEffect } from "react";
+import React, { memo, useState, useMemo, useEffect, useRef } from "react";
 import { Icons } from "../icons";
 import { HelpTip } from "../components/help/HelpTip";
 import {
@@ -17,7 +17,7 @@ import {
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
 import { Link, useNavigate } from "react-router-dom";
-import { useTeam, useUI, useToast, useConfirm } from "../contexts";
+import { useTeam, useUI, useToast } from "../contexts";
 import { RecordBadge, EmptyState } from "../components/shared";
 import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
 import { TournamentsSection } from "../components/tournament/TournamentsSection";
@@ -37,6 +37,11 @@ import {
 } from "../utils/icsParse";
 import { allowedPitchingFormats, leagueRuleSetLabel } from "../constants/ui";
 import { LineupGrid } from "./LineupGrid";
+import { GameActionBar } from "./schedule/GameActionBar";
+import {
+  GameDetailsDisclosure,
+  gameDetailsSummary,
+} from "./schedule/GameDetailsDisclosure";
 
 export const ScoreEditor = memo(
   ({ game, primaryColor, tertiaryColor, onSave, onClear, onCancel }: any) => {
@@ -208,14 +213,7 @@ export const ScheduleTab = memo(() => {
     saveCurrentGame,
     saveAttendance,
     uploadGameStatsCsv,
-    generateLineup,
-    regenerateLineup,
-    regenerateBatting,
-    regenerateDefense,
     record,
-    saveLineupTemplate,
-    applyLineupTemplate,
-    deleteLineupTemplate,
     currentRole,
     uploadScheduleCsv,
     gamesServerConfirmed,
@@ -268,9 +266,8 @@ export const ScheduleTab = memo(() => {
 
   const toast = useToast();
 
-  // Template save/delete ride the app-wide confirm/prompt system (the one
-  // approved overlay pattern); schedule import lives at /schedule/import.
-  const { confirm, promptText } = useConfirm();
+  // Schedule import lives at /schedule/import; template save/delete moved to
+  // the game screen's action bar (schedule/GameActionBar).
   const navigate = useNavigate();
   // Desktop master-detail: tracks which game is previewed in the right rail.
   // Separate from selectedGameId (which opens the full-screen editor).
@@ -285,6 +282,32 @@ export const ScheduleTab = memo(() => {
   } | null>(null);
   // Tournament games should still expose the generated lineup grid before
   // in-game mode so coaches can review and make manual swaps.
+
+  // Build and Re-roll sit in the bar pinned to the bottom of the screen, so on
+  // a phone the new lineup can be a long way below what the coach is looking
+  // at (attendance). After one of those taps, bring the lineup card up into
+  // view, but only when none of it is showing; a coach already reading the
+  // lineup stays put. The 3-second window keeps a failed build from making
+  // some later, unrelated lineup change jump the page.
+  const lineupCardRef = useRef<HTMLDivElement | null>(null);
+  const lineupActionAt = useRef(0);
+  const markLineupAction = () => {
+    lineupActionAt.current = Date.now();
+  };
+  useEffect(() => {
+    if (!lineup || Date.now() - lineupActionAt.current > 3000) return;
+    lineupActionAt.current = 0;
+    const el = lineupCardRef.current;
+    if (!el || el.getBoundingClientRect().top < window.innerHeight * 0.75)
+      return;
+    const reduce = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    el.scrollIntoView?.({
+      behavior: reduce ? "auto" : "smooth",
+      block: "start",
+    });
+  }, [lineup, battingLineup]);
 
   // Auto-sync the GameChanger schedule when the Schedule tab opens. Runs only
   // when a feed URL is saved and the user can edit, throttled per team so
@@ -506,6 +529,26 @@ export const ScheduleTab = memo(() => {
     // here by design (the grid used to show rec every inning).
     const editableLineup = lineup?.length ? lineup.slice(0, 1) : lineup;
     const presentCount = presentPlayers.length;
+    const detailsSummary = gameDetailsSummary({
+      date: currentGame.date,
+      startUtc: currentGame.startUtc,
+      isHome: currentGame.isHome,
+      location: currentGame.location,
+      leagueRuleSet: gameLeague,
+      gameType,
+      pitchingFormat: allowedPitchingFormats(gameLeague, teamAge).includes(
+        gamePitching,
+      )
+        ? gamePitching
+        : allowedPitchingFormats(gameLeague, teamAge)[0],
+      defenseSize: gameDefenseSize,
+      positionLock: gamePositionLock,
+      battingSize: gameBattingSize,
+      isScrimmage,
+      isBigGame,
+      applySeasonalFairness,
+      isTournamentGame,
+    });
 
     return (
       <div className="space-y-6">
@@ -527,679 +570,24 @@ export const ScheduleTab = memo(() => {
                   style={{ color: primaryColor }}
                 />
               </div>
-              <h2 className="t-h2">Game Command Center</h2>
+              <div className="min-w-0">
+                <h2 className="t-h2">Game Command Center</h2>
+                {/* On a phone the opponent rides under the title instead of
+                    taking a row of its own above attendance. */}
+                <div className="sm:hidden text-xs font-black uppercase tracking-widest text-ink-2 mt-1 truncate">
+                  vs {currentGame.opponent}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
-              <div className="bg-surface border border-line px-4 py-2.5 rounded-xl shrink-0 shadow-sm">
-                <span className="block text-[9px] text-ink-3 font-extrabold uppercase tracking-widest leading-none mb-1.5">
-                  Opponent
-                </span>
-                <span className="block text-sm text-ink font-black uppercase leading-none">
-                  {currentGame.opponent}
-                </span>
-              </div>
-              <div className="bg-surface border border-line px-4 py-2.5 rounded-xl shrink-0 hidden sm:block shadow-sm">
-                <span className="block text-[9px] text-ink-3 font-extrabold uppercase tracking-widest leading-none mb-1.5">
-                  Position Rotation
-                </span>
-                <span className="block text-sm text-ink font-black uppercase leading-none">
-                  {gamePositionLock === "full"
-                    ? "Full Game"
-                    : `${gamePositionLock} Inn`}
-                </span>
-              </div>
-              <div className="bg-surface border border-line px-4 py-2.5 rounded-xl shrink-0 hidden sm:block shadow-sm">
-                <span className="block text-[9px] text-ink-3 font-extrabold uppercase tracking-widest leading-none mb-1.5">
-                  Batters
-                </span>
-                <span className="block text-sm text-ink font-black uppercase leading-none">
-                  {gameBattingSize === "roster" ? "Roster" : gameBattingSize}
-                </span>
-              </div>
-              {presentCount >= 7 && canEdit && (
-                <>
-                  <button
-                    onClick={() => generateLineup()}
-                    className="btn-premium shrink-0 py-3 px-6 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-transform hover:-translate-y-0.5 rounded-xl text-xs"
-                    style={{ color: "var(--team-on-primary)" }}
-                  >
-                    <Icons.Settings className="w-4 h-4" /> Build Lineup
-                  </button>
-                  {lineup && (
-                    <button
-                      onClick={regenerateLineup}
-                      title="Re-roll a different valid lineup"
-                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-surface border border-line hover:bg-surface-2 text-ink"
-                    >
-                      <Icons.Refresh className="w-4 h-4" /> Re-roll
-                    </button>
-                  )}
-                  {lineup && (
-                    <button
-                      onClick={regenerateBatting}
-                      title="Re-roll just the batting order — defense stays the same"
-                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-surface border border-line hover:bg-surface-2 text-ink"
-                    >
-                      <Icons.Bat className="w-4 h-4" /> Re-roll Batting
-                    </button>
-                  )}
-                  {lineup && (
-                    <button
-                      onClick={regenerateDefense}
-                      title="Re-roll just the defensive schedule — batting order stays the same"
-                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-surface border border-line hover:bg-surface-2 text-ink"
-                    >
-                      <Icons.Glove className="w-4 h-4" /> Re-roll Defense
-                    </button>
-                  )}
-                  {lineup && (
-                    <button
-                      onClick={async () => {
-                        const defaultName = currentGame?.opponent
-                          ? `vs ${currentGame.opponent} · ${
-                              currentGame.date || "—"
-                            }`
-                          : "Lineup Template";
-                        const name = await promptText({
-                          title: "Save Lineup Template",
-                          message:
-                            "Reusable batting order + defensive plan. Apply it to any future game.",
-                          defaultValue: defaultName,
-                          confirmLabel: "Save Template",
-                        });
-                        if (name) saveLineupTemplate?.(name);
-                      }}
-                      title="Save the current lineup + batting order as a reusable template"
-                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-surface border border-line hover:bg-surface-2 text-ink"
-                    >
-                      <Icons.Save className="w-4 h-4" /> Save as Template
-                    </button>
-                  )}
-                  {(team.lineupTemplates || []).length > 0 && (
-                    <div className="shrink-0 inline-flex">
-                      <select
-                        defaultValue=""
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          e.target.value = "";
-                          if (!val) return;
-                          if (val.startsWith("apply:")) {
-                            applyLineupTemplate?.(val.slice(6));
-                          } else if (val.startsWith("delete:")) {
-                            const id = val.slice(7);
-                            const tpl = (team.lineupTemplates || []).find(
-                              (t: any) => t.id === id,
-                            );
-                            void (async () => {
-                              const ok = await confirm({
-                                title: "Delete Template?",
-                                message: `"${tpl?.name || "This template"}" will be removed from your saved templates. Games using this template aren't affected.`,
-                                confirmLabel: "Delete",
-                                danger: true,
-                              });
-                              if (ok) deleteLineupTemplate?.(id);
-                            })();
-                          }
-                        }}
-                        title="Apply or delete a saved lineup template"
-                        aria-label="Lineup templates"
-                        className="py-3 px-4 font-black uppercase tracking-widest rounded-xl shadow-sm text-xs bg-surface border border-line hover:bg-surface-2 text-ink cursor-pointer"
-                      >
-                        <option value="">Templates…</option>
-                        <optgroup label="Apply">
-                          {(team.lineupTemplates || []).map((tpl: any) => (
-                            <option
-                              key={`a-${tpl.id}`}
-                              value={`apply:${tpl.id}`}
-                            >
-                              {tpl.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Delete">
-                          {(team.lineupTemplates || []).map((tpl: any) => (
-                            <option
-                              key={`d-${tpl.id}`}
-                              value={`delete:${tpl.id}`}
-                            >
-                              ✕ {tpl.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      </select>
-                    </div>
-                  )}
-                  {lineup && (
-                    <button
-                      onClick={() =>
-                        shareLineupCard({
-                          game: { ...currentGame, lineup, battingLineup },
-                          team,
-                          formatDate: formatGameDateDisplay,
-                          toast,
-                        })
-                      }
-                      title="Share this lineup as a PNG image"
-                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-surface border border-line hover:bg-surface-2 text-ink"
-                    >
-                      <Icons.Link className="w-4 h-4" /> Share
-                    </button>
-                  )}
-                </>
-              )}
+            <div className="hidden sm:block bg-surface border border-line px-4 py-2.5 rounded-xl shrink-0 shadow-sm">
+              <span className="block text-[9px] text-ink-3 font-extrabold uppercase tracking-widest leading-none mb-1.5">
+                Opponent
+              </span>
+              <span className="block text-sm text-ink font-black uppercase leading-none">
+                {currentGame.opponent}
+              </span>
             </div>
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 p-6 bg-transparent border-b border-line">
-            <div className="w-full col-span-2 md:col-span-1">
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Date
-              </label>
-              <input
-                type="date"
-                value={normalizeDateToIso(currentGame.date) || ""}
-                onChange={(e) => {
-                  const newDate = e.target.value;
-                  const patch: Record<string, unknown> = { date: newDate };
-                  // Keep the game's clock time when only the date changes by
-                  // recomputing startUtc for the new day.
-                  if (currentGame.startUtc) {
-                    patch.startUtc = localDateTimeToIso(
-                      newDate,
-                      isoInstantToLocalTimeInput(currentGame.startUtc),
-                    );
-                  }
-                  updateGame(selectedGameId, patch);
-                }}
-                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
-              />
-            </div>
-            <div className="w-full">
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Time
-              </label>
-              <input
-                type="time"
-                value={isoInstantToLocalTimeInput(currentGame.startUtc)}
-                onChange={(e) =>
-                  updateGame(selectedGameId, {
-                    startUtc: localDateTimeToIso(
-                      normalizeDateToIso(currentGame.date) || currentGame.date,
-                      e.target.value,
-                    ),
-                  })
-                }
-                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
-              />
-            </div>
-            <div className="w-full">
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Home / Away
-              </label>
-              <select
-                value={currentGame.isHome === false ? "away" : "home"}
-                onChange={(e) =>
-                  updateGame(selectedGameId, {
-                    isHome: e.target.value === "home",
-                  })
-                }
-                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-              >
-                <option value="home">Home</option>
-                <option value="away">Away</option>
-              </select>
-            </div>
-            <div className="w-full col-span-2">
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Location
-              </label>
-              <input
-                type="text"
-                value={currentGame.location || ""}
-                onChange={(e) =>
-                  updateGame(selectedGameId, { location: e.target.value })
-                }
-                placeholder="Field / Location"
-                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
-              />
-            </div>
-            <div className="w-full">
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Game Rules
-              </label>
-              <select
-                value={gameLeague}
-                onChange={(e) => {
-                  const newLeague = e.target.value;
-                  const allowed = allowedPitchingFormats(newLeague, teamAge);
-                  const newFormat = allowed.includes(gamePitching)
-                    ? gamePitching
-                    : allowed[0];
-                  // Classification (gameType) is its own control now — the
-                  // Game Type selector below — so switching rule sets no
-                  // longer rewrites it behind the coach's back. Unstamped
-                  // games still default from the rule set (effectiveGameType).
-                  updateGame(selectedGameId, {
-                    leagueRuleSet: newLeague,
-                    pitchingFormat: newFormat,
-                  });
-                }}
-                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-              >
-                <option value="USSSA">Tournament</option>
-                <option value="NKB">Rec</option>
-              </select>
-            </div>
-            {/* Game classification — a real per-game control for EVERY game
-                  (it used to be a side-effect of the Game Rules select).
-                  Drives the engine's pitcher pool for 9U+ Kid Pitch: Pool
-                  spreads across the staff (top 5) so aces rest for bracket;
-                  Bracket narrows to your aces (top 3); Rec/League is the
-                  regular-season default. Also the classification chip in the
-                  week planner. */}
-            <div className="w-full">
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Game Type
-              </label>
-              <select
-                value={gameType}
-                aria-label="Game type"
-                onChange={(e) =>
-                  updateGame(selectedGameId, { gameType: e.target.value })
-                }
-                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-              >
-                <option value="league">Rec / League</option>
-                <option value="pool">Pool Play</option>
-                <option value="bracket">Bracket</option>
-              </select>
-            </div>
-            <div className="w-full">
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Pitching
-              </label>
-              {(() => {
-                const allowedFormats = allowedPitchingFormats(
-                  gameLeague,
-                  teamAge,
-                );
-                // One legal format for this league + age (9U+ is always kid
-                // pitch) — no dropdown, just the fact.
-                if (allowedFormats.length === 1) {
-                  return (
-                    <div className="w-full p-2.5 bg-surface border border-line text-xs font-bold text-ink-2 rounded-lg shadow-sm">
-                      {allowedFormats[0]}
-                    </div>
-                  );
-                }
-                return (
-                  <select
-                    value={gamePitching}
-                    onChange={(e) =>
-                      updateGame(selectedGameId, {
-                        pitchingFormat: e.target.value,
-                      })
-                    }
-                    className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-                  >
-                    {allowedFormats.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
-                );
-              })()}
-            </div>
-            <div className="w-full">
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Fielders
-              </label>
-              <select
-                value={gameDefenseSize}
-                onChange={(e) =>
-                  updateGame(selectedGameId, { defenseSize: e.target.value })
-                }
-                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-              >
-                <option value="9">9 Fielders</option>
-                <option value="10">10 Fielders</option>
-              </select>
-            </div>
-            <div className="w-full">
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Position Rotation
-              </label>
-              <select
-                value={gamePositionLock}
-                onChange={(e) =>
-                  updateGame(selectedGameId, { positionLock: e.target.value })
-                }
-                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-              >
-                <option value="1">1 Inn</option>
-                <option value="2">2 Inn</option>
-                <option value="3">3 Inn</option>
-                <option value="full">Full Game</option>
-              </select>
-            </div>
-            <div className="w-full col-span-2 md:col-span-1">
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Batters
-              </label>
-              <select
-                value={gameBattingSize}
-                onChange={(e) =>
-                  updateGame(selectedGameId, { battingSize: e.target.value })
-                }
-                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-              >
-                <option value="roster">Roster</option>
-                <option value="9">9</option>
-                <option value="10">10</option>
-                <option value="11">11</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Scouting & stakes — tournament games only: opponent-strength
-              read, head-to-head record, and the stakes framing when a stored
-              tournament claims this game. Assistants see it read-only. */}
-          <GameStakesPanel game={currentGame} />
-
-          {canEdit && (
-            <>
-              {/* Scrimmage toggle — when ON, the game stays on the schedule and is
-                fully playable, but counts toward NOTHING: record, stats,
-                defensive innings, bench equity, and engine seasonal fairness all
-                ignore it. */}
-              <div className="cc-card p-3 mt-3 flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() =>
-                    updateGame(selectedGameId, { isScrimmage: !isScrimmage })
-                  }
-                  className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
-                    isScrimmage ? "bg-[var(--team-primary)]" : "bg-line"
-                  }`}
-                  aria-label="Toggle scrimmage"
-                >
-                  <span
-                    className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
-                      isScrimmage ? "left-5" : "left-0.5"
-                    }`}
-                  />
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-black uppercase tracking-widest text-ink">
-                    Scrimmage {isScrimmage ? "ON" : "OFF"}
-                  </div>
-                  <div className="text-[10px] text-ink-2 font-medium leading-tight mt-0.5">
-                    {isScrimmage
-                      ? "Doesn't count toward record, stats, innings, or bench equity."
-                      : "Off — this is a regular game that counts."}
-                  </div>
-                </div>
-              </div>
-
-              {!isTournamentGame && (
-                <>
-                  {/* Big Game toggle — when ON, the engine builds the strongest
-                possible defense (premium positions get strong players) and
-                automatically ignores seasonal fairness. */}
-                  <div className="bg-warn-bg border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateGame(selectedGameId, {
-                          isBigGame: !isBigGame,
-                        })
-                      }
-                      className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
-                        isBigGame ? "bg-warnfg" : "bg-line"
-                      }`}
-                      aria-label="Toggle big game"
-                    >
-                      <span
-                        className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
-                          isBigGame ? "left-5" : "left-0.5"
-                        }`}
-                      />
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[11px] font-black uppercase tracking-widest text-ink flex items-center gap-1.5">
-                        <span aria-hidden>⭐</span>
-                        Big Game {isBigGame ? "ON" : "OFF"}
-                      </div>
-                      <div className="text-[10px] text-ink-2 font-medium leading-tight mt-0.5">
-                        {isBigGame
-                          ? "Play your strongest for this game. Fairness is paused now, but the bench time still counts and gets made up in later Rec games."
-                          : "Off — engine builds a normal lineup."}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Seasonal fairness toggle — controls whether the engine applies
-                cumulative bench debt when generating this game's lineup. Default ON. */}
-                  <div className="bg-warn-bg border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateGame(selectedGameId, {
-                          applySeasonalFairness: !applySeasonalFairness,
-                        })
-                      }
-                      disabled={isBigGame}
-                      className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
-                        isBigGame
-                          ? "bg-line cursor-not-allowed"
-                          : applySeasonalFairness
-                            ? "bg-win"
-                            : "bg-line"
-                      }`}
-                      aria-label="Toggle even out playing time"
-                    >
-                      <span
-                        className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
-                          isBigGame || !applySeasonalFairness
-                            ? "left-0.5"
-                            : "left-5"
-                        }`}
-                      />
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <div
-                        className={`text-[11px] font-black uppercase tracking-widest ${
-                          isBigGame ? "text-ink-3" : "text-ink"
-                        }`}
-                      >
-                        Even Out Playing Time{" "}
-                        {isBigGame
-                          ? "(off — Big Game)"
-                          : applySeasonalFairness
-                            ? "ON"
-                            : "OFF"}
-                      </div>
-                      <div
-                        className={`text-[10px] font-medium leading-tight mt-0.5 ${
-                          isBigGame ? "text-ink-3" : "text-ink-3"
-                        }`}
-                      >
-                        {isBigGame
-                          ? "Big Game mode is on — fairness is off automatically."
-                          : applySeasonalFairness
-                            ? "Kids with more bench time in past games will play more today."
-                            : "Treat this game on its own — past games don't carry over."}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-
-          {/* Season Defense Balance — attendance-aware. For each present
-                player, compares their actual defensive innings to the fair-
-                share expected across the games they actually attended.
-                Positive (red) = played more than fair, Negative (green) =
-                played less. Absences are correctly excluded. */}
-          {(() => {
-            const imbalance = buildSeasonBenchImbalance(
-              games,
-              currentGame.id,
-              players,
-            );
-            const rows = presentPlayers
-              .map((p: any) => {
-                const data = imbalance.get(p.id) || {
-                  totalDefense: 0,
-                  expectedDefense: 0,
-                  gamesAttended: 0,
-                };
-                return {
-                  player: p,
-                  delta: data.totalDefense - data.expectedDefense,
-                  gamesAttended: data.gamesAttended,
-                };
-              })
-              .sort((a: any, b: any) => b.delta - a.delta);
-            // Hide if everyone is within 1 inning of their fair share
-            const anyImbalance = rows.some((r: any) => Math.abs(r.delta) >= 1);
-            if (!anyImbalance) return null;
-            return (
-              <div className="cc-card p-3 mt-3">
-                <div className="text-[10px] font-black uppercase tracking-widest text-ink-2 mb-2 flex items-center gap-2">
-                  <Icons.Users className="w-3.5 h-3.5" />
-                  Innings Played This Season
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
-                  {rows.map((r: any) => {
-                    const rounded = Math.round(r.delta);
-                    const isOver = rounded > 0;
-                    const isUnder = rounded < 0;
-                    return (
-                      <div
-                        key={r.player.id}
-                        className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-[11px] border ${
-                          isOver
-                            ? "bg-loss-bg border-line"
-                            : isUnder
-                              ? "bg-win-bg border-line"
-                              : "bg-surface border-line"
-                        }`}
-                      >
-                        <span className="font-bold text-ink truncate">
-                          {r.player.name.split(" ")[0]}
-                        </span>
-                        <span
-                          className={`font-black tabular-nums shrink-0 ${
-                            isOver
-                              ? "text-loss"
-                              : isUnder
-                                ? "text-win"
-                                : "text-ink-3"
-                          }`}
-                        >
-                          {isOver
-                            ? `+${rounded}`
-                            : rounded === 0
-                              ? "0"
-                              : rounded}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="text-[10px] text-ink-3 italic font-medium mt-2">
-                  Red = played more than the team average. Green = played less.
-                  With the toggle on, green kids get more time today. Missed
-                  games don&apos;t count against anyone.
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Innings Played editor — only shown for Final games. Lets the
-              coach trim down (e.g., game ended in 4 innings) or restore (if
-              they trimmed too aggressively). Restore is only possible up to
-              the longest version of the lineup the engine has produced. */}
-          {canEdit &&
-            currentGame.status === "final" &&
-            currentGame.lineup?.length > 0 &&
-            (() => {
-              const longest =
-                currentGame.originalLineup?.length > currentGame.lineup.length
-                  ? currentGame.originalLineup
-                  : currentGame.lineup;
-              const maxInnings = longest.length;
-              const currentInningsPlayed = currentGame.lineup.length;
-              return (
-                <div className="px-6 py-4 bg-warn-bg border-b border-warn-bg flex flex-col sm:flex-row sm:items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <Icons.Clock className="w-4 h-4 text-warnfg" />
-                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-warnfg">
-                      Final Game Adjustments
-                    </span>
-                  </div>
-                  <label className="inline-flex items-center gap-2 select-none">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-ink">
-                      Innings Played:
-                    </span>
-                    <select
-                      value={currentInningsPlayed}
-                      onChange={(e) => {
-                        const target = parseInt(e.target.value, 10);
-                        if (!Number.isFinite(target) || target < 1) return;
-                        if (target === currentInningsPlayed) return;
-                        const updates: Record<string, any> = {};
-                        if (target < currentInningsPlayed) {
-                          if (!currentGame.originalLineup) {
-                            updates.originalLineup = currentGame.lineup;
-                          }
-                          updates.lineup = currentGame.lineup.slice(0, target);
-                        } else if (
-                          currentGame.originalLineup &&
-                          currentGame.originalLineup.length >= target
-                        ) {
-                          updates.lineup = currentGame.originalLineup.slice(
-                            0,
-                            target,
-                          );
-                        } else {
-                          return; // can't restore beyond what we have
-                        }
-                        updateGame(selectedGameId, updates);
-                      }}
-                      className="text-[11px] font-bold p-1.5 bg-surface border border-amber-300 rounded-md outline-none focus:ring-2 focus:ring-amber-500 shadow-sm cursor-pointer tabular-nums"
-                    >
-                      {Array.from({ length: maxInnings }, (_, i) => i + 1).map(
-                        (n) => (
-                          <option key={n} value={n}>
-                            {n}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </label>
-                  {currentGame.originalLineup &&
-                    currentGame.originalLineup.length >
-                      currentGame.lineup.length && (
-                      <span className="text-[10px] font-bold text-warnfg uppercase tracking-widest">
-                        (
-                        {currentGame.originalLineup.length -
-                          currentGame.lineup.length}{" "}
-                        inning
-                        {currentGame.originalLineup.length -
-                          currentGame.lineup.length ===
-                        1
-                          ? ""
-                          : "s"}{" "}
-                        trimmed — restorable)
-                      </span>
-                    )}
-                </div>
-              );
-            })()}
 
           <div
             className={`grid grid-cols-1 ${canEdit && !isTournamentGame ? "lg:grid-cols-2" : ""} divide-y lg:divide-y-0 lg:divide-x divide-line bg-transparent`}
@@ -1212,8 +600,14 @@ export const ScheduleTab = memo(() => {
                 <h3 className="font-black text-ink uppercase tracking-widest text-sm">
                   Game Day Attendance
                 </h3>
+                <span className="ml-auto text-[11px] font-black text-ink-2 tabular-nums">
+                  {presentCount} here
+                </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              {/* On a phone the list runs at full length with the page; a
+                  box that scrolls inside a scrolling page is easy to get
+                  stuck in with a thumb. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:max-h-[300px] sm:overflow-y-auto sm:pr-2 custom-scrollbar">
                 {/* Inactive roster players don't take attendance — reactivate
                       them from the Roster tab to list them again. Subs are
                       listed only for the games of the tournament they were
@@ -1390,10 +784,530 @@ export const ScheduleTab = memo(() => {
               <StartingPitcherPicker game={currentGame} />
             </div>
           )}
+
+          <GameDetailsDisclosure summary={detailsSummary}>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 p-6 bg-transparent">
+              <div className="w-full col-span-2 md:col-span-1">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={normalizeDateToIso(currentGame.date) || ""}
+                  onChange={(e) => {
+                    const newDate = e.target.value;
+                    const patch: Record<string, unknown> = { date: newDate };
+                    // Keep the game's clock time when only the date changes by
+                    // recomputing startUtc for the new day.
+                    if (currentGame.startUtc) {
+                      patch.startUtc = localDateTimeToIso(
+                        newDate,
+                        isoInstantToLocalTimeInput(currentGame.startUtc),
+                      );
+                    }
+                    updateGame(selectedGameId, patch);
+                  }}
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
+                />
+              </div>
+              <div className="w-full">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Time
+                </label>
+                <input
+                  type="time"
+                  value={isoInstantToLocalTimeInput(currentGame.startUtc)}
+                  onChange={(e) =>
+                    updateGame(selectedGameId, {
+                      startUtc: localDateTimeToIso(
+                        normalizeDateToIso(currentGame.date) ||
+                          currentGame.date,
+                        e.target.value,
+                      ),
+                    })
+                  }
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
+                />
+              </div>
+              <div className="w-full">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Home / Away
+                </label>
+                <select
+                  value={currentGame.isHome === false ? "away" : "home"}
+                  onChange={(e) =>
+                    updateGame(selectedGameId, {
+                      isHome: e.target.value === "home",
+                    })
+                  }
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                >
+                  <option value="home">Home</option>
+                  <option value="away">Away</option>
+                </select>
+              </div>
+              <div className="w-full col-span-2">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Location
+                </label>
+                <input
+                  type="text"
+                  value={currentGame.location || ""}
+                  onChange={(e) =>
+                    updateGame(selectedGameId, { location: e.target.value })
+                  }
+                  placeholder="Field / Location"
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
+                />
+              </div>
+              <div className="w-full">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Game Rules
+                </label>
+                <select
+                  value={gameLeague}
+                  onChange={(e) => {
+                    const newLeague = e.target.value;
+                    const allowed = allowedPitchingFormats(newLeague, teamAge);
+                    const newFormat = allowed.includes(gamePitching)
+                      ? gamePitching
+                      : allowed[0];
+                    // Classification (gameType) is its own control now — the
+                    // Game Type selector below — so switching rule sets no
+                    // longer rewrites it behind the coach's back. Unstamped
+                    // games still default from the rule set (effectiveGameType).
+                    updateGame(selectedGameId, {
+                      leagueRuleSet: newLeague,
+                      pitchingFormat: newFormat,
+                    });
+                  }}
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                >
+                  <option value="USSSA">Tournament</option>
+                  <option value="NKB">Rec</option>
+                </select>
+              </div>
+              {/* Game classification — a real per-game control for EVERY game
+                    (it used to be a side-effect of the Game Rules select).
+                    Drives the engine's pitcher pool for 9U+ Kid Pitch: Pool
+                    spreads across the staff (top 5) so aces rest for bracket;
+                    Bracket narrows to your aces (top 3); Rec/League is the
+                    regular-season default. Also the classification chip in the
+                    week planner. */}
+              <div className="w-full">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Game Type
+                </label>
+                <select
+                  value={gameType}
+                  aria-label="Game type"
+                  onChange={(e) =>
+                    updateGame(selectedGameId, { gameType: e.target.value })
+                  }
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                >
+                  <option value="league">Rec / League</option>
+                  <option value="pool">Pool Play</option>
+                  <option value="bracket">Bracket</option>
+                </select>
+              </div>
+              <div className="w-full">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Pitching
+                </label>
+                {(() => {
+                  const allowedFormats = allowedPitchingFormats(
+                    gameLeague,
+                    teamAge,
+                  );
+                  // One legal format for this league + age (9U+ is always kid
+                  // pitch) — no dropdown, just the fact.
+                  if (allowedFormats.length === 1) {
+                    return (
+                      <div className="w-full p-2.5 bg-surface border border-line text-xs font-bold text-ink-2 rounded-lg shadow-sm">
+                        {allowedFormats[0]}
+                      </div>
+                    );
+                  }
+                  return (
+                    <select
+                      value={gamePitching}
+                      onChange={(e) =>
+                        updateGame(selectedGameId, {
+                          pitchingFormat: e.target.value,
+                        })
+                      }
+                      className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                    >
+                      {allowedFormats.map((f) => (
+                        <option key={f} value={f}>
+                          {f}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
+              </div>
+              <div className="w-full">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Fielders
+                </label>
+                <select
+                  value={gameDefenseSize}
+                  onChange={(e) =>
+                    updateGame(selectedGameId, { defenseSize: e.target.value })
+                  }
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                >
+                  <option value="9">9 Fielders</option>
+                  <option value="10">10 Fielders</option>
+                </select>
+              </div>
+              <div className="w-full">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Position Rotation
+                </label>
+                <select
+                  value={gamePositionLock}
+                  onChange={(e) =>
+                    updateGame(selectedGameId, { positionLock: e.target.value })
+                  }
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                >
+                  <option value="1">1 Inn</option>
+                  <option value="2">2 Inn</option>
+                  <option value="3">3 Inn</option>
+                  <option value="full">Full Game</option>
+                </select>
+              </div>
+              <div className="w-full col-span-2 md:col-span-1">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Batters
+                </label>
+                <select
+                  value={gameBattingSize}
+                  onChange={(e) =>
+                    updateGame(selectedGameId, { battingSize: e.target.value })
+                  }
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                >
+                  <option value="roster">Roster</option>
+                  <option value="9">9</option>
+                  <option value="10">10</option>
+                  <option value="11">11</option>
+                </select>
+              </div>
+            </div>
+            {canEdit && (
+              <div className="px-6 pb-6">
+                <>
+                  {/* Scrimmage toggle — when ON, the game stays on the schedule and is
+                    fully playable, but counts toward NOTHING: record, stats,
+                    defensive innings, bench equity, and engine seasonal fairness all
+                    ignore it. */}
+                  <div className="cc-card p-3 mt-3 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateGame(selectedGameId, {
+                          isScrimmage: !isScrimmage,
+                        })
+                      }
+                      className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
+                        isScrimmage ? "bg-[var(--team-primary)]" : "bg-line"
+                      }`}
+                      aria-label="Toggle scrimmage"
+                    >
+                      <span
+                        className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
+                          isScrimmage ? "left-5" : "left-0.5"
+                        }`}
+                      />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-black uppercase tracking-widest text-ink">
+                        Scrimmage {isScrimmage ? "ON" : "OFF"}
+                      </div>
+                      <div className="text-[10px] text-ink-2 font-medium leading-tight mt-0.5">
+                        {isScrimmage
+                          ? "Doesn't count toward record, stats, innings, or bench equity."
+                          : "Off — this is a regular game that counts."}
+                      </div>
+                    </div>
+                  </div>
+
+                  {!isTournamentGame && (
+                    <>
+                      {/* Big Game toggle — when ON, the engine builds the strongest
+                    possible defense (premium positions get strong players) and
+                    automatically ignores seasonal fairness. */}
+                      <div className="bg-warn-bg border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateGame(selectedGameId, {
+                              isBigGame: !isBigGame,
+                            })
+                          }
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
+                            isBigGame ? "bg-warnfg" : "bg-line"
+                          }`}
+                          aria-label="Toggle big game"
+                        >
+                          <span
+                            className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
+                              isBigGame ? "left-5" : "left-0.5"
+                            }`}
+                          />
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-black uppercase tracking-widest text-ink flex items-center gap-1.5">
+                            <span aria-hidden>⭐</span>
+                            Big Game {isBigGame ? "ON" : "OFF"}
+                          </div>
+                          <div className="text-[10px] text-ink-2 font-medium leading-tight mt-0.5">
+                            {isBigGame
+                              ? "Play your strongest for this game. Fairness is paused now, but the bench time still counts and gets made up in later Rec games."
+                              : "Off — engine builds a normal lineup."}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Seasonal fairness toggle — controls whether the engine applies
+                    cumulative bench debt when generating this game's lineup. Default ON. */}
+                      <div className="bg-warn-bg border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateGame(selectedGameId, {
+                              applySeasonalFairness: !applySeasonalFairness,
+                            })
+                          }
+                          disabled={isBigGame}
+                          className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
+                            isBigGame
+                              ? "bg-line cursor-not-allowed"
+                              : applySeasonalFairness
+                                ? "bg-win"
+                                : "bg-line"
+                          }`}
+                          aria-label="Toggle even out playing time"
+                        >
+                          <span
+                            className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
+                              isBigGame || !applySeasonalFairness
+                                ? "left-0.5"
+                                : "left-5"
+                            }`}
+                          />
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div
+                            className={`text-[11px] font-black uppercase tracking-widest ${
+                              isBigGame ? "text-ink-3" : "text-ink"
+                            }`}
+                          >
+                            Even Out Playing Time{" "}
+                            {isBigGame
+                              ? "(off — Big Game)"
+                              : applySeasonalFairness
+                                ? "ON"
+                                : "OFF"}
+                          </div>
+                          <div
+                            className={`text-[10px] font-medium leading-tight mt-0.5 ${
+                              isBigGame ? "text-ink-3" : "text-ink-3"
+                            }`}
+                          >
+                            {isBigGame
+                              ? "Big Game mode is on — fairness is off automatically."
+                              : applySeasonalFairness
+                                ? "Kids with more bench time in past games will play more today."
+                                : "Treat this game on its own — past games don't carry over."}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              </div>
+            )}
+          </GameDetailsDisclosure>
+
+          {/* Scouting & stakes — tournament games only: opponent-strength
+              read, head-to-head record, and the stakes framing when a stored
+              tournament claims this game. Assistants see it read-only. */}
+          <GameStakesPanel game={currentGame} />
+
+          {/* Season Defense Balance — attendance-aware. For each present
+                player, compares their actual defensive innings to the fair-
+                share expected across the games they actually attended.
+                Positive (red) = played more than fair, Negative (green) =
+                played less. Absences are correctly excluded. */}
+          {(() => {
+            const imbalance = buildSeasonBenchImbalance(
+              games,
+              currentGame.id,
+              players,
+            );
+            const rows = presentPlayers
+              .map((p: any) => {
+                const data = imbalance.get(p.id) || {
+                  totalDefense: 0,
+                  expectedDefense: 0,
+                  gamesAttended: 0,
+                };
+                return {
+                  player: p,
+                  delta: data.totalDefense - data.expectedDefense,
+                  gamesAttended: data.gamesAttended,
+                };
+              })
+              .sort((a: any, b: any) => b.delta - a.delta);
+            // Hide if everyone is within 1 inning of their fair share
+            const anyImbalance = rows.some((r: any) => Math.abs(r.delta) >= 1);
+            if (!anyImbalance) return null;
+            return (
+              <div className="cc-card p-3 mt-3">
+                <div className="text-[10px] font-black uppercase tracking-widest text-ink-2 mb-2 flex items-center gap-2">
+                  <Icons.Users className="w-3.5 h-3.5" />
+                  Innings Played This Season
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
+                  {rows.map((r: any) => {
+                    const rounded = Math.round(r.delta);
+                    const isOver = rounded > 0;
+                    const isUnder = rounded < 0;
+                    return (
+                      <div
+                        key={r.player.id}
+                        className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-[11px] border ${
+                          isOver
+                            ? "bg-loss-bg border-line"
+                            : isUnder
+                              ? "bg-win-bg border-line"
+                              : "bg-surface border-line"
+                        }`}
+                      >
+                        <span className="font-bold text-ink truncate">
+                          {r.player.name.split(" ")[0]}
+                        </span>
+                        <span
+                          className={`font-black tabular-nums shrink-0 ${
+                            isOver
+                              ? "text-loss"
+                              : isUnder
+                                ? "text-win"
+                                : "text-ink-3"
+                          }`}
+                        >
+                          {isOver
+                            ? `+${rounded}`
+                            : rounded === 0
+                              ? "0"
+                              : rounded}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="text-[10px] text-ink-3 italic font-medium mt-2">
+                  Red = played more than the team average. Green = played less.
+                  With the toggle on, green kids get more time today. Missed
+                  games don&apos;t count against anyone.
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Innings Played editor — only shown for Final games. Lets the
+              coach trim down (e.g., game ended in 4 innings) or restore (if
+              they trimmed too aggressively). Restore is only possible up to
+              the longest version of the lineup the engine has produced. */}
+          {canEdit &&
+            currentGame.status === "final" &&
+            currentGame.lineup?.length > 0 &&
+            (() => {
+              const longest =
+                currentGame.originalLineup?.length > currentGame.lineup.length
+                  ? currentGame.originalLineup
+                  : currentGame.lineup;
+              const maxInnings = longest.length;
+              const currentInningsPlayed = currentGame.lineup.length;
+              return (
+                <div className="px-6 py-4 bg-warn-bg border-b border-warn-bg flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Icons.Clock className="w-4 h-4 text-warnfg" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-warnfg">
+                      Final Game Adjustments
+                    </span>
+                  </div>
+                  <label className="inline-flex items-center gap-2 select-none">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-ink">
+                      Innings Played:
+                    </span>
+                    <select
+                      value={currentInningsPlayed}
+                      onChange={(e) => {
+                        const target = parseInt(e.target.value, 10);
+                        if (!Number.isFinite(target) || target < 1) return;
+                        if (target === currentInningsPlayed) return;
+                        const updates: Record<string, any> = {};
+                        if (target < currentInningsPlayed) {
+                          if (!currentGame.originalLineup) {
+                            updates.originalLineup = currentGame.lineup;
+                          }
+                          updates.lineup = currentGame.lineup.slice(0, target);
+                        } else if (
+                          currentGame.originalLineup &&
+                          currentGame.originalLineup.length >= target
+                        ) {
+                          updates.lineup = currentGame.originalLineup.slice(
+                            0,
+                            target,
+                          );
+                        } else {
+                          return; // can't restore beyond what we have
+                        }
+                        updateGame(selectedGameId, updates);
+                      }}
+                      className="text-[11px] font-bold p-1.5 bg-surface border border-amber-300 rounded-md outline-none focus:ring-2 focus:ring-amber-500 shadow-sm cursor-pointer tabular-nums"
+                    >
+                      {Array.from({ length: maxInnings }, (_, i) => i + 1).map(
+                        (n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+                  {currentGame.originalLineup &&
+                    currentGame.originalLineup.length >
+                      currentGame.lineup.length && (
+                      <span className="text-[10px] font-bold text-warnfg uppercase tracking-widest">
+                        (
+                        {currentGame.originalLineup.length -
+                          currentGame.lineup.length}{" "}
+                        inning
+                        {currentGame.originalLineup.length -
+                          currentGame.lineup.length ===
+                        1
+                          ? ""
+                          : "s"}{" "}
+                        trimmed — restorable)
+                      </span>
+                    )}
+                </div>
+              );
+            })()}
         </div>
 
         {editableLineup && (
-          <div className="bg-surface shadow-sm border border-line print:border-none print:shadow-none rounded-2xl overflow-hidden mb-12">
+          <div
+            className="bg-surface shadow-sm border border-line print:border-none print:shadow-none rounded-2xl overflow-hidden"
+            ref={lineupCardRef}
+          >
             <div className="p-5 flex flex-col lg:flex-row justify-between items-center gap-4 print:hidden bg-surface border-b border-line">
               <div className="flex items-center gap-4">
                 <div
@@ -1421,6 +1335,20 @@ export const ScheduleTab = memo(() => {
                   className="text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
                 >
                   <Icons.FileText className="w-4 h-4" /> PDF
+                </button>
+                <button
+                  onClick={() =>
+                    shareLineupCard({
+                      game: { ...currentGame, lineup, battingLineup },
+                      team,
+                      formatDate: formatGameDateDisplay,
+                      toast,
+                    })
+                  }
+                  title="Share this lineup as a PNG image"
+                  className="text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                >
+                  <Icons.Link className="w-4 h-4" /> Share
                 </button>
                 <button
                   onClick={() => window.print()}
@@ -1679,6 +1607,14 @@ export const ScheduleTab = memo(() => {
               </div>
             )}
           </div>
+        )}
+
+        {canEdit && (
+          <GameActionBar
+            game={currentGame}
+            presentCount={presentCount}
+            onLineupAction={markLineupAction}
+          />
         )}
       </div>
     );

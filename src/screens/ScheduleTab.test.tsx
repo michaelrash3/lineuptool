@@ -1,5 +1,5 @@
 import React from "react";
-import { screen, waitFor, fireEvent } from "@testing-library/react";
+import { screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ScheduleTab } from "./ScheduleTab";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -60,7 +60,16 @@ const players = [
 
 const renderGameEditor = (
   leagueRuleSet: string,
-  over: { teamAge?: string; players?: any[]; battingLineup?: any[] } = {},
+  over: {
+    teamAge?: string;
+    players?: any[];
+    battingLineup?: any[];
+    role?: "head" | "assistant";
+    game?: Record<string, any>;
+    attendance?: Record<string, boolean>;
+    noLineup?: boolean;
+    team?: Record<string, any>;
+  } = {},
 ) => {
   const handleCellClick = jest.fn();
   const roster = over.players ?? players;
@@ -88,23 +97,30 @@ const renderGameEditor = (
               battingSize: 9,
               lineup,
               battingLineup: batting,
+              ...over.game,
             },
           ],
+          ...over.team,
         },
         record: { wins: 0, losses: 0, ties: 0 },
-        currentRole: "head",
+        currentRole: over.role ?? "head",
         updateGame: jest.fn(),
         saveCurrentGame: jest.fn(),
         saveAttendance: jest.fn(),
+        generateLineup: jest.fn(),
+        regenerateLineup: jest.fn(),
+        regenerateBatting: jest.fn(),
+        regenerateDefense: jest.fn(),
+        applyLineupTemplate: jest.fn(),
       },
       ui: {
         selectedGameId: "g1",
-        currentGameAttendance: {},
+        currentGameAttendance: over.attendance ?? {},
         setCurrentGameAttendance: jest.fn(),
         firstInningLineup: {},
         setFirstInningLineup: jest.fn(),
-        lineup,
-        battingLineup: batting,
+        lineup: over.noLineup ? null : lineup,
+        battingLineup: over.noLineup ? null : batting,
         swapSelection: null,
         handleCellClick,
         moveBatter: jest.fn(),
@@ -113,6 +129,11 @@ const renderGameEditor = (
     },
   );
 };
+
+// The game's settings start folded under "Game details" on a phone-width
+// screen (jsdom matches no media query, so it reads as a phone).
+const openGameDetails = () =>
+  userEvent.click(screen.getByRole("button", { name: /game details/i }));
 
 // A stand-in for the browser's DataTransfer: jsdom has none, and the drag
 // handlers read and write the dragged slot through it.
@@ -382,9 +403,120 @@ describe("ScheduleTab", () => {
   });
 });
 
+describe("ScheduleTab — the game screen on a phone", () => {
+  it("puts attendance first and folds the game's settings into one summary line", async () => {
+    renderGameEditor("NKB", {
+      game: { isHome: false, location: "Field 3" },
+    });
+    const attendance = screen.getByText("Game Day Attendance");
+    const details = screen.getByRole("button", { name: /game details/i });
+    expect(
+      attendance.compareDocumentPosition(details) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // Folded: the settings aren't on screen, but the summary says what
+    // they're set to.
+    expect(details).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("Game type")).not.toBeInTheDocument();
+    expect(details).toHaveTextContent(/Away · Field 3/);
+    expect(details).toHaveTextContent(/Rec · Kid Pitch · 9 fielders · Bat 9/);
+
+    await userEvent.click(details);
+    expect(details).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Game type")).toBeInTheDocument();
+  });
+
+  it("calls out Big Game on the folded summary, so it can't hide there", () => {
+    renderGameEditor("NKB", { game: { isBigGame: true } });
+    expect(
+      screen.getByRole("button", { name: /game details/i }),
+    ).toHaveTextContent(/Big Game/);
+  });
+
+  it("counts who's here on the attendance heading", () => {
+    renderGameEditor("NKB", { attendance: { p1: false } });
+    expect(screen.getByText("8 here")).toBeInTheDocument();
+  });
+
+  it("keeps Build and Re-roll in the pinned bar and folds the rest behind More", async () => {
+    const { teamValue } = renderGameEditor("NKB", {
+      team: { lineupTemplates: [{ id: "t1", name: "Opening day" }] },
+    });
+    const bar = screen.getByRole("group", { name: "Lineup actions" });
+
+    await userEvent.click(
+      within(bar).getByRole("button", { name: /build lineup/i }),
+    );
+    expect(teamValue.generateLineup).toHaveBeenCalled();
+    await userEvent.click(
+      within(bar).getByRole("button", { name: /^re-roll$/i }),
+    );
+    expect(teamValue.regenerateLineup).toHaveBeenCalled();
+
+    const more = within(bar).getByRole("button", { name: /more/i });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(more);
+    expect(more).toHaveAttribute("aria-expanded", "true");
+    const panel = document.getElementById(
+      more.getAttribute("aria-controls") || "",
+    )!;
+    await userEvent.click(
+      within(panel).getByRole("button", { name: /re-roll batting/i }),
+    );
+    expect(teamValue.regenerateBatting).toHaveBeenCalled();
+    await userEvent.selectOptions(
+      within(panel).getByLabelText("Lineup templates"),
+      "apply:t1",
+    );
+    expect(teamValue.applyLineupTemplate).toHaveBeenCalledWith("t1");
+  });
+
+  it("says how many more kids are needed instead of offering Build", () => {
+    renderGameEditor("NKB", {
+      attendance: { p1: false, p2: false, p3: false },
+    });
+    const bar = screen.getByRole("group", { name: "Lineup actions" });
+    expect(bar).toHaveTextContent(
+      "Mark at least 7 players here to build a lineup — 6 so far.",
+    );
+    expect(
+      within(bar).queryByRole("button", { name: /build lineup/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers only Build before there's a lineup and no templates", () => {
+    renderGameEditor("NKB", { noLineup: true });
+    const bar = screen.getByRole("group", { name: "Lineup actions" });
+    expect(within(bar).getAllByRole("button")).toHaveLength(1);
+    expect(
+      within(bar).getByRole("button", { name: /build lineup/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves the build bar off for an assistant, who can still share the lineup", () => {
+    renderGameEditor("NKB", { role: "assistant" });
+    expect(
+      screen.queryByRole("group", { name: "Lineup actions" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /share/i })).toBeInTheDocument();
+  });
+
+  it("lifts the Help button above the bar while the bar is up", () => {
+    const { unmount } = renderGameEditor("NKB");
+    expect(
+      document.documentElement.style.getPropertyValue("--bottom-bar-h"),
+    ).toMatch(/px$/);
+    unmount();
+    expect(
+      document.documentElement.style.getPropertyValue("--bottom-bar-h"),
+    ).toBe("");
+  });
+});
+
 describe("ScheduleTab — game classification is a real per-game control", () => {
   it("shows the Game Type selector for REC games and writes gameType directly", async () => {
     const { teamValue } = renderGameEditor("NKB");
+    await openGameDetails();
     const select = screen.getByLabelText("Game type") as HTMLSelectElement;
     expect(select.value).toBe("league"); // unstamped rec game defaults to Rec
     await userEvent.selectOptions(select, "bracket");
@@ -393,8 +525,9 @@ describe("ScheduleTab — game classification is a real per-game control", () =>
     });
   });
 
-  it("defaults an unstamped Tournament game to Pool Play", () => {
+  it("defaults an unstamped Tournament game to Pool Play", async () => {
     renderGameEditor("USSSA");
+    await openGameDetails();
     expect(
       (screen.getByLabelText("Game type") as HTMLSelectElement).value,
     ).toBe("pool");
@@ -402,6 +535,7 @@ describe("ScheduleTab — game classification is a real per-game control", () =>
 
   it("switching Game Rules no longer rewrites the classification", async () => {
     const { teamValue } = renderGameEditor("NKB");
+    await openGameDetails();
     // The Game Rules select currently displays "Rec" (NKB).
     await userEvent.selectOptions(screen.getByDisplayValue("Rec"), "USSSA");
     const calls = (teamValue.updateGame as jest.Mock).mock.calls;
@@ -412,8 +546,9 @@ describe("ScheduleTab — game classification is a real per-game control", () =>
 });
 
 describe("ScheduleTab — 9U+ pitching format is fixed to Kid Pitch", () => {
-  it("shows a read-only Kid Pitch pill instead of a dropdown at 10U", () => {
+  it("shows a read-only Kid Pitch pill instead of a dropdown at 10U", async () => {
     renderGameEditor("USSSA");
+    await openGameDetails();
     // The one legal format is stated as a fact…
     expect(screen.getByText("Kid Pitch")).toBeInTheDocument();
     // …and the other formats are gone from the editor entirely.
@@ -421,8 +556,9 @@ describe("ScheduleTab — 9U+ pitching format is fixed to Kid Pitch", () => {
     expect(screen.queryByText("Coach Pitch")).not.toBeInTheDocument();
   });
 
-  it("keeps the Kid/Coach dropdown for an 8U USSSA team", () => {
+  it("keeps the Kid/Coach dropdown for an 8U USSSA team", async () => {
     renderGameEditor("USSSA", { teamAge: "8U" });
+    await openGameDetails();
     expect(
       screen.getByRole("option", { name: "Coach Pitch" }),
     ).toBeInTheDocument();

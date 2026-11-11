@@ -391,6 +391,9 @@ export const HELP_TOPICS: HelpTopic[] = [
       "league pool bracket scrimmage exhibition big game star flag tournament",
     sections: [
       {
+        body: "All of these live under Game details on the game screen, along with the date, time, field, rules, fielders, rotation and batters. On a phone, Game details starts folded so attendance comes first; the folded line still says how the game is set up, and calls out Big Game, Scrimmage, or Even Out Playing Time being off so they can't hide in there.",
+      },
+      {
         heading: "Game type",
         body: "League, pool play, or bracket. For 9U+ tournament teams the type drives how many pitchers the engine plans for — bracket games get a deeper pitcher pool than pool play.",
       },
@@ -465,7 +468,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       "generate lineup engine fairness rotation algorithm auto fill positions",
     sections: [
       {
-        body: "Open a scheduled game and tap Generate. The engine fills positions inning by inning, balancing bench time and position variety across the whole season — not just this game — so nobody quietly accumulates extra sits.",
+        body: "Open a scheduled game, mark who's here, and tap Build Lineup. It sits in the bar pinned to the bottom of the screen, so it's in reach while you take attendance, and the screen moves to the new lineup when it's built. The engine fills positions inning by inning, balancing bench time and position variety across the whole season — not just this game — so nobody quietly accumulates extra sits.",
       },
       {
         body: "It also respects the hard rules for you:",
@@ -478,7 +481,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         ],
       },
       {
-        body: "Don't like a result? Regenerate as often as you want (G on the keyboard), or lock the cells you're sure about first.",
+        body: "Don't like a result? Re-roll as often as you want (G on the keyboard), or lock the cells you're sure about first. Re-roll Batting and Re-roll Defense change just one half; on a phone they're under More in the same bar, with the lineup templates.",
       },
       {
         heading: "It saves itself",
