@@ -12,6 +12,9 @@ const headRound = (grades: Record<string, unknown>) => ({
   grades,
 });
 
+// Stat lines carry a real sample (40 PA): the panel's "vs team" signal uses
+// a batting value shrunk by sample size, and needs 15+ PA to count at all.
+//
 // Every universal category at one value, so a player's 0–100 score is easy to
 // reason about: all-1 ≈ 18/100, all-5 ≈ 84/100.
 const allGrades = (v: number) => ({
@@ -52,8 +55,16 @@ describe("RosterDecisionsPanel", () => {
         team: {
           team: {
             players: [
-              { id: "p1", name: "Ava", stats: { ops: 0.9 } },
-              { id: "p2", name: "Ben", stats: { ops: 0.4 } },
+              {
+                id: "p1",
+                name: "Ava",
+                stats: { ops: 0.9, obp: 0.45, slg: 0.45, pa: 40, ab: 36 },
+              },
+              {
+                id: "p2",
+                name: "Ben",
+                stats: { ops: 0.4, obp: 0.2, slg: 0.2, pa: 40, ab: 36 },
+              },
             ],
             primaryColor: "#1d4ed8",
             currentSeason: "2026",
@@ -93,7 +104,13 @@ describe("RosterDecisionsPanel", () => {
       {
         team: {
           team: {
-            players: [{ id: "p1", name: "Ava", stats: { ops: 0.9 } }],
+            players: [
+              {
+                id: "p1",
+                name: "Ava",
+                stats: { ops: 0.9, obp: 0.45, slg: 0.45, pa: 40, ab: 36 },
+              },
+            ],
             primaryColor: "#1d4ed8",
             currentSeason: "2026",
             evaluationEvents: [headRound({ p1: { approach: 5, speed: 5 } })],
@@ -236,7 +253,13 @@ describe("RosterDecisionsPanel", () => {
       {
         team: {
           team: {
-            players: [{ id: "p1", name: "Star", stats: { ops: 0.9 } }],
+            players: [
+              {
+                id: "p1",
+                name: "Star",
+                stats: { ops: 0.9, obp: 0.45, slg: 0.45, pa: 40, ab: 36 },
+              },
+            ],
             primaryColor: "#1d4ed8",
             currentSeason: "2026",
             evaluationEvents: [headRound({ p1: allGrades(5) })],
@@ -258,7 +281,13 @@ describe("RosterDecisionsPanel", () => {
       {
         team: {
           team: {
-            players: [{ id: "p1", name: "Star", stats: { ops: 0.9 } }],
+            players: [
+              {
+                id: "p1",
+                name: "Star",
+                stats: { ops: 0.9, obp: 0.45, slg: 0.45, pa: 40, ab: 36 },
+              },
+            ],
             primaryColor: "#1d4ed8",
             currentSeason: "2026",
             ...teamOver,
@@ -351,10 +380,14 @@ describe("RosterDecisionsPanel — standing breakdown", () => {
   const pitcher = {
     id: "p1",
     name: "Ava",
-    stats: { ops: 0.9 },
+    stats: { ops: 0.9, obp: 0.45, slg: 0.45, pa: 40, ab: 36 },
     comfortablePositions: ["P"],
   };
-  const other = { id: "p2", name: "Ben", stats: { ops: 0.5 } };
+  const other = {
+    id: "p2",
+    name: "Ben",
+    stats: { ops: 0.5, obp: 0.25, slg: 0.25, pa: 40, ab: 36 },
+  };
 
   // The pitching premium scores its own categories; without them neutralFill
   // leaves it at zero (which the "stays off the card" case relies on). Middling
@@ -383,10 +416,20 @@ describe("RosterDecisionsPanel — standing breakdown", () => {
   // Most of the roster has no premium at all; a breakdown reading
   // "Eval 62 = 62 ranked" would be noise on every card.
   it("stays off the card when nothing was added", () => {
-    renderRoster([{ id: "p1", name: "Ava", stats: { ops: 0.9 } }, other], {
-      p1: allGrades(4),
-      p2: allGrades(3),
-    });
+    renderRoster(
+      [
+        {
+          id: "p1",
+          name: "Ava",
+          stats: { ops: 0.9, obp: 0.45, slg: 0.45, pa: 40, ab: 36 },
+        },
+        other,
+      ],
+      {
+        p1: allGrades(4),
+        p2: allGrades(3),
+      },
+    );
     expect(screen.queryByText(/pitching$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/lefty$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/ranked$/)).not.toBeInTheDocument();
@@ -427,5 +470,53 @@ describe("RosterDecisionsPanel — standing breakdown", () => {
     );
     expect(ranked).toBeLessThanOrEqual(100);
     expect(base + pitch + lefty).toBe(ranked);
+  });
+});
+
+describe("RosterDecisionsPanel — the hitting comparison", () => {
+  it("needs a real sample: a 2-for-3 kid isn't compared to the team at all", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <RosterDecisionsPanel />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            teamAge: "10U",
+            pitchingFormat: "Kid Pitch",
+            players: [
+              {
+                id: "hot",
+                name: "Hot",
+                stats: { pa: 3, ab: 3, h: 2, obp: 0.667, ops: 1.667 },
+              },
+              {
+                id: "a",
+                name: "Ann",
+                stats: { pa: 40, ab: 34, h: 12, bb: 6, k: 5, obp: 0.45 },
+              },
+              {
+                id: "b",
+                name: "Bo",
+                stats: { pa: 40, ab: 37, h: 9, bb: 2, k: 12, obp: 0.275 },
+              },
+            ],
+            primaryColor: "#1d4ed8",
+            currentSeason: "2026",
+            evaluationEvents: [
+              headRound({
+                hot: { approach: 3 },
+                a: { approach: 3 },
+                b: { approach: 3 },
+              }),
+            ],
+          },
+          user: { uid: "u1" },
+        },
+        ui: { setEvalTrendPlayerId: jest.fn() },
+      },
+    );
+    // Only the two kids with 15+ PA get a "vs team" hitting badge.
+    expect(screen.getAllByText(/% hitting$/)).toHaveLength(2);
   });
 });

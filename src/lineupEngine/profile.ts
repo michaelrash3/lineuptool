@@ -11,73 +11,159 @@ import type {
 } from "../types";
 import {
   DEFAULT_GRADES,
-  contactOf,
+  HITTING_SAMPLE_K,
+  approachOf,
   getEffectiveStats,
+  hittingTier,
+  plateAppearances,
   powerOf,
   speedBaseOf,
+  type HittingContext,
+  type HittingTier,
 } from "./grades";
 import { calcDefensiveScore } from "./evaluation";
 import type { ExtraSitEntry } from "./types";
 
 // ---------- Player profile cache ----------
+// The batting order reads these scores, so they follow the same idea as the
+// hitting evaluation (grades.ts): getting on base comes first, a walk counts
+// like a double at kid pitch through 12U, not striking out matters, and every
+// rate is shrunk toward an average by sample size — so a 5-for-6 week can't
+// leap a kid to the top of the order, and counting stats that just grow with
+// games played (RBI, HR totals) no longer drive it.
+
+// What an average kid in each tier looks like — the point a thin sample is
+// shrunk toward. Judgment defaults, matching the hitting-grade bands.
+const HITTING_PRIORS: Record<
+  HittingTier,
+  { obp: number; basesPerPa: number; iso: number; kRate: number }
+> = {
+  machine: { obp: 0.5, basesPerPa: 0.6, iso: 0.1, kRate: 0.15 },
+  kidYouth: { obp: 0.45, basesPerPa: 0.65, iso: 0.1, kRate: 0.2 },
+  kidTeen: { obp: 0.38, basesPerPa: 0.5, iso: 0.13, kRate: 0.18 },
+};
+
+const shrink = (
+  value: number | null,
+  n: number,
+  k: number,
+  prior: number,
+): number =>
+  value == null || !Number.isFinite(value) || n <= 0
+    ? prior
+    : (value * n + prior * k) / (n + k);
+
+// The stat side of a hitter, shrunk toward the tier's average by sample
+// size: on-base, bases per plate appearance (a walk = two bases through 12U
+// kid pitch), isolated power and strikeout rate, plus the 0–100 batting value
+// they combine into. Shared by the batting order and Roster Decisions.
+export function hittingRates(
+  p: Player,
+  hitting?: HittingContext | null,
+): {
+  pa: number;
+  obp: number;
+  basesPerPa: number;
+  iso: number;
+  kRate: number;
+  battingValue: number;
+} {
+  const tier = hittingTier(hitting);
+  const prior = HITTING_PRIORS[tier];
+  // Effective (blended) rates: current season blended with the last 1–2
+  // past seasons while the current sample is small. Counts are this season's.
+  const s: PlayerStats = getEffectiveStats(p);
+  const cs: PlayerStats = p.stats || {};
+  const num = (v: unknown) => Number(v) || 0;
+  const rate = (v: unknown): number | null => {
+    const n = Number(v);
+    return typeof v === "number" && Number.isFinite(n) ? n : null;
+  };
+
+  const pa = plateAppearances(cs);
+  const ab = num(cs.ab);
+  const h = rate(cs.h);
+  const walks = num(cs.bb) + num(cs.hbp);
+  const doubles = num(cs.doubles);
+  const triples = num(cs.triples);
+  const hr = num(cs.hr);
+
+  // On-base: the rate, or from the counts. A bare 0 with no counts is "not
+  // tracked" (getEffectiveStats used to zero-fill), not an 0-for.
+  let obp = rate(s.obp);
+  if ((obp == null || obp === 0) && h != null && pa > 0) obp = (h + walks) / pa;
+  else if (obp === 0 && h == null) obp = null;
+  const avg = rate(s.avg) || (h != null && ab > 0 ? h / ab : null);
+  const slg =
+    rate(s.slg) ??
+    (rate(s.ops) != null && obp != null && num(s.ops) >= obp
+      ? num(s.ops) - obp
+      : null);
+  // Total bases: from the counts when there are hits, else from SLG × AB.
+  const totalBases =
+    h != null && h > 0
+      ? h + doubles + 2 * triples + 3 * hr
+      : slg != null && ab > 0
+        ? slg * ab
+        : null;
+  // A walk / HBP counts as two bases (like a double) at kid pitch through
+  // 12U — free steals and passed balls — and as one base elsewhere.
+  const walkBases = tier === "kidYouth" ? 2 : 1;
+  const basesPerPa =
+    totalBases != null && pa > 0 ? (totalBases + walkBases * walks) / pa : null;
+  const iso = slg != null && avg != null && slg >= avg ? slg - avg : null;
+  const kRate = pa > 0 && rate(cs.k) != null ? num(cs.k) / pa : null;
+
+  const obpS = shrink(obp, pa, HITTING_SAMPLE_K.onBase, prior.obp);
+  const basesS = shrink(
+    basesPerPa,
+    pa,
+    HITTING_SAMPLE_K.power,
+    prior.basesPerPa,
+  );
+  return {
+    pa,
+    obp: obpS,
+    basesPerPa: basesS,
+    iso: shrink(iso, ab || pa, HITTING_SAMPLE_K.power, prior.iso),
+    kRate: shrink(kRate, pa, HITTING_SAMPLE_K.contact, prior.kRate),
+    // OBP is worth ~1.8× a point of slugging for scoring runs.
+    battingValue: (100 * (1.8 * obpS + basesS)) / 2.8,
+  };
+}
 
 export function buildPlayerProfile(
   p: Player,
   grades: GradeMap | null | undefined,
+  // The team's age group + pitching format (the hitting tier).
+  hitting?: HittingContext | null,
 ): PlayerProfile {
   // Cast: GradeMap has every value as number|undefined, but the engine always
   // operates on the DEFAULT_GRADES-filled shape internally. Casting to a
   // strict Record<string, number> avoids null-coalescing every access.
   const g = { ...DEFAULT_GRADES, ...(grades || {}) } as Record<string, number>;
-  // Use effective (blended) stats: blends current with last 1 to 2 past seasons,
-  // weighted by current AB sample size. Smooths out small samples early in
-  // the season and decays past season influence as current data accumulates.
   const s: PlayerStats = getEffectiveStats(p);
-  const num = (v: number | undefined) => Number(v) || 0;
+  const r = hittingRates(p, hitting);
+  const contactPct =
+    typeof s.contact === "number" && s.contact > 0 ? s.contact : null;
+  const hard = Number(s.hard) || 0;
+  const approach = approachOf(g);
 
-  const obp = num(s.obp);
-  const ops = num(s.ops);
-  const avg = num(s.avg);
-  const contact = num(s.contact);
-  // Counting stats (HR, RBI, etc.) come from current season only — they don't
-  // need blending. We keep them as-is from the player.stats object.
-  const cs: PlayerStats = p.stats || {};
-  const hr = num(cs.hr);
-  const rbi = num(cs.rbi);
-  const doubles = num(cs.doubles);
-  const triples = num(cs.triples);
-  const ld = num(s.ld);
-  const hard = num(s.hard);
-  const qab = num(s.qab);
-
-  const advContact = Math.max(ld * 2.5, hard * 2.0, qab * 1.5);
-  const finalContact =
-    advContact > 0 ? contact * 10 + advContact * 15 : contact * 25;
-
+  const battingValue = r.battingValue;
   const leadoffScore =
-    obp * 50 + speedBaseOf(g) * 2.5 + finalContact * 0.4 + g.baseballIQ * 1.0;
-  const powerScore =
-    ops * 40 +
-    hr * 15 +
-    doubles * 4 +
-    triples * 5 +
-    rbi * 2 +
-    hard * 20 +
-    powerOf(g) * 1.5;
+    r.obp * 60 +
+    (1 - r.kRate) * 10 +
+    speedBaseOf(g) * 2.5 +
+    approach * 2.0 +
+    g.baseballIQ * 1.0;
+  const powerScore = r.iso * 100 + hard * 20 + powerOf(g) * 3.0;
   const contactScore =
-    avg * 30 +
-    finalContact +
+    (1 - r.kRate) * 40 +
+    (contactPct ?? 0.7) * 10 +
+    approach * 2.0 +
     speedBaseOf(g) * 1.0 +
-    g.baseballIQ * 1.0 +
-    contactOf(g) * 2.0;
-  const overallScore =
-    ops * 30 +
-    obp * 20 +
-    avg * 15 +
-    finalContact +
-    rbi * 1.5 +
-    g.baseballIQ * 1.5 +
-    hard * 10;
+    g.baseballIQ * 1.0;
+  const overallScore = battingValue + approach * 2.0 + g.baseballIQ * 1.5;
 
   const defensiveScore = calcDefensiveScore(g);
 
@@ -88,6 +174,7 @@ export function buildPlayerProfile(
     contactScore,
     overallScore,
     defensiveScore,
+    battingValue,
   };
 }
 

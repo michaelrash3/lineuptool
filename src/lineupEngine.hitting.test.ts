@@ -7,6 +7,7 @@ import {
   getCombinedGrades,
 } from "./lineupEngine";
 import { getEffectiveStats } from "./lineupEngine/grades";
+import { buildPlayerProfile } from "./lineupEngine/profile";
 import { DEFAULT_GRADES } from "./utils/evalScoring";
 
 // The hitting recalibration, pinned to what the head coach asked for:
@@ -184,5 +185,52 @@ describe("season blending", () => {
     } as any);
     // Only this season has QAB% — the blend is just this season's value.
     expect(eff.qab).toBeCloseTo(0.6);
+  });
+});
+
+describe("batting order reads the same priorities", () => {
+  const profile = (stats: any, ctx: any = KID_10U) =>
+    buildPlayerProfile({ id: "x", name: "X", stats } as any, null, ctx);
+
+  it("at 10U kid pitch the walker out-values the free-swinging slugger", () => {
+    expect(profile(walker).battingValue).toBeGreaterThan(
+      profile(slugger).battingValue,
+    );
+    expect(profile(walker).leadoffScore).toBeGreaterThan(
+      profile(slugger).leadoffScore,
+    );
+  });
+
+  it("a 5-for-6 week doesn't take the top of the order from a genuinely good season", () => {
+    // Six hot PA are real but small evidence: shrunk, they still beat an
+    // average season — just not a .567-OBP one over 60 PA.
+    const hotStart = { pa: 6, ab: 6, h: 5, k: 0, obp: 0.833, avg: 0.833 };
+    const solid = { pa: 60, ab: 50, h: 24, bb: 9, hbp: 1, k: 6, obp: 0.567 };
+    expect(profile(solid).overallScore).toBeGreaterThan(
+      profile(hotStart).overallScore,
+    );
+  });
+
+  it("RBI and home-run totals that just grow with games played don't drive it", () => {
+    const line = { pa: 40, ab: 36, h: 12, k: 6, obp: 0.4, avg: 0.333 };
+    expect(profile({ ...line, rbi: 25 }).overallScore).toBeCloseTo(
+      profile({ ...line, rbi: 0 }).overallScore,
+    );
+  });
+
+  it("stays on the 0–100 scale the Big Game logic expects", () => {
+    const elite = {
+      pa: 120,
+      ab: 100,
+      h: 60,
+      bb: 20,
+      doubles: 20,
+      triples: 5,
+      hr: 10,
+      k: 2,
+      obp: 0.667,
+    };
+    expect(profile(elite).overallScore).toBeLessThanOrEqual(100);
+    expect(profile({}).overallScore).toBeGreaterThan(0);
   });
 });

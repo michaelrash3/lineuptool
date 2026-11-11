@@ -396,8 +396,20 @@ directly (the eval card and Roster Decisions).
   slot's neutral sat below the grades' neutral, so no-stats kids move
   58 → 60. The frozen back-compat record was regenerated with that note.
 
-**Still to do (next PR).** The batting order, Roster Decisions' OPS fit and
-the development-trend basis have their own hitting formulas, and they don't
-read this score: `profile.ts`, `RosterDecisionsPanel.tsx` and
-`playerDevelopment.ts`. Each needs the same treatment: shrunk OBP-first
-values, and a walk counted like a double through 12U.
+**Batting order and Roster Decisions (follow-up).** Both now use the same
+idea, through `hittingRates` / the profile's `battingValue` in
+`lineupEngine/profile.ts`. The batting value is
+100 × (1.8 × OBP + bases per PA) / 2.8. Both inputs are shrunk toward the
+tier's average by sample size, and a walk counts as two bases through 12U
+kid pitch. The order's leadoff, contact, power and overall scores read
+shrunk on-base, strikeout and ISO rates plus the coach's Approach grade, and
+no longer use RBI or home-run totals, which just grow with games played. The
+NKB 6U–8U "big bat" slots read the batting value instead of raw OPS. Roster
+Decisions compares each kid's batting value to the team average and counts
+only kids with 15+ PA, replacing the raw OPS ratio, which had no minimum.
+
+**Still open.** The development-trend view (`playerDevelopment.ts`
+`battingTrend`, and the Stats tab's Recent Form) calls a kid hot or cold from
+AVG over the last 3 games against ±.020. At about 10 PA that's noise. It
+should move to OBP over a ≥15-PA window, with a threshold sized to the
+sample.

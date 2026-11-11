@@ -8,7 +8,7 @@ import {
   getEvalCategoriesForPlayer,
   leftHandedPitcherRosterPremium,
 } from "../../constants/ui";
-import { calculateTotalScore } from "../../lineupEngine";
+import { calculateTotalScore, hittingRates } from "../../lineupEngine";
 import { currentEvaluationScore100 } from "../../utils/evaluationScore";
 import { useTeam } from "../../contexts";
 import {
@@ -87,32 +87,26 @@ export const RosterDecisionsPanel = memo(() => {
       )
       .sort((a: EvalRound, b: EvalRound) => evalRoundRecency(b, a));
 
-    // Compute team-wide stat averages for current season (used as baseline
-    // for "below team average" performance signal)
-    const statsAvg = (() => {
-      const fields = ["ops", "avg", "obp"];
-      const sums: Record<string, number> = Object.create(null);
-      const counts: Record<string, number> = Object.create(null);
-      for (const f of fields) {
-        sums[f] = 0;
-        counts[f] = 0;
-      }
-      for (const p of players) {
-        const s = p.stats || {};
-        for (const f of fields) {
-          const v = +s[f];
-          if (Number.isFinite(v) && v > 0) {
-            sums[f] += v;
-            counts[f] += 1;
-          }
-        }
-      }
-      const out: Record<string, number> = Object.create(null);
-      for (const f of fields) {
-        out[f] = counts[f] > 0 ? sums[f] / counts[f] : 0;
-      }
-      return out;
-    })();
+    // Each kid's batting value — on-base first, a walk like a double through
+    // 12U kid pitch, shrunk by sample size (lineupEngine hittingRates) — and
+    // the team's average of it, the baseline for the "vs team" signal. Only
+    // kids with a real sample (15+ plate appearances) count on either side:
+    // raw OPS with no minimum let a 2-for-3 kid read as the team's best bat.
+    const MIN_STATS_PA = 15;
+    const hittingCtx = {
+      teamAge: team?.teamAge,
+      pitchingFormat: team?.pitchingFormat,
+    };
+    const battingValueById = new Map<string, number>();
+    for (const p of players) {
+      const r = hittingRates(p, hittingCtx);
+      if (r.pa >= MIN_STATS_PA) battingValueById.set(p.id, r.battingValue);
+    }
+    const teamBattingValue =
+      battingValueById.size > 0
+        ? [...battingValueById.values()].reduce((a, b) => a + b, 0) /
+          battingValueById.size
+        : 0;
 
     // Determine team's age tier as a number (e.g., "8U" -> 8, "11U to 12U" -> 12)
     const teamAgeNum = (() => {
@@ -174,13 +168,12 @@ export const RosterDecisionsPanel = memo(() => {
       }
 
       // ---- Stats vs team average ----
-      const stats = player.stats || {};
-      const ops = Number(stats.ops);
+      const bv = battingValueById.get(player.id);
       let statsPctVsAvg: number | null = null;
       let statsRatio: number | null = null;
-      if (Number.isFinite(ops) && ops > 0 && statsAvg.ops > 0) {
-        statsPctVsAvg = (ops / statsAvg.ops - 1) * 100;
-        statsRatio = ops / statsAvg.ops; // 1.0 = team avg
+      if (bv != null && teamBattingValue > 0) {
+        statsPctVsAvg = (bv / teamBattingValue - 1) * 100;
+        statsRatio = bv / teamBattingValue; // 1.0 = team avg
       }
 
       // ---- Total Score (out of 100) ----
@@ -234,7 +227,8 @@ export const RosterDecisionsPanel = memo(() => {
       // and, if they're playing up, whether it's Cut / Drop a Division.
       //
       // Scale calibration (internal only — eval score is 0–100, a percentage
-      // of the grading ceiling; stats expressed as OPS ratio vs team OPS avg,
+      // of the grading ceiling; stats expressed as batting-value ratio vs the
+      // team average,
       // 1.00 = at team avg):
       //   Strong : eval ≥ EVAL_ABOVE_BAR (66)  AND  not below on stats
       //                                         AND  not declining
@@ -285,7 +279,7 @@ export const RosterDecisionsPanel = memo(() => {
         }
         if (statsRatio != null && statsRatio >= 1.0) {
           rationale.push(
-            `Stats +${Math.round(((statsRatio as number) - 1) * 100)}% vs team OPS avg`,
+            `Hitting +${Math.round(((statsRatio as number) - 1) * 100)}% vs team average`,
           );
         }
       }
@@ -308,7 +302,7 @@ export const RosterDecisionsPanel = memo(() => {
           }
           if (statsBelowBar) {
             rationale.push(
-              `Stats ${Math.round((1 - (statsRatio as number)) * 100)}% below team OPS avg`,
+              `Hitting ${Math.round((1 - (statsRatio as number)) * 100)}% below team average`,
             );
           } else if (statsAbsent) {
             rationale.push("No stats yet");
@@ -541,7 +535,7 @@ export const RosterDecisionsPanel = memo(() => {
             }`}
           >
             {d.statsPctVsAvg > 0 ? "+" : ""}
-            {d.statsPctVsAvg.toFixed(0)}% OPS
+            {d.statsPctVsAvg.toFixed(0)}% hitting
           </span>
         )}
       </div>

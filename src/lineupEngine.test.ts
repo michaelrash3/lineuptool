@@ -1246,6 +1246,9 @@ describe("positional-scarcity reservation (reserve flexible kids for holes)", ()
 // Fixture helpers for batting tests. Players have stats so OPS / contact /
 // leadoff scores actually differ (without stats every kid gets the same
 // profile and the order is grade-driven only).
+// Every batter carries a real sample (40 PA): the batting profile shrinks a
+// rate toward an average by sample size, so a line with no PA would read as
+// average and the order would come down to the jitter.
 const makeBatter = (id: any, name: any, stats: any = {}, opts: any = {}) => ({
   id,
   name,
@@ -1253,6 +1256,8 @@ const makeBatter = (id: any, name: any, stats: any = {}, opts: any = {}) => ({
   primaryPosition: opts.primaryPosition ?? "",
   restrictions: opts.restrictions ?? [],
   stats: {
+    pa: 40,
+    ab: 36,
     ops: 0,
     obp: 0,
     avg: 0,
@@ -3077,7 +3082,20 @@ describe("position importance P > C > 1B (Big Game)", () => {
     // p0 is clearly the best bat; nobody is graded as a pitcher (no pool), so
     // P is filled by the generic picker where the importance pull applies.
     const players = makeRoster(11, {
-      p0: { stats: { ops: 1.6, obp: 0.6, avg: 0.6, hard: 0.8, rbi: 30 } },
+      // A full season's sample, so the line counts (rates shrink by PA).
+      p0: {
+        stats: {
+          pa: 60,
+          ab: 52,
+          ops: 1.6,
+          obp: 0.6,
+          avg: 0.6,
+          slg: 1.0,
+          hard: 0.8,
+          rbi: 30,
+          k: 3,
+        },
+      },
     });
     let spine = 0;
     let total = 0;
