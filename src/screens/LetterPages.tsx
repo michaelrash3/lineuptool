@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useState } from "react";
-import { Navigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useTeam } from "../contexts";
 import { PageShell } from "../components/PageShell";
 import { ScreenLoader } from "../components/LoadingScreens";
@@ -97,6 +97,7 @@ export const RosterLetterPage = memo(() => {
   const { playerId, kind: kindSlug } = useParams();
   const { team, user, updateFinances, currentRole } = useTeam();
   const back = useBackOrFallback(playerId ? `/roster/${playerId}` : "/roster");
+  const navigate = useNavigate();
   // No settle guard here, unlike the two signup pages below: players still
   // ride on the team doc, which is loaded before any route renders, so an
   // unknown id really is unknown.
@@ -113,6 +114,8 @@ export const RosterLetterPage = memo(() => {
     <Shell kind={kind} onBack={back}>
       <OfferLetterView
         kind={kind}
+        template={team.letterTemplates?.[kind]}
+        onEditWording={() => navigate("/settings/letters")}
         recipientEmail={player.email}
         ctx={makeOfferLetterContext(team, user, player.name)}
         onSaveNextSeasonMoney={
@@ -140,6 +143,7 @@ export const TryoutLetterPage = memo(() => {
     signupsDenied,
   } = useTeam();
   const back = useBackOrFallback("/tryouts");
+  const navigate = useNavigate();
   const signups = team.tryoutSignups || [];
   const signup = signups.find((s: any) => s.id === signupId);
   const kind = KIND_SLUGS[kindSlug || ""];
@@ -164,6 +168,8 @@ export const TryoutLetterPage = memo(() => {
     <Shell kind={kind} onBack={back}>
       <OfferLetterView
         kind={kind}
+        template={team.letterTemplates?.[kind]}
+        onEditWording={() => navigate("/settings/letters")}
         recipientEmail={signup.email}
         ctx={makeOfferLetterContext(team, user, name)}
         onSaveNextSeasonMoney={(patch) =>
@@ -185,6 +191,7 @@ export const InterestLetterPage = memo(() => {
   const { leadId } = useParams();
   const { team, user, currentRole, signupsReady, signupsDenied } = useTeam();
   const back = useBackOrFallback("/interest");
+  const navigate = useNavigate();
   const leads = team.interestSignups || [];
   const lead = leads.find((l: any) => l.id === leadId);
   if (currentRole === "assistant") {
@@ -200,6 +207,8 @@ export const InterestLetterPage = memo(() => {
     <Shell kind="interest" onBack={back}>
       <OfferLetterView
         kind="interest"
+        template={team.letterTemplates?.interest}
+        onEditWording={() => navigate("/settings/letters")}
         recipientEmail={lead.email}
         ctx={makeOfferLetterContext(team, user, name)}
       />

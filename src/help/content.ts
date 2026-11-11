@@ -1011,6 +1011,29 @@ export const HELP_TOPICS: HelpTopic[] = [
     cta: { label: "Open Settings", tab: "settings" },
   },
   {
+    id: "letters",
+    category: "tryouts-recruiting",
+    title: "Letters to families",
+    summary:
+      "Put the offer, returning, decline and tryout-invite letters in your own words.",
+    keywords:
+      "letter offer returning decline rejection not returning invite wording template edit email",
+    sections: [
+      {
+        body: "Open Settings › Letters and tap Edit on any letter: the returning-player offer, the new-player offer, the not-returning letter, the tryout decline, and the tryout invite. Each starts from the standard wording.",
+      },
+      {
+        body: "Words in [brackets] fill in for each family: [Player Name], [Team Fees], [Deposit Amount], [Deposit Due Date], [Venmo Link] and more. Tap a field to add it where your cursor is, and use Preview to see the letter as a family will.",
+      },
+      {
+        body: "Your wording is used for every letter you draft from then on. When you open one family's letter you can still change it just for them before you copy or email it. 'Use the standard letter instead' brings back the built-in wording. Only head coaches can change the wording, because these letters tell families where to pay.",
+      },
+    ],
+    related: ["feature-toggles"],
+    headOnly: true,
+    cta: { label: "Open Settings", tab: "settings" },
+  },
+  {
     id: "invite-coaches",
     category: "settings-team",
     title: "Inviting coaches",

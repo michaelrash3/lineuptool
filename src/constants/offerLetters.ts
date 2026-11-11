@@ -55,9 +55,6 @@ const venmoLink = (ctx: OfferLetterContext): string =>
 const clubName = (ctx: OfferLetterContext): string =>
   `${ctx.teamName || "our team"} Baseball Club`;
 
-const rosterOfferSubject = (ctx: OfferLetterContext): string =>
-  `${ctx.teamName || "Our Team"} Baseball Roster Offer`;
-
 // "a, b, and c" — Oxford-comma list for the covered-items sentence.
 const joinList = (items: string[]): string => {
   if (items.length <= 1) return items[0] || "";
@@ -126,31 +123,57 @@ export const OFFER_LETTER_LABELS: Record<OfferLetterKind, string> = {
   interest: "Interest / Tryout Invite",
 };
 
-export const buildOfferLetter = (
-  kind: OfferLetterKind,
-  ctx: OfferLetterContext,
-): OfferLetterDraft => {
-  const team = ctx.teamName || "our team";
-  const club = clubName(ctx);
-  const dueDate = ctx.depositDueDate
-    ? formatOfferDate(ctx.depositDueDate)
-    : "[Deposit Due Date]";
+// The pieces a letter is built from. The built-in letters are written once
+// against these; filling them with a family's values gives the draft, filling
+// them with the bracketed field names gives the editable template a coach
+// starts from (defaultLetterTemplate), so the two can never drift apart.
+interface LetterParts {
+  player: string;
+  team: string; // mid-sentence ("the our team" fallback is lowercase)
+  teamTitle: string; // subject-line form
+  club: string;
+  fees: string;
+  deposit: string;
+  dueDate: string;
+  covered: string;
+  phoneClause: string; // " or call/text me at …", or "" without a phone
+  venmoAccount: string;
+  venmoLink: string;
+}
 
+const partsFromContext = (ctx: OfferLetterContext): LetterParts => ({
+  player: ctx.playerName,
+  team: ctx.teamName || "our team",
+  teamTitle: ctx.teamName || "Our Team",
+  club: clubName(ctx),
+  fees: ctx.teamFees,
+  deposit: ctx.deposit || "[Deposit Amount]",
+  dueDate: ctx.depositDueDate
+    ? formatOfferDate(ctx.depositDueDate)
+    : "[Deposit Due Date]",
+  covered: coveredItems(ctx),
+  phoneClause: phoneClause(ctx),
+  venmoAccount: venmoAccount(ctx),
+  venmoLink: venmoLink(ctx),
+});
+
+const composeLetter = (
+  kind: OfferLetterKind,
+  p: LetterParts,
+): OfferLetterDraft => {
   if (kind === "returning") {
     return {
-      subject: rosterOfferSubject(ctx),
+      subject: `${p.teamTitle} Baseball Roster Offer`,
       body: [
-        `Dear ${ctx.playerName},`,
+        `Dear ${p.player},`,
         "",
-        `We are pleased to invite you back to the ${club} for the upcoming season. Your hard work and dedication continue to be a great asset to our team.`,
+        `We are pleased to invite you back to the ${p.club} for the upcoming season. Your hard work and dedication continue to be a great asset to our team.`,
         "",
-        `The team fees for the upcoming season are ${ctx.teamFees}. ${coveredItems(ctx)}`,
+        `The team fees for the upcoming season are ${p.fees}. ${p.covered}`,
         "",
-        `Please let us know your decision within 48 hours of receiving this offer. To accept, please reply directly to this message confirming your acceptance${phoneClause(
-          ctx,
-        )}.`,
+        `Please let us know your decision within 48 hours of receiving this offer. To accept, please reply directly to this message confirming your acceptance${p.phoneClause}.`,
         "",
-        `To secure your roster spot, a deposit of ${ctx.deposit || "[Deposit Amount]"} is required by ${dueDate}. You can complete this payment via Venmo by sending the deposit to ${venmoAccount(ctx)} or by clicking directly on this link: ${venmoLink(ctx)}.`,
+        `To secure your roster spot, a deposit of ${p.deposit} is required by ${p.dueDate}. You can complete this payment via Venmo by sending the deposit to ${p.venmoAccount} or by clicking directly on this link: ${p.venmoLink}.`,
         "",
         `If you have any questions, please contact me directly.`,
         "",
@@ -161,21 +184,19 @@ export const buildOfferLetter = (
 
   if (kind === "newPlayer") {
     return {
-      subject: rosterOfferSubject(ctx),
+      subject: `${p.teamTitle} Baseball Roster Offer`,
       body: [
-        `Dear ${ctx.playerName},`,
+        `Dear ${p.player},`,
         "",
-        `We are pleased to offer you a roster spot with the ${club} for the upcoming season. We were impressed with your performance at tryouts and believe you will be a great addition to our team.`,
+        `We are pleased to offer you a roster spot with the ${p.club} for the upcoming season. We were impressed with your performance at tryouts and believe you will be a great addition to our team.`,
         "",
-        `The team fees for the season are ${ctx.teamFees}. ${coveredItems(ctx)}`,
+        `The team fees for the season are ${p.fees}. ${p.covered}`,
         "",
-        `You have 48 hours to accept this offer. To accept, please reply to this message confirming your acceptance${phoneClause(
-          ctx,
-        )}.`,
+        `You have 48 hours to accept this offer. To accept, please reply to this message confirming your acceptance${p.phoneClause}.`,
         "",
-        `To officially secure your spot, a deposit of ${ctx.deposit || "[Deposit Amount]"} is required by ${dueDate}. You can submit this payment via Venmo to ${venmoAccount(ctx)} or by clicking here: ${venmoLink(ctx)}.`,
+        `To officially secure your spot, a deposit of ${p.deposit} is required by ${p.dueDate}. You can submit this payment via Venmo to ${p.venmoAccount} or by clicking here: ${p.venmoLink}.`,
         "",
-        `Welcome to the ${team}. If you or your parents have any questions, please reach out to me.`,
+        `Welcome to the ${p.team}. If you or your parents have any questions, please reach out to me.`,
         "",
         signature,
       ].join("\n"),
@@ -184,15 +205,13 @@ export const buildOfferLetter = (
 
   if (kind === "interest") {
     return {
-      subject: `${team} — Tryout Info for ${ctx.playerName}`,
+      subject: `${p.team} — Tryout Info for ${p.player}`,
       body: [
-        `Dear ${ctx.playerName},`,
+        `Dear ${p.player},`,
         "",
-        `Thank you for your interest in the ${team}! We're glad ${ctx.playerName} is considering playing with us for the upcoming season.`,
+        `Thank you for your interest in the ${p.team}! We're glad ${p.player} is considering playing with us for the upcoming season.`,
         "",
-        `We'd love to see ${ctx.playerName} at our tryouts. Reply to this message and we'll get you the date, time, and location — and feel free to reach out${phoneClause(
-          ctx,
-        )} with any questions in the meantime.`,
+        `We'd love to see ${p.player} at our tryouts. Reply to this message and we'll get you the date, time, and location — and feel free to reach out${p.phoneClause} with any questions in the meantime.`,
         "",
         `Looking forward to meeting you on the field!`,
         "",
@@ -203,11 +222,11 @@ export const buildOfferLetter = (
 
   if (kind === "notReturning") {
     return {
-      subject: `${team} Baseball Roster Update`,
+      subject: `${p.team} Baseball Roster Update`,
       body: [
-        `Dear ${ctx.playerName},`,
+        `Dear ${p.player},`,
         "",
-        `Thank you for your time and dedication to the ${club} over the past season. We appreciate the hard work you put into the team.`,
+        `Thank you for your time and dedication to the ${p.club} over the past season. We appreciate the hard work you put into the team.`,
         "",
         "As we prepare for the upcoming season, we have had to make difficult roster decisions. At this time, we will not be offering you a spot on the roster for the next season.",
         "",
@@ -219,11 +238,11 @@ export const buildOfferLetter = (
   }
 
   return {
-    subject: `${team} Baseball Tryouts Update`,
+    subject: `${p.team} Baseball Tryouts Update`,
     body: [
-      `Dear ${ctx.playerName},`,
+      `Dear ${p.player},`,
       "",
-      `Thank you for attending the tryouts for the ${club}. We appreciate the time and effort you put into showcasing your skills on the field.`,
+      `Thank you for attending the tryouts for the ${p.club}. We appreciate the time and effort you put into showcasing your skills on the field.`,
       "",
       `We had a highly competitive group of players this year, and we have a very limited number of roster spots available. We are unable to offer you a position on the team for the upcoming season.`,
       "",
@@ -233,3 +252,131 @@ export const buildOfferLetter = (
     ].join("\n"),
   };
 };
+
+// ---- Coach-edited letters -------------------------------------------------
+// A head coach can reword any letter (Settings › Letters). The saved wording
+// lives on the team as team.letterTemplates[kind] = { subject, body } and
+// uses bracketed fill-in fields — the blanks on a paper form — that are
+// filled for each family when a letter is drafted. A kind with no saved
+// wording uses the built-in letter above, unchanged.
+
+export interface LetterTemplate {
+  subject: string;
+  body: string;
+}
+
+export type LetterTemplates = Partial<Record<OfferLetterKind, LetterTemplate>>;
+
+// Longest a saved subject / message may be (the editor clamps to these).
+export const LETTER_LIMITS = { subject: 200, body: 6000 } as const;
+
+// Every fill-in field, in the order the editor offers them.
+export const LETTER_FIELDS: ReadonlyArray<{ token: string; hint: string }> = [
+  { token: "[Player Name]", hint: "The player or family you're writing to" },
+  { token: "[Team Name]", hint: "Your team's name" },
+  { token: "[Club Name]", hint: "“<Team> Baseball Club”" },
+  { token: "[Team Fees]", hint: "Next season's team fee (Budget Planner)" },
+  { token: "[Deposit Amount]", hint: "The deposit that holds a spot" },
+  { token: "[Deposit Due Date]", hint: "When the deposit is due" },
+  {
+    token: "[What the Fees Cover]",
+    hint: "The “These fees cover …” sentence, from the Budget Planner",
+  },
+  { token: "[Coach Name]", hint: "Your name" },
+  { token: "[Coach Email]", hint: "Your email" },
+  { token: "[Coach Phone]", hint: "The phone number in Settings" },
+  { token: "[Venmo Account Name]", hint: "Your Venmo account name" },
+  { token: "[Venmo Link]", hint: "Your Venmo link" },
+];
+
+// The built-in letter with its blanks showing — what the editor starts from.
+export const defaultLetterTemplate = (kind: OfferLetterKind): LetterTemplate =>
+  composeLetter(kind, {
+    player: "[Player Name]",
+    team: "[Team Name]",
+    teamTitle: "[Team Name]",
+    club: "[Club Name]",
+    fees: "[Team Fees]",
+    deposit: "[Deposit Amount]",
+    dueDate: "[Deposit Due Date]",
+    covered: "[What the Fees Cover]",
+    phoneClause: " or call/text me at [Coach Phone]",
+    venmoAccount: "[Venmo Account Name]",
+    venmoLink: "[Venmo Link]",
+  });
+
+// Field name → this family's value. A field with no value yet keeps its
+// brackets, so the coach sees exactly what still needs filling in.
+const fieldValues = (ctx: OfferLetterContext): Record<string, string> => {
+  const due = ctx.depositDueDate ? formatOfferDate(ctx.depositDueDate) : "";
+  return {
+    "player name": ctx.playerName,
+    "team name": ctx.teamName,
+    "club name": ctx.teamName ? clubName(ctx) : "",
+    "team fees": ctx.teamFees,
+    "deposit amount": ctx.deposit,
+    "deposit due date": due,
+    "what the fees cover": coveredItems(ctx),
+    "coach name": ctx.coachName,
+    "coach email": ctx.coachEmail,
+    "coach phone": ctx.coachPhone,
+    "venmo account name": ctx.venmoAccountName,
+    "venmo link": ctx.venmoLink,
+  };
+};
+
+const fieldKey = (inner: string) =>
+  inner.trim().toLowerCase().replace(/\s+/g, " ");
+
+// Fill a saved letter for one family. Field names match case- and
+// spacing-insensitively ("[player name]" works); unknown brackets are left as
+// typed.
+export const fillLetterTemplate = (
+  template: LetterTemplate,
+  ctx: OfferLetterContext,
+): OfferLetterDraft => {
+  const values = fieldValues(ctx);
+  const fill = (text: string) =>
+    String(text || "").replace(/\[([^\[\]\n]{1,40})\]/g, (whole, inner) => {
+      const v = values[fieldKey(inner)];
+      return v ? v : whole;
+    });
+  return { subject: fill(template.subject), body: fill(template.body) };
+};
+
+// Bracketed words in a saved letter that aren't fill-in fields — the editor
+// flags them (most likely a typo like "[Player]") so they aren't sent as-is.
+export const unknownLetterFields = (text: string): string[] => {
+  const known = new Set(
+    LETTER_FIELDS.map((f) => fieldKey(f.token.slice(1, -1))),
+  );
+  const out = new Set<string>();
+  for (const m of String(text || "").matchAll(/\[([^\[\]\n]{1,40})\]/g)) {
+    if (!known.has(fieldKey(m[1]))) out.add(m[0]);
+  }
+  return [...out];
+};
+
+// True when a saved letter is just the built-in one (so saving it unchanged
+// stores nothing and "Customized" never shows for an untouched letter).
+export const isDefaultLetterTemplate = (
+  kind: OfferLetterKind,
+  template: LetterTemplate | null | undefined,
+): boolean => {
+  if (!template) return true;
+  const d = defaultLetterTemplate(kind);
+  return (
+    template.subject.trim() === d.subject.trim() &&
+    template.body.trim() === d.body.trim()
+  );
+};
+
+export const buildOfferLetter = (
+  kind: OfferLetterKind,
+  ctx: OfferLetterContext,
+  // The head coach's saved wording for this kind, when there is one.
+  custom?: LetterTemplate | null,
+): OfferLetterDraft =>
+  custom && !isDefaultLetterTemplate(kind, custom)
+    ? fillLetterTemplate(custom, ctx)
+    : composeLetter(kind, partsFromContext(ctx));

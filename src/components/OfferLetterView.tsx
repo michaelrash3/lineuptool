@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 import { isSafeVenmoUrl } from "../utils/venmo";
 import { Icons } from "../icons";
 import { useToast } from "../contexts";
@@ -6,6 +6,7 @@ import { buildMailtoUrl } from "../utils/reminderDraft";
 import { parseMoneyInput } from "../utils/helpers";
 import {
   buildOfferLetter,
+  type LetterTemplate,
   type OfferLetterKind,
   type OfferLetterContext,
 } from "../constants/offerLetters";
@@ -23,10 +24,19 @@ export interface OfferLetterViewProps {
     nextDepositAmount?: number;
     nextDepositDueDate?: string;
   }) => void;
+  // The head coach's saved wording for this letter (team.letterTemplates),
+  // when they've reworded it in Settings › Letters.
+  template?: LetterTemplate | null;
+  // Opens Settings › Letters. Left out where leaving would lose work (the
+  // Advance Season wizard hosts this view inline).
+  onEditWording?: () => void;
 }
 
-// Read-only draft of a recruiting letter the coach copies (or opens pre-filled
-// in their own mail app). The app deliberately does NOT send it. Chrome-
+// Draft of a recruiting letter the coach copies (or opens pre-filled in their
+// own mail app). The app deliberately does NOT send it. The draft starts from
+// the team's saved wording (or the built-in letter) filled in for this family,
+// and the coach can tweak it for this one family before copying; the standard
+// wording itself is edited in Settings › Letters. Chrome-
 // agnostic: the routed offer pages (screens/OfferLetterPages) wrap this in
 // PageShell, and the Advance Season page hosts it inline as a sub-view so the
 // wizard's own marking state survives writing an offer mid-flow.
@@ -37,11 +47,25 @@ export const OfferLetterView = memo(
     recipientEmail,
     onDelivered,
     onSaveNextSeasonMoney,
+    template,
+    onEditWording,
   }: OfferLetterViewProps) => {
     const [depositInput, setDepositInput] = useState("");
     const [dueDateInput, setDueDateInput] = useState("");
     const toast = useToast();
-    const draft = useMemo(() => buildOfferLetter(kind, ctx), [kind, ctx]);
+    const draft = useMemo(
+      () => buildOfferLetter(kind, ctx, template),
+      [kind, ctx, template],
+    );
+    // This family's copy — editable, and reset whenever the underlying draft
+    // changes (another family, new wording, a deposit just saved).
+    const [subject, setSubject] = useState(draft.subject);
+    const [body, setBody] = useState(draft.body);
+    useEffect(() => {
+      setSubject(draft.subject);
+      setBody(draft.body);
+    }, [draft.subject, draft.body]);
+    const edited = subject !== draft.subject || body !== draft.body;
     // Offer letters quote money; warn if next season's fee/deposit aren't set.
     // Rejection and interest drafts don't mention money, so no warning.
     const missingMoney =
@@ -71,7 +95,7 @@ export const OfferLetterView = memo(
 
     const copy = async () => {
       try {
-        await navigator.clipboard.writeText(draft.body);
+        await navigator.clipboard.writeText(body);
         toast.push({ kind: "success", title: "Draft copied" });
         onDelivered?.();
       } catch {
@@ -84,10 +108,7 @@ export const OfferLetterView = memo(
 
     const openEmail = () => {
       if (!recipientEmail) return;
-      window.open(
-        buildMailtoUrl(recipientEmail, draft.subject, draft.body),
-        "_blank",
-      );
+      window.open(buildMailtoUrl(recipientEmail, subject, body), "_blank");
       onDelivered?.();
     };
 
@@ -145,23 +166,56 @@ export const OfferLetterView = memo(
           <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-1">
             Subject
           </div>
-          <div className="text-sm font-bold text-ink bg-surface-2 border border-line rounded-lg px-3 py-2">
-            {draft.subject}
-          </div>
+          <input
+            type="text"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            aria-label="Letter subject"
+            className="w-full text-sm font-bold text-ink bg-surface border border-line rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+          />
         </div>
         <div>
           <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-1">
             Message
           </div>
           <textarea
-            readOnly
-            value={draft.body}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
             rows={16}
             aria-label="Offer letter draft"
-            onFocus={(e) => e.currentTarget.select()}
             className="w-full p-3 text-sm bg-surface text-ink border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] resize-y leading-relaxed"
           />
-          {ctx.venmoLink && draft.body.includes(ctx.venmoLink) && (
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-ink-3 font-medium">
+            <span>
+              {edited
+                ? "Edited for this family only."
+                : "You can change this letter before you send it."}{" "}
+              {onEditWording ? (
+                <button
+                  type="button"
+                  onClick={onEditWording}
+                  className="font-bold text-team-primary underline underline-offset-2"
+                >
+                  Change the wording for every letter
+                </button>
+              ) : (
+                "Change the wording for every letter in Settings › Letters."
+              )}
+            </span>
+            {edited && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSubject(draft.subject);
+                  setBody(draft.body);
+                }}
+                className="font-black uppercase tracking-widest text-[10px] text-ink-2 hover:text-ink"
+              >
+                Undo my changes
+              </button>
+            )}
+          </div>
+          {ctx.venmoLink && body.includes(ctx.venmoLink) && (
             <div className="mt-2 text-xs font-bold text-ink-2 bg-surface-2 border border-line rounded-lg px-3 py-2">
               Venmo link:{" "}
               {isSafeVenmoUrl(ctx.venmoLink) ? (

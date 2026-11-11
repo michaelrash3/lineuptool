@@ -241,6 +241,7 @@ export const AdvanceSeasonPage = memo(() => {
             kind="returning"
             recipientEmail={offerPlayer.email}
             ctx={makeOfferLetterContext(team, user, offerPlayer.name)}
+            template={team.letterTemplates?.returning}
             onSaveNextSeasonMoney={(patch) =>
               updateFinances?.({ op: "set", fields: patch })
             }

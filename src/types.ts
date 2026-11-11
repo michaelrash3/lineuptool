@@ -822,6 +822,12 @@ export interface Team {
   // "@CoachVenmo") + an explicit deep link. Settings → Tryouts; never public.
   coachVenmoAccountName?: string;
   coachVenmoLink?: string;
+  // The head coach's own wording for the letters families get (offers,
+  // returning, not-returning, tryout decline, tryout invite), keyed by letter
+  // kind; a kind with no entry uses the built-in letter. Uses [Field] blanks
+  // filled per family — see src/constants/offerLetters.ts. Head-only (rules):
+  // the letters tell families where to send money.
+  letterTemplates?: Record<string, { subject: string; body: string }>;
   // Optional public-facing head-coach contact shown on the tryouts portal so
   // prospective families can reach out. Opt-in; mirrored into the public doc.
   headCoachName?: string;

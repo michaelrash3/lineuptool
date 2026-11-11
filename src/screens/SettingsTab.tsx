@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { TEAM_AGE_OPTIONS } from "../constants/ui";
+import { LetterTemplatesPanel } from "./settings/LetterTemplatesPanel";
 import { normalizeVenmoLink } from "../utils/venmo";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { Icons } from "../icons";
@@ -906,6 +907,7 @@ export const SettingsTab = memo(() => {
     { id: "features", label: "Features", icon: Icons.Sparkles },
     { id: "evaluations", label: "Evaluations", icon: Icons.Clipboard },
     { id: "tryouts", label: "Tryouts", icon: Icons.UserPlus },
+    { id: "letters", label: "Letters", icon: Icons.FileText },
     { id: "staff", label: "Staff", icon: Icons.Users },
     { id: "imports", label: "Imports", icon: Icons.FileText },
     { id: "advanced", label: "Advanced", icon: Icons.Cloud },
@@ -1792,6 +1794,8 @@ export const SettingsTab = memo(() => {
                   </div>
                 </div>
               )}
+              {settingsMenu === "letters" && <LetterTemplatesPanel />}
+
               {settingsMenu === "imports" && (
                 <div>
                   <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
