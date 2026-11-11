@@ -286,35 +286,74 @@ describe("advanced stats carry more weight (D)", () => {
 
 // ---------- v9: stat-derived grades for tangible skills ----------
 describe("stat-derived tangible grades (v9)", () => {
-  it("statContactGrade ramps with sample size and never penalizes missing data", async () => {
+  it("statContactGrade reads strikeout avoidance, shrunk by sample size", async () => {
     const { statContactGrade } = await import("./lineupEngine");
     expect(statContactGrade(null)).toBeNull();
     expect(statContactGrade({})).toBeNull();
-    // Elite line + full sample -> top grade.
-    expect(
-      statContactGrade({ avg: 0.45, qab: 0.6, ld: 0.3, ab: 30 }),
-    ).toBeCloseTo(5);
-    // Same line with a tiny sample stays near neutral.
-    const tiny = statContactGrade({ avg: 0.45, qab: 0.6, ld: 0.3, ab: 3 });
+    // No strikeouts in 40 PA, great contact + QAB: the BEST strikeout rate is
+    // a real 0, never "untracked". Shrunk by 40 / (40 + 20).
+    const elite = statContactGrade({ k: 0, pa: 40, contact: 0.9, qab: 0.6 });
+    expect(elite).toBeCloseTo(3 + 2 * (40 / 60), 1);
+    // Striking out 40% of the time over 60 PA.
+    expect(statContactGrade({ k: 24, pa: 60 })).toBeLessThan(2);
+    // The same elite line in 4 PA stays near neutral.
+    const tiny = statContactGrade({ k: 0, pa: 4, contact: 0.9, qab: 0.6 });
     expect(tiny).toBeGreaterThan(3);
-    expect(tiny).toBeLessThan(4);
-    // Rates with no AB count -> no confidence -> null (neutral downstream).
-    expect(statContactGrade({ avg: 0.45 })).toBeNull();
+    expect(tiny).toBeLessThan(3.5);
+    // AVG no longer drives it (it's already inside on-base).
+    expect(statContactGrade({ avg: 0.45, ab: 30 })).toBeNull();
   });
 
-  it("statPowerGrade reads SLG (OPS−OBP), XBH rate, and Hard%", async () => {
+  it("statOnBaseGrade: OBP, from the counts when OBP is missing, shrunk ~halfway at 35 PA", async () => {
+    const { statOnBaseGrade } = await import("./lineupEngine");
+    expect(statOnBaseGrade({})).toBeNull();
+    // 9–12U kid pitch band .28 → .62: a .620 OBP is the top of the band.
+    expect(
+      statOnBaseGrade({ obp: 0.62, pa: 35 }, { teamAge: "10U" }),
+    ).toBeCloseTo(4, 1);
+    // From the counts: (10 H + 9 BB + 1 HBP) / 40 PA = .500.
+    expect(
+      statOnBaseGrade({ h: 10, bb: 9, hbp: 1, pa: 40 }, { teamAge: "10U" }),
+    ).toBeCloseTo(
+      statOnBaseGrade({ obp: 0.5, pa: 40 }, { teamAge: "10U" }) as number,
+      5,
+    );
+    // A real 0-for with counts is a real 0, graded low; a bare 0 isn't data.
+    expect(
+      statOnBaseGrade({ obp: 0, h: 0, pa: 40 }, { teamAge: "10U" }),
+    ).toBeLessThan(2.5);
+    expect(statOnBaseGrade({ obp: 0 })).toBeNull();
+  });
+
+  it("statPowerGrade: extra bases per PA — and at 9–12U kid pitch a walk counts like a double", async () => {
     const { statPowerGrade } = await import("./lineupEngine");
-    const big = statPowerGrade({
-      ops: 1.1,
-      obp: 0.4,
-      doubles: 4,
-      triples: 1,
-      hr: 1,
-      ab: 30,
-    });
-    expect(big).toBeGreaterThan(4);
-    const weak = statPowerGrade({ ops: 0.55, obp: 0.3, ab: 30 });
+    const walker = { pa: 40, ab: 30, h: 10, doubles: 1, bb: 9, hbp: 1 };
+    // 10U kid pitch: 1 double + 10 walks/HBP = 11 extra bases.
+    const kid10 = statPowerGrade(walker, { teamAge: "10U" }) as number;
+    // 13U: walks are just walks here.
+    const kid13 = statPowerGrade(walker, { teamAge: "13U to 14U" }) as number;
+    expect(kid10).toBeGreaterThan(kid13);
+    const big = statPowerGrade(
+      { pa: 100, ab: 90, avg: 0.33, slg: 0.63, doubles: 10, triples: 2, hr: 3 },
+      { teamAge: "13U to 14U" },
+    ) as number;
+    // Power settles slowly (halfway at 60 PA), so even a season of slugging
+    // grades high but short of 5.
+    expect(big).toBeGreaterThan(3.8);
+    const weak = statPowerGrade(
+      { pa: 100, ab: 90, avg: 0.2, slg: 0.2, doubles: 0, triples: 0, hr: 0 },
+      { teamAge: "13U to 14U" },
+    ) as number;
     expect(weak).toBeLessThan(2);
+  });
+
+  it("statPowerGrade starts from a tryout exit-velo prior instead of dropping it after one at-bat", async () => {
+    const { statPowerGrade } = await import("./lineupEngine");
+    const oneAb = { pa: 1, ab: 1, doubles: 0, triples: 0, hr: 0 };
+    // Without a prior, one weak at-bat sits just under neutral...
+    expect(statPowerGrade(oneAb)).toBeGreaterThan(2.9);
+    // ...with a 4.5 exit-velo prior it stays close to the prior.
+    expect(statPowerGrade(oneAb, null, { prior: 4.5 })).toBeGreaterThan(4.3);
   });
 
   it("statFieldingGrade grades FPCT with a chances-based confidence ramp", async () => {
@@ -391,7 +430,8 @@ describe("stat-derived tangible grades (v9)", () => {
     expect(combined.p1.composure).toBe(4);
     // Tangibles are stat-graded — written to BOTH the merged ids and the
     // fine-grained engine reader ids.
-    expect(combined.p1.contact).toBeCloseTo(5);
+    // QAB .600 at the top of its band, shrunk by 30 PA / (30 + 20).
+    expect(combined.p1.contact).toBeCloseTo(4.2);
     expect(combined.p1.fielding).toBeCloseTo(5);
     expect(combined.p1.glove).toBeCloseTo(5);
     expect(combined.p1.range).toBeCloseTo(5);

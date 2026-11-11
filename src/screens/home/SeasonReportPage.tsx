@@ -175,8 +175,14 @@ export const SeasonReportPage = memo(() => {
 
   const improvers = useMemo(() => {
     const overallOf = (g: any, p: any) =>
-      currentEvaluationScore100(g, p, team?.teamAge, null, extraCategories) ??
-      undefined;
+      currentEvaluationScore100(
+        g,
+        p,
+        team?.teamAge,
+        null,
+        extraCategories,
+        team?.pitchingFormat,
+      ) ?? undefined;
     const out: Array<{ player: any; delta: number }> = [];
     for (const p of players) {
       const rounds = evaluationEvents
@@ -195,7 +201,13 @@ export const SeasonReportPage = memo(() => {
       if (delta > 0) out.push({ player: p, delta });
     }
     return out.sort((a, b) => b.delta - a.delta).slice(0, 3);
-  }, [players, evaluationEvents, team?.teamAge, extraCategories]);
+  }, [
+    players,
+    evaluationEvents,
+    team?.teamAge,
+    team?.pitchingFormat,
+    extraCategories,
+  ]);
 
   const reportText = useMemo(() => {
     const lines = [

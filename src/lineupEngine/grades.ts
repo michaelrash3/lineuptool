@@ -92,8 +92,10 @@ export function getCombinedGrades(
   evaluationEvents: EvaluationEvent[],
   playersList: Player[],
   opts?: {
-    // Enables age-relative velocity grading for the Arm/Velocity overlays.
+    // Enables age-relative velocity grading for the Arm/Velocity overlays,
+    // and picks the hitting tier (with pitchingFormat) — see hittingTier.
     teamAge?: string;
+    pitchingFormat?: string;
     // Per-game import lines; enables the catcher Blocking overlay (PB/game).
     games?: Array<{ playerStats?: Record<string, any> }>;
     // The team's OWN eval categories (src/utils/evalCategories.ts). This list
@@ -223,6 +225,7 @@ export function getCombinedGrades(
     // overlay them on top of the coach-graded intangibles.
     out[p.id] = applyStatGrades(grades, p, {
       teamAge: opts?.teamAge,
+      pitchingFormat: opts?.pitchingFormat,
       gamesCaught: opts?.games ? countGamesCaught(opts.games, p.id) : undefined,
     });
   }
@@ -239,10 +242,10 @@ export function getCombinedGrades(
 //   Past season N 2: weight 0.25 baseline
 //   Past seasons further back: ignored
 //   Current season: weight scales with sample size
-//       0 ABs:  weight 0   (entirely past driven)
-//       10 ABs: weight 0.5 (half past, half current)
-//       30 ABs: weight 1.0 (current only)
-//       30+ ABs: weight 1.0 (still current only)
+//       0 PA:   weight 0   (entirely past driven)
+//       ~15 PA: weight 0.5 (half past, half current)
+//       30 PA:  weight 1.0 (current only)
+//       30+ PA: weight 1.0 (still current only)
 //   When current weight is high, past weights scale down so totals don't double count.
 //
 // All stats use AB weighted averaging where appropriate. Counting stats
@@ -259,9 +262,10 @@ export function getEffectiveStats(player: Player): PlayerStats & {
     .sort((a, b) => String(b.season).localeCompare(String(a.season)))
     .slice(0, 2);
 
-  const curAB = Number(cur.ab) || 0;
-  // Current weight ramps from 0  1 over the first 30 ABs.
-  const wCur = Math.min(1, curAB / 30);
+  // Current weight ramps from 0 → 1 over the first 30 plate appearances
+  // (PA, not AB, so a kid who walks a lot isn't treated as a thinner sample).
+  const curPA = plateAppearances(cur);
+  const wCur = Math.min(1, curPA / 30);
   // Past weights scale down as current ramps up.
   const wP1 = past[0] ? 0.5 * (1 - wCur) : 0;
   const wP2 = past[1] ? 0.25 * (1 - wCur) : 0;
@@ -270,26 +274,44 @@ export function getEffectiveStats(player: Player): PlayerStats & {
   // If we somehow have nothing, return whatever the current stats are (or empty).
   if (totalW === 0) return cur;
 
-  // Blend rate stats (avg, ops, obp, contact, ld, hard, qab, babip).
-  const blend = (key: string): number => {
-    const c = Number(cur[key]) || 0;
-    const p1 = past[0]?.stats ? Number(past[0].stats[key]) || 0 : 0;
-    const p2 = past[1]?.stats ? Number(past[1].stats[key]) || 0 : 0;
-    return (c * wCur + p1 * wP1 + p2 * wP2) / totalW;
+  // Blend a rate stat across the seasons that actually HAVE it. A season that
+  // never tracked QAB% (or LD%) used to count as 0 here and drag the blend
+  // down; now it simply doesn't take part. Undefined when no season has it.
+  const blend = (key: string): number | undefined => {
+    let acc = 0;
+    let w = 0;
+    const add = (st: PlayerStats | undefined, wt: number) => {
+      const v = numOrNull(st?.[key]);
+      if (v == null || wt <= 0) return;
+      acc += v * wt;
+      w += wt;
+    };
+    add(cur, wCur);
+    add(past[0]?.stats, wP1);
+    add(past[1]?.stats, wP2);
+    return w > 0 ? acc / w : undefined;
   };
+  const rates: Record<string, number> = {};
+  for (const key of [
+    "avg",
+    "ops",
+    "obp",
+    "slg",
+    "contact",
+    "ld",
+    "hard",
+    "qab",
+    "babip",
+  ]) {
+    const v = blend(key);
+    if (v !== undefined) rates[key] = v;
+  }
 
   // Cast through any: PlayerStats has a numeric index signature, so the
   // __blended bookkeeping fields fail strict assignability without this.
   return {
     ...cur, // preserve any non blended fields (counting stats etc.)
-    avg: blend("avg"),
-    ops: blend("ops"),
-    obp: blend("obp"),
-    contact: blend("contact"),
-    ld: blend("ld"),
-    hard: blend("hard"),
-    qab: blend("qab"),
-    babip: blend("babip"),
+    ...rates,
     __blended: true,
     __blendWeights: { current: wCur, past1: wP1, past2: wP2 },
   } as any;
@@ -311,11 +333,16 @@ export const numOrNull = (v: unknown): number | null =>
 export function qualityToGrade(
   quality: number | null,
   confidence: number,
+  // Where a thin sample sits: the neutral 3 by default, or a prior — e.g. the
+  // tryout exit-velo grade for Power — that the stats take over from as the
+  // sample grows (center + (fullGrade − center) × confidence).
+  center = 3,
 ): number | null {
   if (quality == null || !Number.isFinite(quality)) return null;
   const c = Math.min(1, Math.max(0, confidence));
   if (c <= 0) return null;
-  const g = 3 + (quality - 0.5) * 4 * c;
+  const full = 3 + (quality - 0.5) * 4;
+  const g = center + (full - center) * c;
   // One decimal: smooth enough for ranking, clean enough to display.
   return Math.round(Math.min(5, Math.max(1, g)) * 10) / 10;
 }
@@ -332,6 +359,9 @@ export function bandedQuality(
     w: number;
     worst: number;
     best: number;
+    // A real 0 that must count even when `ignoreZero` is on — e.g. a
+    // strikeout rate of 0 (no strikeouts) is the BEST value, not "untracked".
+    keepZero?: boolean;
   }>,
   ignoreZero = false,
 ): number | null {
@@ -340,7 +370,7 @@ export function bandedQuality(
   let wSum = 0;
   for (const s of specs) {
     const v = numOrNull(stats[s.key]);
-    if (v == null || (ignoreZero && v === 0)) continue;
+    if (v == null || (ignoreZero && v === 0 && !s.keepZero)) continue;
     const span = s.best - s.worst;
     if (span === 0) continue;
     const norm = Math.min(1, Math.max(0, (v - s.worst) / span));
@@ -375,56 +405,220 @@ export function pitchingConfidence(
   return 0;
 }
 
-// Contact ← AVG / Contact% / QAB% / LD%, quality-of-contact rates weighted
-// heaviest (same philosophy as getOffensiveScore: at this level the advanced
-// rates describe the swing far better than the slash line).
+// ---------- Hitting (recalibrated) ----------
+// What wins at the plate in youth baseball, by level:
+//   - Getting on base. OBP is the biggest single driver of runs, and at
+//     9–12U kid pitch — free steals, passed balls — a walk is worth about a
+//     double, so a walk counts as an extra base there too (see the Power
+//     grade). At machine / coach pitch there are no walks and nobody really
+//     scores errors, so on-base is hits only.
+//   - Not striking out: putting the ball in play against defenses that
+//     make plays rarely. Strikeout rate is also the earliest stat to become
+//     trustworthy.
+//   - Power matters more as kids get older.
+// Each hitting grade is shrunk toward neutral (or a prior) by sample size —
+// confidence = PA / (PA + k) — so a hot first week can't jump a kid to the
+// top: stats count about halfway at ~35 plate appearances for on-base.
+// Weights per tier live in HITTING_WEIGHTS (totalScore.ts reads them).
+
+export type HittingTier = "machine" | "kidYouth" | "kidTeen";
+
+export interface HittingContext {
+  teamAge?: string;
+  pitchingFormat?: string;
+}
+
+const firstAgeNumber = (teamAge: string | undefined): number | null => {
+  const m = String(teamAge || "").match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+};
+
+// machine = machine / coach pitch; kidYouth = kid pitch through 12U (an
+// "11U to 12U" team included); kidTeen = kid pitch 13U and up. Without a
+// pitching format, 9U and older is kid pitch (as allowedPitchingFormats
+// enforces) and younger is machine/coach pitch; with neither, kid pitch.
+export function hittingTier(ctx?: HittingContext | null): HittingTier {
+  const age = firstAgeNumber(ctx?.teamAge);
+  const fmt = String(ctx?.pitchingFormat || "").toLowerCase();
+  const kidPitch = fmt ? fmt.includes("kid") : age == null || age >= 9;
+  if (!kidPitch) return "machine";
+  return age != null && age >= 13 ? "kidTeen" : "kidYouth";
+}
+
+// How much each stat-graded hitting part counts, on top of the coach's
+// Approach grade (2.5). Each tier sums to 6.5, the same share the old
+// offensive score + contact + power slots had, so the 0–100 scale, the
+// pitcher/catcher blend and every cut line keep their meaning.
+export const HITTING_WEIGHTS: Record<
+  HittingTier,
+  { onBase: number; contact: number; power: number }
+> = {
+  machine: { onBase: 2.25, contact: 3.5, power: 0.75 },
+  kidYouth: { onBase: 4.0, contact: 1.75, power: 0.75 },
+  kidTeen: { onBase: 3.0, contact: 1.5, power: 2.0 },
+};
+
+// [worst, best] per tier. Judgment defaults — there are no published youth
+// distributions; strikeout bands follow common youth-coaching rules of thumb.
+const ON_BASE_BAND: Record<HittingTier, [number, number]> = {
+  machine: [0.3, 0.7],
+  kidYouth: [0.28, 0.62],
+  kidTeen: [0.24, 0.52],
+};
+const STRIKEOUT_BAND: Record<HittingTier, [number, number]> = {
+  machine: [0.3, 0.05],
+  kidYouth: [0.32, 0.1],
+  kidTeen: [0.28, 0.08],
+};
+// Extra bases per plate appearance (a double = 1, a triple = 2, a homer = 3,
+// and at kidYouth a walk or hit-by-pitch = 1).
+const EXTRA_BASE_BAND: Record<HittingTier, [number, number]> = {
+  machine: [0, 0.25],
+  kidYouth: [0, 0.3],
+  kidTeen: [0, 0.3],
+};
+
+// Sample sizes (plate appearances) at which each part counts halfway.
+export const HITTING_SAMPLE_K = { onBase: 35, contact: 20, power: 60 };
+
+const countOr = (v: unknown): number | null => {
+  const n = numOrNull(v);
+  return n != null && n >= 0 ? n : null;
+};
+
+// Plate appearances, falling back to AB + walks + HBP when PA wasn't imported.
+export function plateAppearances(
+  stats: PlayerStats | null | undefined,
+): number {
+  if (!stats) return 0;
+  const pa = countOr(stats.pa);
+  if (pa != null && pa > 0) return pa;
+  return (
+    (countOr(stats.ab) ?? 0) +
+    (countOr(stats.bb) ?? 0) +
+    (countOr(stats.hbp) ?? 0)
+  );
+}
+
+// confidence = n / (n + k). Stats that came through getEffectiveStats with real
+// past-season influence are already steadied by that blend, so they keep a
+// floor of 0.5 (same convention as battingConfidence).
+function hittingConfidence(
+  stats: PlayerStats | null | undefined,
+  n: number,
+  k: number,
+): number {
+  const base = n > 0 ? n / (n + k) : 0;
+  const w = (stats as any)?.__blendWeights;
+  const pastBlended = w && (Number(w.past1) > 0 || Number(w.past2) > 0);
+  return pastBlended ? Math.max(0.5, base) : base;
+}
+
+// On-base ← OBP (or (H + BB + HBP) / PA from the counts when OBP is missing).
+export function statOnBaseGrade(
+  stats: PlayerStats | null | undefined,
+  ctx?: HittingContext | null,
+): number | null {
+  if (!stats) return null;
+  const tier = hittingTier(ctx);
+  const pa = plateAppearances(stats);
+  const h = countOr(stats.h);
+  let obp = numOrNull(stats.obp);
+  // A blended / zero-filled 0 with no counts is "not tracked"; with counts,
+  // compute it (a real 0-for-10 stays a real 0).
+  if ((obp == null || obp === 0) && h != null && pa > 0) {
+    obp = (h + (countOr(stats.bb) ?? 0) + (countOr(stats.hbp) ?? 0)) / pa;
+  } else if (obp === 0) {
+    obp = null;
+  }
+  if (obp == null) return null;
+  const [worst, best] = ON_BASE_BAND[tier];
+  const q = Math.min(1, Math.max(0, (obp - worst) / (best - worst)));
+  return qualityToGrade(
+    q,
+    hittingConfidence(stats, pa, HITTING_SAMPLE_K.onBase),
+  );
+}
+
+// Contact ← strikeout avoidance (SO / PA), Contact% and QAB%. AVG is left
+// out: it's already inside on-base, and at this level it's mostly luck.
 export function statContactGrade(
   stats: PlayerStats | null | undefined,
+  ctx?: HittingContext | null,
 ): number | null {
+  if (!stats) return null;
+  const tier = hittingTier(ctx);
+  const pa = plateAppearances(stats);
+  const k = countOr(stats.k);
+  const kRate = pa > 0 && k != null ? k / pa : null;
+  const [kWorst, kBest] = STRIKEOUT_BAND[tier];
   const q = bandedQuality(
-    stats,
+    { ...stats, __kRate: kRate ?? undefined },
     [
-      { key: "avg", w: 1.0, worst: 0.15, best: 0.45 },
-      { key: "contact", w: 0.75, worst: 0.5, best: 0.9 },
-      { key: "qab", w: 1.5, worst: 0.2, best: 0.6 },
-      { key: "ld", w: 1.0, worst: 0.08, best: 0.3 },
+      { key: "__kRate", w: 2.0, worst: kWorst, best: kBest, keepZero: true },
+      { key: "contact", w: 1.0, worst: 0.5, best: 0.9 },
+      { key: "qab", w: 0.75, worst: 0.2, best: 0.6 },
     ],
     true, // batting rates: 0 = not tracked, never "0% quality"
   );
-  return qualityToGrade(q, battingConfidence(stats));
+  return qualityToGrade(
+    q,
+    hittingConfidence(stats, pa, HITTING_SAMPLE_K.contact),
+  );
 }
 
-// Power ← SLG (derived OPS − OBP), extra-base-hit rate, Hard-hit%.
+// Power ← extra bases per plate appearance (at 9–12U kid pitch a walk counts
+// as one, like a double), isolated power (SLG − AVG) and Hard-hit%. The
+// tryout exit-velo grade, when there is one, is the `prior` the stats take
+// over from as at-bats pile up — instead of being replaced after one AB.
 export function statPowerGrade(
   stats: PlayerStats | null | undefined,
+  ctx?: HittingContext | null,
+  opts?: { prior?: number | null },
 ): number | null {
   if (!stats) return null;
-  const ops = numOrNull(stats.ops);
-  const obp = numOrNull(stats.obp);
-  const slg = ops != null && obp != null && ops >= obp ? ops - obp : null;
-  const ab = Number(stats.ab) || 0;
-  const xbh =
-    ab > 0
-      ? ((Number(stats.doubles) || 0) +
-          (Number(stats.triples) || 0) +
-          (Number(stats.hr) || 0)) /
-        ab
+  const tier = hittingTier(ctx);
+  const pa = plateAppearances(stats);
+  const d = countOr(stats.doubles);
+  const t = countOr(stats.triples);
+  const hr = countOr(stats.hr);
+  const walks = (countOr(stats.bb) ?? 0) + (countOr(stats.hbp) ?? 0);
+  const haveCounts = d != null || t != null || hr != null;
+  const extraBases =
+    (d ?? 0) + 2 * (t ?? 0) + 3 * (hr ?? 0) + (tier === "kidYouth" ? walks : 0);
+  const xbRate =
+    pa > 0 && (haveCounts || (tier === "kidYouth" && walks > 0))
+      ? extraBases / pa
       : null;
-  const enriched: PlayerStats = {
-    ...stats,
-    __slg: slg ?? undefined,
-    __xbh: xbh ?? undefined,
-  };
+  const avg = numOrNull(stats.avg);
+  const slg =
+    numOrNull(stats.slg) ??
+    (() => {
+      const ops = numOrNull(stats.ops);
+      const obp = numOrNull(stats.obp);
+      return ops != null && obp != null && ops >= obp ? ops - obp : null;
+    })();
+  const iso = slg != null && avg != null && slg >= avg ? slg - avg : null;
+  const [xbWorst, xbBest] = EXTRA_BASE_BAND[tier];
   const q = bandedQuality(
-    enriched,
+    { ...stats, __xbRate: xbRate ?? undefined, __iso: iso ?? undefined },
     [
-      { key: "__slg", w: 1.0, worst: 0.25, best: 0.7 },
-      { key: "__xbh", w: 1.0, worst: 0.0, best: 0.2 },
-      { key: "hard", w: 1.25, worst: 0.1, best: 0.4 },
+      { key: "__xbRate", w: 1.5, worst: xbWorst, best: xbBest, keepZero: true },
+      // Isolated power leaves walks out, so at kidYouth the walk-as-double
+      // rate above carries it alone.
+      ...(tier === "kidYouth"
+        ? []
+        : [{ key: "__iso" as const, w: 1.0, worst: 0, best: 0.3 }]),
+      { key: "hard", w: 1.0, worst: 0.1, best: 0.4 },
     ],
-    true, // batting rates: 0 = not tracked (XBH rate keeps 0 via __xbh below)
+    true,
   );
-  return qualityToGrade(q, battingConfidence(stats));
+  const prior = numOrNull(opts?.prior);
+  return qualityToGrade(
+    q,
+    hittingConfidence(stats, pa, HITTING_SAMPLE_K.power),
+    prior ?? 3,
+  );
 }
 
 // Fielding (fills both the glove and range slots) ← FPCT, confidence from
@@ -568,7 +762,7 @@ export function countGamesCaught(
 export function applyStatGrades(
   grades: GradeMap | null | undefined,
   player: Player | null | undefined,
-  opts?: { teamAge?: string; gamesCaught?: number },
+  opts?: { teamAge?: string; pitchingFormat?: string; gamesCaught?: number },
 ): GradeMap {
   const out: GradeMap = { ...(grades || {}) };
   if (!player) return out;
@@ -586,8 +780,17 @@ export function applyStatGrades(
     if (v == null) return;
     for (const k of keys) out[k] = v;
   };
-  set(statContactGrade(batting), "contact");
-  set(statPowerGrade(batting), "power");
+  const hitCtx = {
+    teamAge: opts?.teamAge,
+    pitchingFormat: opts?.pitchingFormat,
+  };
+  set(statOnBaseGrade(batting, hitCtx), "onBase");
+  set(statContactGrade(batting, hitCtx), "contact");
+  // The carried Power value (a tryout exit-velo seed) is the prior.
+  set(
+    statPowerGrade(batting, hitCtx, { prior: numOrNull(grades?.power) }),
+    "power",
+  );
   set(statFieldingGrade(raw), "fielding", "glove", "range");
   set(
     statArmGrade(raw, { topMph, teamAge: opts?.teamAge }),

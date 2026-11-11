@@ -16,6 +16,11 @@ export interface PlayerStats {
   ops?: number;
   obp?: number;
   avg?: number;
+  // Walks, hit-by-pitch and slugging from the GameChanger batting export —
+  // the on-base and power hitting grades read them (lineupEngine/grades.ts).
+  bb?: number;
+  hbp?: number;
+  slg?: number;
   contact?: number;
   totalPitches?: number;
   ip?: number;

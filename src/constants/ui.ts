@@ -64,7 +64,11 @@ export const EVAL_CATEGORIES: EvalCategory[] = [
     label: "Approach",
     group: "Hitting",
     weight: 2.5,
-    description: "Pitch selection, two-strike battles, situational hitting.",
+    // The coach's half of hitting; the stats grade the results (on-base,
+    // strikeouts, power — lineupEngine/grades.ts). Grade what the stats can't
+    // see: whether a kid swings at strikes and takes balls.
+    description:
+      "Swing decisions: swings at strikes, takes balls, battles with two strikes. Grade the decisions, not the results.",
   },
   // DATA-DRIVEN tangibles — never hand-graded (dataDriven filters them off
   // every grading card). Their values are seeded from tryout showcase
@@ -78,7 +82,7 @@ export const EVAL_CATEGORIES: EvalCategory[] = [
     weight: 1.5,
     dataDriven: true,
     description:
-      "Data-driven: showcase exit velo, then GameChanger hard-contact stats.",
+      "Data-driven: extra-base hits per plate appearance (at 9–12U kid pitch a walk counts like a double), then hard contact; a tryout exit-velo reading counts until there are enough at-bats.",
   },
   {
     id: "glove",

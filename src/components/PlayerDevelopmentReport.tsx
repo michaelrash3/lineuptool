@@ -142,6 +142,7 @@ const useEvalTrend = (
   categories: any[],
   teamAge?: string,
   extraCategories?: ReadonlyArray<{ id: string; weight: number }>,
+  pitchingFormat?: string,
 ) =>
   useMemo(() => {
     const rounds = (evaluationEvents || [])
@@ -157,8 +158,14 @@ const useEvalTrend = (
       // Per-ROUND scoring: a team category the round never carried adds
       // nothing, so old rounds keep their original numbers forever.
       return (
-        currentEvaluationScore100(g, player, teamAge, null, extraCategories) ??
-        undefined
+        currentEvaluationScore100(
+          g,
+          player,
+          teamAge,
+          null,
+          extraCategories,
+          pitchingFormat,
+        ) ?? undefined
       );
     };
     const first = overallOf(rounds[0].grades[playerId]);
@@ -199,6 +206,7 @@ const useEvalTrend = (
     categories,
     teamAge,
     extraCategories,
+    pitchingFormat,
   ]);
 
 export const PlayerDevelopmentReport = memo(
@@ -239,6 +247,7 @@ export const PlayerDevelopmentReport = memo(
       categories,
       team?.teamAge,
       extraCategories,
+      team?.pitchingFormat,
     );
 
     const pitched = (read(player?.stats, "ip", "pIp") || 0) > 0;

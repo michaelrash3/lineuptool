@@ -19,6 +19,8 @@ export function buildProfiledPlayers(input: {
   evaluationEvents?: EvaluationEvent[];
   games?: Game[];
   teamAge?: string;
+  // With teamAge, picks the hitting tier for the stat-graded hitting parts.
+  pitchingFormat?: string;
 }): {
   combinedGrades: Record<string, GradeMap>;
   profiled: ProfiledPlayer[];
@@ -30,11 +32,12 @@ export function buildProfiledPlayers(input: {
     evaluationEvents = [],
     games = [],
     teamAge,
+    pitchingFormat,
   } = input;
   const combinedGrades = getCombinedGrades(
     evaluationEvents,
     allPlayers || activePlayers,
-    { teamAge, games },
+    { teamAge, pitchingFormat, games },
   );
   const profiled: ProfiledPlayer[] = activePlayers.map((p) => ({
     ...p,
