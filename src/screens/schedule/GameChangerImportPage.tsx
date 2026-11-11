@@ -4,6 +4,8 @@ import { Icons } from "../../icons";
 import { type GcEvent } from "../../utils/icsParse";
 import {
   fetchGcEvents,
+  gcEventGames,
+  gcEventKind,
   gcPracticesVsFeed,
   mergeGcEventsIntoGames,
   mergeGcEventsIntoPractices,
@@ -26,7 +28,10 @@ import type { Game, Practice } from "../../types";
 // not. The preview names every practice the import would delete — flagging any
 // whose attendance or drill log goes with it — and names the ones it is
 // leaving alone because they fall outside the span this feed publishes (see
-// gcPracticesVsFeed).
+// gcPracticesVsFeed). Feed entries that aren't games or practices (a
+// tournament placeholder, team photos) are listed as skipped, and any an
+// earlier sync wrongly made into a game is named before it is removed (see
+// gcEventKind / gcEventGames).
 
 interface Candidate {
   event: GcEvent;
@@ -73,6 +78,17 @@ export const GameChangerImportPage = memo(() => {
         candidates ? candidates.map((c) => c.event) : [],
       ),
     [candidates, existingPractices],
+  );
+
+  // Games an earlier sync made out of non-game events: removed on import
+  // (unless a coach logged work on one, which keeps it).
+  const eventGames = useMemo(
+    () =>
+      gcEventGames(
+        existingGames,
+        candidates ? candidates.map((c) => c.event) : [],
+      ),
+    [candidates, existingGames],
   );
 
   if (currentRole === "assistant") return <Navigate to="/schedule" replace />;
@@ -125,11 +141,11 @@ export const GameChangerImportPage = memo(() => {
     // Dry-run the merges against the rendered snapshot for the toast counts;
     // the actual write re-merges against the LATEST arrays via mapEntries so
     // a concurrent edit isn't clobbered by a whole-array rewrite.
-    const { added: gamesAdded, updated: gamesUpdated } = mergeGcEventsIntoGames(
-      existingGames,
-      events,
-      defaults,
-    );
+    const {
+      added: gamesAdded,
+      updated: gamesUpdated,
+      removed: gamesRemoved,
+    } = mergeGcEventsIntoGames(existingGames, events, defaults);
     const {
       added: practicesAdded,
       updated: practicesUpdated,
@@ -162,6 +178,9 @@ export const GameChangerImportPage = memo(() => {
         (practicesRemoved > 0
           ? ` · ${practicesRemoved} practice${practicesRemoved === 1 ? "" : "s"} removed`
           : "") +
+        (gamesRemoved > 0
+          ? ` · ${gamesRemoved} event${gamesRemoved === 1 ? "" : "s"} taken off the schedule (not ${gamesRemoved === 1 ? "a game" : "games"})`
+          : "") +
         ` from GameChanger.`,
     });
     back();
@@ -184,8 +203,15 @@ export const GameChangerImportPage = memo(() => {
     });
   };
 
-  const newCount = candidates?.filter((c) => !c.isExisting).length ?? 0;
-  const dupCount = candidates?.filter((c) => c.isExisting).length ?? 0;
+  // Counts are GAMES only — practices sync to Practices, events are skipped.
+  const gameCandidates =
+    candidates?.filter((c) => gcEventKind(c.event) === "game") ?? [];
+  const newCount = gameCandidates.filter((c) => !c.isExisting).length;
+  const dupCount = gameCandidates.filter((c) => c.isExisting).length;
+  const practiceCount =
+    candidates?.filter((c) => gcEventKind(c.event) === "practice").length ?? 0;
+  const skippedCount =
+    candidates?.filter((c) => gcEventKind(c.event) === "event").length ?? 0;
 
   return (
     <PageShell
@@ -239,9 +265,51 @@ export const GameChangerImportPage = memo(() => {
         {candidates && (
           <div className="space-y-2">
             <div className="text-[11px] font-black uppercase tracking-widest text-ink-3">
-              {candidates.length} game{candidates.length === 1 ? "" : "s"} ·{" "}
-              {newCount} new · {dupCount} already imported
+              {gameCandidates.length} game
+              {gameCandidates.length === 1 ? "" : "s"} · {newCount} new ·{" "}
+              {dupCount} already imported
+              {practiceCount > 0 &&
+                ` · ${practiceCount} practice${practiceCount === 1 ? "" : "s"}`}
+              {skippedCount > 0 &&
+                ` · ${skippedCount} other event${skippedCount === 1 ? "" : "s"} skipped`}
             </div>
+            {eventGames.remove.length > 0 && (
+              <div className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                {eventGames.remove.length === 1
+                  ? "This was imported as a game, but it's a GameChanger event, not a game. It will be taken off the schedule:"
+                  : `These ${eventGames.remove.length} were imported as games, but they're GameChanger events, not games. They will be taken off the schedule:`}
+                <ul className="mt-1.5 font-normal list-disc pl-4 space-y-0.5">
+                  {eventGames.remove.map((g: any) => (
+                    <li key={g.id}>
+                      <span className="tabular-nums">{g.date}</span> ·{" "}
+                      {g.opponent}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {eventGames.keep.length > 0 && (
+              <div className="text-xs text-ink-3 bg-surface-2 border border-line rounded-xl p-3">
+                <span className="font-bold text-ink-2">
+                  {eventGames.keep.length === 1
+                    ? "1 event is kept as a game"
+                    : `${eventGames.keep.length} events are kept as games`}
+                </span>{" "}
+                because a lineup, attendance or score was entered on{" "}
+                {eventGames.keep.length === 1 ? "it" : "them"}. Delete{" "}
+                {eventGames.keep.length === 1 ? "it" : "them"} from the schedule
+                if {eventGames.keep.length === 1 ? "it isn't" : "they aren't"} a
+                game:
+                <ul className="mt-1.5 list-disc pl-4 space-y-0.5">
+                  {eventGames.keep.map((g: any) => (
+                    <li key={g.id}>
+                      <span className="tabular-nums">{g.date}</span> ·{" "}
+                      {g.opponent}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {diff.prune.length > 0 && (
               <div className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
                 {diff.prune.length} practice
@@ -295,23 +363,54 @@ export const GameChangerImportPage = memo(() => {
                   <span className="tabular-nums text-ink-3 w-24 shrink-0">
                     {c.date}
                   </span>
-                  <span
-                    className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border shrink-0 ${
-                      c.event.isHome === false
-                        ? "bg-amber-50 border-amber-200 text-amber-700"
-                        : "bg-emerald-50 border-emerald-200 text-emerald-700"
-                    }`}
-                  >
-                    {c.event.isHome === false
-                      ? "@ Away"
-                      : c.event.isHome
-                        ? "vs Home"
-                        : "—"}
-                  </span>
-                  <span className="font-bold text-ink flex-1 min-w-0 truncate">
-                    {c.event.opponent}
-                  </span>
-                  {c.isExisting && (
+                  {(() => {
+                    const kind = gcEventKind(c.event);
+                    const badge =
+                      kind === "practice"
+                        ? {
+                            label: "Practice",
+                            cls: "bg-surface-2 border-line text-ink-2",
+                          }
+                        : kind === "event"
+                          ? {
+                              label: "Event",
+                              cls: "bg-surface-2 border-line text-ink-3",
+                            }
+                          : c.event.isHome === false
+                            ? {
+                                label: "@ Away",
+                                cls: "bg-amber-50 border-amber-200 text-amber-700",
+                              }
+                            : {
+                                label: "vs Home",
+                                cls: "bg-emerald-50 border-emerald-200 text-emerald-700",
+                              };
+                    return (
+                      <>
+                        <span
+                          className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border shrink-0 ${badge.cls}`}
+                        >
+                          {badge.label}
+                        </span>
+                        <span
+                          className={`flex-1 min-w-0 truncate ${
+                            kind === "event"
+                              ? "text-ink-3"
+                              : "font-bold text-ink"
+                          }`}
+                        >
+                          {kind === "game" ? c.event.opponent : c.event.summary}
+                          {kind === "event" && (
+                            <span className="text-[11px] italic">
+                              {" "}
+                              — not a game, skipped
+                            </span>
+                          )}
+                        </span>
+                      </>
+                    );
+                  })()}
+                  {c.isExisting && gcEventKind(c.event) === "game" && (
                     <span className="text-[9px] font-black uppercase tracking-widest text-ink-3 shrink-0">
                       synced
                     </span>
@@ -330,8 +429,9 @@ export const GameChangerImportPage = memo(() => {
                 onClick={doImport}
                 className="py-2.5 px-5 text-xs font-black uppercase tracking-wider rounded-xl bg-[var(--team-primary)] text-white hover:-translate-y-0.5 transition-transform"
               >
-                Import {candidates.length} game
-                {candidates.length === 1 ? "" : "s"}
+                {gameCandidates.length > 0
+                  ? `Import ${gameCandidates.length} game${gameCandidates.length === 1 ? "" : "s"}`
+                  : "Sync with GameChanger"}
               </button>
             </div>
           </div>

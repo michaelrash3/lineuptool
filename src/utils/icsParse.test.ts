@@ -108,6 +108,19 @@ describe("parseGameChangerIcs", () => {
     expect(g.endUtc).toBeNull();
   });
 
+  it('reads a "vs." matchup as a home game, not an event', () => {
+    const [g] = parseGameChangerIcs(
+      SAMPLE.replace("Trash Pandas 8u vs Eagles", "Trash Pandas 8u vs. Eagles"),
+    ).filter((e) => e.uid === "b0f95ae9-9d98-4c25-b5be-1016ad160967");
+    expect(g.isHome).toBe(true);
+    expect(g.opponent).toBe("Eagles");
+  });
+
+  it("leaves an event with no matchup without one (isHome null)", () => {
+    // The all-day tournament placeholder: an EVENT, not a game.
+    expect(events[4].isHome).toBeNull();
+  });
+
   it("returns [] for empty or non-calendar input", () => {
     expect(parseGameChangerIcs("")).toEqual([]);
     expect(parseGameChangerIcs("not a calendar")).toEqual([]);

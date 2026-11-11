@@ -220,4 +220,78 @@ describe("GameChangerImportPage", () => {
       expect(next.practices).toHaveLength(1);
     });
   });
+
+  // A GameChanger EVENT (no "vs"/"@") is not a game: listed as skipped, never
+  // imported, and one an earlier sync wrongly made a game is removed.
+  describe("GameChanger events", () => {
+    const realFetch = globalThis.fetch;
+    afterEach(() => {
+      (globalThis as any).fetch = realFetch;
+    });
+    const feed = () =>
+      icsFeed([
+        { uid: "g1", date: "2026-05-01", summary: "Pandas vs Rays" },
+        {
+          uid: "ev1",
+          date: "2026-06-20",
+          summary: "Father's Day Classic Jun 19–Jun 20",
+        },
+      ]);
+    // What the old sync left on the schedule.
+    const team = {
+      gcCalendarUrl: "webcal://api.team-manager.gc.com/feed.ics",
+      practices: [],
+      games: [
+        {
+          id: "g-ev",
+          gcUid: "ev1",
+          date: "2026-06-20",
+          opponent: "Father's Day Classic Jun 19–Jun 20",
+          isHome: null,
+          lineup: null,
+          battingLineup: null,
+          attendance: {},
+          status: "scheduled",
+          teamScore: null,
+          opponentScore: null,
+        },
+      ],
+    };
+
+    it("lists the event as skipped, counts only the game, and names the event game it will remove", async () => {
+      stubFeed(feed());
+      renderPage(team, { gamesServerConfirmed: true });
+      fireEvent.click(screen.getByRole("button", { name: /preview games/i }));
+
+      expect(
+        await screen.findByText(/not a game, skipped/i),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/1 other event skipped/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/it's a GameChanger event, not a game/i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /^import 1 game$/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("imports the game, removes the event game, and says so", async () => {
+      stubFeed(feed());
+      const { updateTeamArrays, toastValue } = renderPage(team, {
+        gamesServerConfirmed: true,
+      });
+      fireEvent.click(screen.getByRole("button", { name: /preview games/i }));
+      fireEvent.click(
+        await screen.findByRole("button", { name: /^import 1 game$/i }),
+      );
+      await waitFor(() => expect(updateTeamArrays).toHaveBeenCalled());
+      const next = applyTeamOps(team, updateTeamArrays.mock.calls[0][0]);
+      expect(next.games.map((g: any) => g.gcUid)).toEqual(["g1"]);
+      expect(toastValue.push).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining("1 event taken off the schedule"),
+        }),
+      );
+    });
+  });
 });

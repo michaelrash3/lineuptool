@@ -339,7 +339,7 @@ export const ScheduleTab = memo(() => {
         // anything changed (and for the toast counts); the actual writes
         // re-merge against the LATEST arrays via mapEntries so a concurrent
         // edit isn't clobbered by these whole-array rewrites.
-        const { added, updated } = mergeGcEventsIntoGames(
+        const { added, updated, removed } = mergeGcEventsIntoGames(
           current,
           events,
           defaults,
@@ -351,7 +351,7 @@ export const ScheduleTab = memo(() => {
         // One op per key, and only for the arrays that actually changed — an
         // unchanged array must not be rewritten just because the other moved.
         const ops: TeamArrayUpdate[] = [];
-        if (added > 0 || updated > 0) {
+        if (added > 0 || updated > 0 || removed > 0) {
           ops.push({
             op: "mapEntries",
             key: "games",
@@ -385,6 +385,9 @@ export const ScheduleTab = memo(() => {
           title: "Schedule synced",
           message:
             `GameChanger: ${added} new, ${updated} updated.` +
+            (removed > 0
+              ? ` ${removed} event${removed === 1 ? "" : "s"} that ${removed === 1 ? "isn't a game was" : "aren't games were"} taken off the schedule.`
+              : "") +
             (practiceBits.length > 0
               ? ` Practices: ${practiceBits.join(", ")}.`
               : ""),
