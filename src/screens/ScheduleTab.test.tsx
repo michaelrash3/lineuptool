@@ -3,7 +3,7 @@ import { screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ScheduleTab } from "./ScheduleTab";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { renderWithProviders } from "../test-utils";
+import { applyTeamOps, renderWithProviders } from "../test-utils";
 
 const baseTeam = {
   games: [],
@@ -804,5 +804,75 @@ describe("ScheduleTab GameChanger auto-sync", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(updateTeamArrays).not.toHaveBeenCalled();
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+});
+
+// The automatic GameChanger sync that runs when the Schedule opens is what
+// cleans up a coach's EXISTING event-as-game, so it's tested on its own path.
+describe("ScheduleTab GameChanger auto-sync and events", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    (globalThis as any).fetch = realFetch;
+  });
+
+  it("takes an event an earlier sync made into a game off the schedule", async () => {
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "BEGIN:VEVENT",
+      "UID:ev1",
+      "DTSTART;VALUE=DATE:20990620",
+      "SUMMARY:Father's Day Classic Jun 19–Jun 20",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    (globalThis as any).fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: true, text: async () => ics });
+    const eventGame = {
+      id: "g-ev",
+      gcUid: "ev1",
+      date: "2099-06-20",
+      opponent: "Father's Day Classic Jun 19–Jun 20",
+      isHome: null,
+      lineup: null,
+      battingLineup: null,
+      attendance: {},
+      status: "scheduled",
+      teamScore: null,
+      opponentScore: null,
+    };
+    const team = {
+      ...baseTeam,
+      gcCalendarUrl: "webcal://api.team-manager.gc.com/feed.ics",
+      games: [eventGame],
+      practices: [],
+    };
+    const updateTeamArrays = jest.fn();
+    const { toastValue } = renderWithProviders(
+      <MemoryRouter>
+        <ScheduleTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team,
+          record: { wins: 0, losses: 0, ties: 0 },
+          currentRole: "head",
+          // A team id this suite hasn't synced yet (the sync is throttled per
+          // team for 5 minutes).
+          activeTeamId: "team-gc-events",
+          gamesServerConfirmed: true,
+          teamDocServerConfirmed: true,
+          updateTeamArrays,
+        },
+      },
+    );
+    await waitFor(() => expect(updateTeamArrays).toHaveBeenCalled());
+    const next = applyTeamOps(team, updateTeamArrays.mock.calls[0][0]);
+    expect(next.games).toEqual([]);
+    expect(toastValue.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("taken off the schedule"),
+      }),
+    );
   });
 });

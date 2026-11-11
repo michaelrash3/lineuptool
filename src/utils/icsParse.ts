@@ -89,8 +89,12 @@ const parseIcsDate = (value: string): string | null => {
 };
 
 // Pull the opponent + home/away out of a GameChanger SUMMARY. Away (" @ ") is
-// checked before home (" vs ") and we use the LAST separator occurrence so a
-// team name that itself contains "vs"/"@" doesn't mislead the split.
+// checked before home (" vs " / " vs. ") and we use the LAST separator
+// occurrence so a team name that itself contains "vs"/"@" doesn't mislead the
+// split. No separator = no matchup (isHome null): GameChanger writes games as
+// "<Team> vs <Opponent>" / "<Team> @ <Opponent>", and anything else in the
+// feed — a tournament placeholder, team photos, a fundraiser — is an event,
+// not a game (see gcEventKind in gcSync.ts).
 const parseMatchup = (
   summary: string,
 ): { opponent: string; isHome: boolean | null } => {
@@ -98,9 +102,13 @@ const parseMatchup = (
   if (away !== -1) {
     return { opponent: summary.slice(away + 3).trim(), isHome: false };
   }
-  const home = summary.toLowerCase().lastIndexOf(" vs ");
-  if (home !== -1) {
-    return { opponent: summary.slice(home + 4).trim(), isHome: true };
+  const homeSeps = [...summary.matchAll(/ vs\.? /gi)];
+  const home = homeSeps[homeSeps.length - 1];
+  if (home && home.index != null) {
+    return {
+      opponent: summary.slice(home.index + home[0].length).trim(),
+      isHome: true,
+    };
   }
   return { opponent: summary.trim(), isHome: null };
 };

@@ -38,19 +38,67 @@ export interface GcMergeResult {
   games: any[];
   added: number;
   updated: number;
+  /** Feed EVENTS (not games) an earlier sync had imported as games, now
+   *  taken back off the schedule. */
+  removed: number;
 }
 
 const hasPracticeKeyword = (ev: GcEvent): boolean =>
   /practice/i.test(ev.summary || "");
 
+// What a feed entry is. GameChanger writes a game as "<Team> vs <Opponent>" or
+// "<Team> @ <Opponent>", so only an entry with a matchup is a game. A practice
+// says "practice" (even "Team vs Opponent Practice"). Everything else is an
+// EVENT — a tournament placeholder ("Father's Day Classic Jun 19–Jun 20"),
+// team photos, a fundraiser — and stays off the schedule entirely: it has no
+// opponent, so as a "game" it only ever showed its title as the opponent and
+// asked for a lineup.
+export type GcEventKind = "game" | "practice" | "event";
+export const gcEventKind = (ev: GcEvent): GcEventKind =>
+  hasPracticeKeyword(ev) ? "practice" : ev.isHome === null ? "event" : "game";
+
+// True when a coach has put something into a game that removing it would
+// lose: a lineup or batting order, attendance, a score, or play started.
+export const gameHasLoggedWork = (g: any): boolean =>
+  (Array.isArray(g?.lineup) && g.lineup.length > 0) ||
+  (Array.isArray(g?.battingLineup) && g.battingLineup.length > 0) ||
+  Object.keys(g?.attendance || {}).length > 0 ||
+  g?.teamScore != null ||
+  g?.opponentScore != null ||
+  (g?.status != null && g.status !== "scheduled");
+
+// Games an earlier sync made out of feed EVENTS (matched by gcUid). The ones
+// with nothing logged come off the schedule; one a coach actually used (a
+// lineup, attendance, a score) is kept — removing it would lose their work.
+export const gcEventGames = (
+  existingGames: any[],
+  events: GcEvent[],
+): { remove: any[]; keep: any[] } => {
+  const eventUids = new Set(
+    events
+      .filter((ev) => ev.uid && gcEventKind(ev) === "event")
+      .map((ev) => ev.uid),
+  );
+  const remove: any[] = [];
+  const keep: any[] = [];
+  for (const g of Array.isArray(existingGames) ? existingGames : []) {
+    if (!g?.gcUid || !eventUids.has(g.gcUid)) continue;
+    (gameHasLoggedWork(g) ? keep : remove).push(g);
+  }
+  return { remove, keep };
+};
+
 // Upsert parsed feed events into the existing games array, matched by the
 // feed's stable UID (game.gcUid):
-//   - new events become new "scheduled" games,
+//   - only GAMES count (gcEventKind): practices go to Practices, and other
+//     events stay off the schedule — one an earlier sync wrongly made a game
+//     is removed again unless a coach logged work on it (gcEventGames),
+//   - new games become new "scheduled" games,
 //   - existing games get their schedule fields refreshed ONLY when something
 //     actually changed (so a no-op sync writes nothing — important to avoid
 //     needless Firestore writes on every Schedule open),
 //   - scores, lineups, attendance, and status on existing games are preserved.
-// Returns the (possibly same) array plus added/updated counts. When both counts
+// Returns the (possibly same) array plus added/updated/removed counts. When all
 // are 0 the returned `games` is reference-equal to the input, so callers can
 // skip the write.
 export const mergeGcEventsIntoGames = (
@@ -59,7 +107,11 @@ export const mergeGcEventsIntoGames = (
   defaults: GcMergeDefaults,
 ): GcMergeResult => {
   const base = Array.isArray(existingGames) ? existingGames : [];
-  const next = [...base];
+  // Identity, not id, like the practice prune: a duplicated id can't take an
+  // innocent game down with it.
+  const doomed = new Set(gcEventGames(base, events).remove);
+  const removed = doomed.size;
+  const next = base.filter((g) => !doomed.has(g));
   const idxByUid = new Map<string, number>();
   next.forEach((g, i) => {
     if (g?.gcUid) idxByUid.set(g.gcUid, i);
@@ -68,7 +120,7 @@ export const mergeGcEventsIntoGames = (
   let added = 0;
   let updated = 0;
   for (const ev of events) {
-    if (hasPracticeKeyword(ev)) continue;
+    if (gcEventKind(ev) !== "game") continue;
     const fields = {
       // All-day events keep their literal feed date and have no instant
       // (null startUtc → no clock-time chip in the schedule).
@@ -117,7 +169,12 @@ export const mergeGcEventsIntoGames = (
     }
   }
 
-  return { games: added > 0 || updated > 0 ? next : base, added, updated };
+  return {
+    games: added > 0 || updated > 0 || removed > 0 ? next : base,
+    added,
+    updated,
+    removed,
+  };
 };
 
 // GameChanger can publish practice titles like "Team vs Opponent Practice".

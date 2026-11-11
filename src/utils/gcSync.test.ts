@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  gameHasLoggedWork,
+  gcEventGames,
+  gcEventKind,
   gcPracticesVsFeed,
   mergeGcEventsIntoGames,
   mergeGcEventsIntoPractices,
@@ -230,6 +233,133 @@ describe("mergeGcEventsIntoGames", () => {
     );
     expect(res.updated).toBe(0);
     expect(res.games).toBe(existing); // reference-equal
+  });
+});
+
+// A GameChanger EVENT: no matchup in the title (the parser leaves isHome
+// null). Taken from the real feed sample in icsParse.test.ts.
+const tourneyEvent = (over: Partial<GcEvent> = {}) =>
+  ev({
+    uid: "ev1",
+    allDay: true,
+    startUtc: null,
+    startDate: "2026-06-20",
+    summary: "Father's Day Classic Jun 19–Jun 20",
+    opponent: "Father's Day Classic Jun 19–Jun 20",
+    isHome: null,
+    ...over,
+  });
+
+describe("gcEventKind", () => {
+  it("a matchup is a game, home or away", () => {
+    expect(gcEventKind(ev({ uid: "a" }))).toBe("game");
+    expect(gcEventKind(ev({ uid: "a", isHome: false }))).toBe("game");
+  });
+  it("anything that says practice is a practice, matchup or not", () => {
+    expect(
+      gcEventKind(ev({ uid: "p", summary: "Team vs Opponent Practice" })),
+    ).toBe("practice");
+    expect(
+      gcEventKind(ev({ uid: "p", summary: "Practice", isHome: null })),
+    ).toBe("practice");
+  });
+  it("everything else is an event", () => {
+    expect(gcEventKind(tourneyEvent())).toBe("event");
+    expect(
+      gcEventKind(ev({ uid: "x", summary: "Team Photos", isHome: null })),
+    ).toBe("event");
+  });
+});
+
+describe("GameChanger events are not games", () => {
+  it("never imports an event as a game", () => {
+    const res = mergeGcEventsIntoGames(
+      [],
+      [ev({ uid: "g" }), tourneyEvent()],
+      defaults,
+    );
+    expect(res.added).toBe(1);
+    expect(res.games.map((g) => g.gcUid)).toEqual(["g"]);
+  });
+
+  it("takes an event an earlier sync made into a game back off the schedule", () => {
+    // What the old sync produced from the event: its title as the opponent.
+    const wrongly = {
+      id: "g-ev",
+      gcUid: "ev1",
+      date: "2026-06-20",
+      startUtc: null,
+      opponent: "Father's Day Classic Jun 19–Jun 20",
+      isHome: null,
+      location: "",
+      lineup: null,
+      battingLineup: null,
+      attendance: {},
+      status: "scheduled",
+      teamScore: null,
+      opponentScore: null,
+    };
+    const manual = { id: "m1", opponent: "Rivals", date: "2026-06-21" };
+    const res = mergeGcEventsIntoGames(
+      [wrongly, manual],
+      [tourneyEvent()],
+      defaults,
+    );
+    expect(res.removed).toBe(1);
+    expect(res.games).toEqual([manual]);
+  });
+
+  it("keeps one a coach actually used, so nothing they entered is lost", () => {
+    const used = {
+      id: "g-ev",
+      gcUid: "ev1",
+      date: "2026-06-20",
+      opponent: "Father's Day Classic Jun 19–Jun 20",
+      isHome: null,
+      attendance: { p1: true },
+      status: "scheduled",
+    };
+    const res = mergeGcEventsIntoGames([used], [tourneyEvent()], defaults);
+    expect(res.removed).toBe(0);
+    expect(res.games).toEqual([used]);
+    expect(gcEventGames([used], [tourneyEvent()])).toEqual({
+      remove: [],
+      keep: [used],
+    });
+  });
+
+  it("an event-only feed against a clean schedule writes nothing", () => {
+    const existing = [{ id: "m1", opponent: "Rivals" }];
+    const res = mergeGcEventsIntoGames(existing, [tourneyEvent()], defaults);
+    expect(res.games).toBe(existing);
+    expect(res.added + res.updated + res.removed).toBe(0);
+  });
+
+  it("an event never becomes a practice either", () => {
+    const res = mergeGcEventsIntoPractices([], [tourneyEvent()]);
+    expect(res.added).toBe(0);
+  });
+});
+
+describe("gameHasLoggedWork", () => {
+  it("is false for an untouched feed game", () => {
+    expect(
+      gameHasLoggedWork({
+        lineup: null,
+        battingLineup: null,
+        attendance: {},
+        status: "scheduled",
+        teamScore: null,
+        opponentScore: null,
+      }),
+    ).toBe(false);
+  });
+  it("is true once there's a lineup, attendance, a score or play started", () => {
+    expect(gameHasLoggedWork({ lineup: [{}] })).toBe(true);
+    expect(gameHasLoggedWork({ battingLineup: [{ id: "a" }] })).toBe(true);
+    expect(gameHasLoggedWork({ attendance: { p1: false } })).toBe(true);
+    expect(gameHasLoggedWork({ teamScore: 0 })).toBe(true);
+    expect(gameHasLoggedWork({ status: "final" })).toBe(true);
   });
 });
 
