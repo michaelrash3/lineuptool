@@ -2353,6 +2353,38 @@ describe("coach Venmo link", () => {
   });
 });
 
+describe("letter wording", () => {
+  const team = (uid: string) => doc(dbFor(uid), ...teamPath("team-1"));
+  const wording = {
+    returning: { subject: "Come back!", body: "Dear [Player Name], …" },
+  };
+  it("lets a head coach save and reset their own letter wording", async () => {
+    await assertSucceeds(updateDoc(team(OWNER), { letterTemplates: wording }));
+    await assertSucceeds(
+      updateDoc(team(COHEAD), {
+        "letterTemplates.rejection": { subject: "Tryouts", body: "Thanks" },
+      }),
+    );
+    await assertSucceeds(updateDoc(team(OWNER), { letterTemplates: {} }));
+  });
+  it("denies an assistant rewording a letter families pay from", async () => {
+    await assertFails(updateDoc(team(ASSISTANT), { letterTemplates: wording }));
+    await assertFails(
+      updateDoc(team(ASSISTANT), {
+        "letterTemplates.returning.body": "Pay me at https://evil.example",
+      }),
+    );
+  });
+  it("never blocks an assistant's other saves", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
+        letterTemplates: wording,
+      });
+    });
+    await assertSucceeds(updateDoc(team(ASSISTANT), { notes: "still saves" }));
+  });
+});
+
 describe("removing a coach", () => {
   it("lets the owner remove a coach and delete their role", async () => {
     await assertSucceeds(

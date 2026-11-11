@@ -63,6 +63,7 @@ const letterRoutes = (
     <Route path="/roster/:playerId" element={<div>PROFILE PAGE</div>} />
     <Route path="/tryouts" element={<div>TRYOUTS TAB</div>} />
     <Route path="/interest" element={<div>INTEREST TAB</div>} />
+    <Route path="/settings/letters" element={<div>LETTERS SETTINGS</div>} />
     <Route
       path="/roster/:playerId/letter/:kind"
       element={<RosterLetterPage />}
@@ -141,6 +142,59 @@ describe("RosterLetterPage", () => {
   it("rejects a kind that doesn't belong to the roster audience", () => {
     renderLetter("/roster/p1/letter/rejection");
     expect(screen.getByText("ROSTER LIST")).toBeInTheDocument();
+  });
+});
+
+describe("the head coach's own wording", () => {
+  const withWording = {
+    team: {
+      ...team,
+      letterTemplates: {
+        returning: {
+          subject: "[Team Name]: a spot for [Player Name]",
+          body: "Hi [Player Name] — we'd love you back next season.",
+        },
+      },
+    },
+  };
+
+  it("drafts the letter from the saved wording, filled in for the family", () => {
+    renderLetter("/roster/p1/letter/returning", withWording);
+    expect(
+      (screen.getByLabelText("Letter subject") as HTMLInputElement).value,
+    ).toBe("Wildcats: a spot for Ava Rivera");
+    expect(
+      (screen.getByLabelText("Offer letter draft") as HTMLTextAreaElement)
+        .value,
+    ).toBe("Hi Ava Rivera — we'd love you back next season.");
+  });
+
+  it("lets the coach change one family's letter before copying, and undo it", async () => {
+    const writeText = jest.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    renderLetter("/roster/p1/letter/returning", withWording);
+    const body = screen.getByLabelText(
+      "Offer letter draft",
+    ) as HTMLTextAreaElement;
+    fireEvent.change(body, { target: { value: "Just for Ava." } });
+    expect(
+      screen.getByText(/edited for this family only/i),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /copy draft/i }));
+    await Promise.resolve();
+    expect(writeText).toHaveBeenCalledWith("Just for Ava.");
+    fireEvent.click(screen.getByRole("button", { name: /undo my changes/i }));
+    expect(body.value).toBe("Hi Ava Rivera — we'd love you back next season.");
+  });
+
+  it("links to Settings › Letters to change the wording for every letter", () => {
+    renderLetter("/roster/p1/letter/returning");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /change the wording for every letter/i,
+      }),
+    );
+    expect(screen.getByText("LETTERS SETTINGS")).toBeInTheDocument();
   });
 });
 

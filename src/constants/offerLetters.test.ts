@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { buildOfferLetter, type OfferLetterContext } from "./offerLetters";
+import {
+  LETTER_FIELDS,
+  buildOfferLetter,
+  defaultLetterTemplate,
+  fillLetterTemplate,
+  isDefaultLetterTemplate,
+  unknownLetterFields,
+  type OfferLetterContext,
+} from "./offerLetters";
 
 const ctx: OfferLetterContext = {
   playerName: "Sam Rivera",
@@ -137,4 +145,76 @@ it("not returning letter is separate from tryout rejection and avoids money", ()
   expect(decline.body).not.toContain("deposit");
   expect(decline.body).not.toContain("Venmo");
   expect(decline.body).not.toContain("team fees");
+});
+
+describe("coach-edited letters", () => {
+  const KINDS = [
+    "returning",
+    "newPlayer",
+    "notReturning",
+    "rejection",
+    "interest",
+  ] as const;
+
+  it("the editor starts from exactly today's letter, for every kind", () => {
+    // Fill the bracketed starting template for a family and it must read
+    // word-for-word like the built-in letter — so opening the editor and
+    // saving changes nothing a family sees.
+    for (const kind of KINDS) {
+      expect(fillLetterTemplate(defaultLetterTemplate(kind), ctx)).toEqual(
+        buildOfferLetter(kind, ctx),
+      );
+    }
+  });
+
+  it("uses the head coach's saved wording, filled in for the family", () => {
+    const custom = {
+      subject: "[Team Name] spot for [Player Name]",
+      body: "Hi [Player Name] — fees are [Team Fees], deposit [Deposit Amount] by [Deposit Due Date]. Venmo: [Venmo Link]",
+    };
+    expect(buildOfferLetter("returning", ctx, custom)).toEqual({
+      subject: "Trash Pandas spot for Sam Rivera",
+      body: "Hi Sam Rivera — fees are $1,200, deposit $300 by March 19, 2026. Venmo: https://venmo.com/u/CoachMike",
+    });
+  });
+
+  it("matches field names regardless of case and spacing", () => {
+    const out = fillLetterTemplate(
+      { subject: "x", body: "[player name] / [ Team   Name ]" },
+      ctx,
+    );
+    expect(out.body).toBe("Sam Rivera / Trash Pandas");
+  });
+
+  it("keeps the brackets on a field with no value yet, and on unknown words", () => {
+    const out = fillLetterTemplate(
+      { subject: "x", body: "Call [Coach Phone]. See [Field 4]." },
+      { ...ctx, coachPhone: "" },
+    );
+    expect(out.body).toBe("Call [Coach Phone]. See [Field 4].");
+  });
+
+  it("flags bracketed words that aren't fill-in fields", () => {
+    expect(
+      unknownLetterFields("Dear [Player], fees [Team Fees] [player name]"),
+    ).toEqual(["[Player]"]);
+  });
+
+  it("treats saved wording identical to the standard letter as not customized", () => {
+    expect(isDefaultLetterTemplate("rejection", null)).toBe(true);
+    expect(
+      isDefaultLetterTemplate("rejection", defaultLetterTemplate("rejection")),
+    ).toBe(true);
+    expect(
+      isDefaultLetterTemplate("rejection", { subject: "Hi", body: "Thanks" }),
+    ).toBe(false);
+  });
+
+  it("offers every field the fill-in step knows how to fill", () => {
+    const filled = fillLetterTemplate(
+      { subject: "", body: LETTER_FIELDS.map((f) => f.token).join(" | ") },
+      ctx,
+    );
+    expect(filled.body).not.toMatch(/\[/);
+  });
 });

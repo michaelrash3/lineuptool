@@ -159,6 +159,11 @@ service cloud.firestore {
                     && (untouched('coachVenmoLink')
                         || (isHeadCoach()
                             && venmoLinkOk(request.resource.data.get('coachVenmoLink', ''))))
+                    // The head coach's own letter wording: same reason as the
+                    // Venmo link — the letters tell families where to pay, so
+                    // an assistant can't reword them (or slip in another
+                    // payment link).
+                    && (untouched('letterTemplates') || isHeadCoach())
                     // evaluationEvents is a DROPPED legacy field (finding 3.1
                     // — rounds live in the evalRounds subcollection below).
                     // Ratchet: a doc still carrying the array may rewrite or
