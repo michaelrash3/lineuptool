@@ -183,8 +183,8 @@ export const TryoutsPortal = () => {
         // Read the sanitized public mirror — never the full team doc. The
         // mirror carries only branding + tryout config (see buildPublicMirror);
         // signups are written to the team's signup subcollections by id below.
-        // The owned link doc first, the legacy mirror query as fallback —
-        // see resolvePortalTeam. Never the full team doc.
+        // The owned link doc, then the team's mirror by id — see
+        // resolvePortalTeam. Never the full team doc.
         const found = await resolvePortalTeam(db, appId, linkSlug);
         if (cancelled) return;
 

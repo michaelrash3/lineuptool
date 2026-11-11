@@ -621,8 +621,11 @@ service cloud.firestore {
         );
       }
 
-      // Anonymous portal visitors (signed in anonymously) may read the mirror.
-      allow read: if request.auth != null;
+      // Anonymous portal visitors (signed in anonymously) may fetch ONE
+      // mirror by its team id — `get`, never `list`. The forms reach it by id
+      // through the owned portalLinks doc; listing would hand anyone every
+      // team's id, branding and public coach email.
+      allow get: if request.auth != null;
       // Only a member of the real team can create/update/delete the mirror.
       allow write: if isTeamMember();
     }
@@ -630,8 +633,8 @@ service cloud.firestore {
     // Parent-form links, keyed by the link's slug (the team's tryoutShareId):
     // { teamId }. The forms resolve a slug HERE first — one document, by id —
     // so a link can't be hijacked by another team publishing a mirror with the
-    // same share id (the listable mirror query is only the fallback for teams
-    // whose link doc doesn't exist yet; see docs/firebase-rules-rollout.md).
+    // same share id. It is the ONLY way in: the mirror can't be listed or
+    // queried (see docs/firebase-rules-rollout.md section 10).
     match /artifacts/{appId}/public/data/portalLinks/{slug} {
       function linkTeam(teamId) {
         return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;
@@ -663,8 +666,8 @@ service cloud.firestore {
     // Game and practice DAYS for the parent availability form, keyed by the
     // form link's slug (the team's tryoutShareId): { teamId, gameDays,
     // practiceDays, updatedAt } — bare yyyy-mm-dd dates, nothing else. Kept
-    // out of teamPublic on purpose: that mirror is listable, so dates there
-    // would publish every team's schedule. Here a reader needs the link.
+    // out of teamPublic on purpose: the mirror is fetched by team id, which
+    // isn't a secret the way the form link is. Here a reader needs the link.
     // Published only when the head coach turns it on (see
     // src/utils/portalSchedule.ts).
     match /artifacts/{appId}/public/data/portalSchedules/{slug} {

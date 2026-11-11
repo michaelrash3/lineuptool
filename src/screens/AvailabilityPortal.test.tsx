@@ -1,7 +1,8 @@
 import { vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { getDoc, getDocs } from "firebase/firestore";
+import { getDoc } from "firebase/firestore";
+import { answerGetDoc, portalDocs, schedulePath } from "./portalTestDocs";
 import { newSignupId, upsertSignupDoc } from "../utils/tryoutSignupDocs";
 
 vi.mock("../firebase", () => ({ auth: {}, appId: "app", db: {} }));
@@ -10,15 +11,10 @@ vi.mock("firebase/auth", () => ({
 }));
 vi.mock("firebase/firestore", () => ({
   collection: vi.fn(() => ({})),
-  getDocs: vi.fn(),
-  // The owned link doc (portalLinks/{slug}). Absent by default, so the
-  // existing tests exercise the legacy mirror-query fallback.
+  // Every lookup is a single-doc get (portalLinks/{slug}, then the team's
+  // mirror by id); answerGetDoc serves them per test.
   doc: vi.fn((...path: unknown[]) => ({ __path: path.slice(1).join("/") })),
-  getDoc: vi.fn(() =>
-    Promise.resolve({ exists: () => false, metadata: { fromCache: false } }),
-  ),
-  query: vi.fn(() => ({})),
-  where: vi.fn(() => ({})),
+  getDoc: vi.fn(),
 }));
 // The per-entry submission write (Phase 1b): the portal mints a Firestore
 // auto-id and setDocs its own doc — no team-doc arrayUnion anymore.
@@ -29,7 +25,6 @@ vi.mock("../utils/tryoutSignupDocs", () => ({
 
 import { AvailabilityPortal } from "./AvailabilityPortal";
 
-const mockGetDocs = getDocs as unknown as ReturnType<typeof vi.fn>;
 const mockGetDoc = getDoc as unknown as ReturnType<typeof vi.fn>;
 const mockNewSignupId = newSignupId as unknown as ReturnType<typeof vi.fn>;
 const mockUpsert = upsertSignupDoc as unknown as ReturnType<typeof vi.fn>;
@@ -39,8 +34,10 @@ const mirrorDoc = {
   data: () => ({ name: "Rockets", tryoutShareId: "abc" }),
 };
 
+// Extra docs a test serves alongside the link (e.g. the schedule days).
+let extraDocs: Record<string, unknown> = {};
 const renderPortal = (doc = mirrorDoc) => {
-  mockGetDocs.mockResolvedValueOnce({ empty: false, docs: [doc] });
+  answerGetDoc(mockGetDoc, { ...portalDocs(doc), ...extraDocs });
   return render(
     <MemoryRouter initialEntries={["/p/abc"]}>
       <Routes>
@@ -54,7 +51,8 @@ const fill = (label: RegExp, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
 beforeEach(() => {
-  mockGetDocs.mockReset();
+  mockGetDoc.mockReset();
+  extraDocs = {};
   mockUpsert.mockClear();
   mockNewSignupId.mockClear();
 });
@@ -121,7 +119,7 @@ describe("AvailabilityPortal", () => {
   });
 
   it("shows an error phase when the share link is not found", async () => {
-    mockGetDocs.mockResolvedValueOnce({ empty: true, docs: [] });
+    answerGetDoc(mockGetDoc, {}); // no link doc for "nope"
     render(
       <MemoryRouter initialEntries={["/p/nope"]}>
         <Routes>
@@ -149,37 +147,23 @@ describe("AvailabilityPortal — offline vs. a dead link", () => {
     );
 
   it("says it couldn't connect, and Try again re-runs the lookup", async () => {
-    mockGetDocs.mockReset();
-    mockGetDocs
-      .mockResolvedValueOnce({
-        empty: true,
-        docs: [],
-        metadata: { fromCache: true },
-      })
-      .mockResolvedValueOnce({
-        empty: false,
-        docs: [mirrorDoc],
-        metadata: { fromCache: false },
-      });
+    // Weak signal: nothing came back, and it came from the offline cache.
+    answerGetDoc(mockGetDoc, {}, { fromCache: true });
     renderAt();
     expect(
       await screen.findByText(/couldn't reach this team's page/i),
     ).toBeInTheDocument();
     expect(screen.queryByText(/not found or has been deactivated/i)).toBeNull();
+    // Signal's back: the retry finds the link and the form opens.
+    answerGetDoc(mockGetDoc, portalDocs(mirrorDoc));
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
-    await waitFor(() => expect(mockGetDocs).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(screen.queryByText(/can't open this page/i)).toBeNull(),
-    );
+    expect(await screen.findByLabelText(/first name/i)).toBeInTheDocument();
+    expect(screen.queryByText(/can't open this page/i)).toBeNull();
   });
 
   it("still says a link is dead when the server says so — with no retry", async () => {
-    mockGetDocs.mockReset();
-    mockGetDocs.mockResolvedValueOnce({
-      empty: true,
-      docs: [],
-      metadata: { fromCache: false },
-    });
+    // The server answered: there is no link doc for this slug.
+    answerGetDoc(mockGetDoc, {});
     renderAt();
     expect(
       await screen.findByText(/not found or has been deactivated/i),
@@ -196,15 +180,18 @@ describe("AvailabilityPortal — the team's game and practice days", () => {
   const today = iso(now);
   const day = String(now.getDate());
 
-  const withSchedule = (sched: Record<string, unknown> | null) =>
-    mockGetDoc.mockImplementation((ref: { __path?: string }) =>
-      Promise.resolve(
-        String(ref?.__path || "").includes("portalSchedules") && sched
-          ? { exists: () => true, data: () => sched }
-          : { exists: () => false, metadata: { fromCache: false } },
-      ),
+  const withSchedule = (sched: Record<string, unknown> | null) => {
+    extraDocs = sched ? { [schedulePath()]: sched } : {};
+  };
+  // The schedule is fetched after the form opens; wait for that read.
+  const scheduleRead = () =>
+    waitFor(() =>
+      expect(
+        mockGetDoc.mock.calls.some((c: any[]) =>
+          String(c[0]?.__path).includes("portalSchedules"),
+        ),
+      ).toBe(true),
     );
-  afterEach(() => mockGetDoc.mockReset());
 
   it("marks the days the coach shared, with a legend", async () => {
     withSchedule({ teamId: "team1", gameDays: [today], practiceDays: [] });
@@ -228,8 +215,7 @@ describe("AvailabilityPortal — the team's game and practice days", () => {
     withSchedule({ teamId: "someone-else", gameDays: [today] });
     renderPortal();
     await screen.findByText("Submit Availability");
-    // Let the schedule lookup settle.
-    await waitFor(() => expect(mockGetDoc).toHaveBeenCalled());
+    await scheduleRead();
     expect(screen.queryByText("Game day")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: day })).toBeInTheDocument();
   });

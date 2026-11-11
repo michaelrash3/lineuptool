@@ -182,7 +182,7 @@ Expected: portal submission blocked once `tryoutsOpen` is false.
 
 ### 7) Public mirror isolation (added with the tryout-portal privacy fix)
 
-Expected: the `teamPublic` mirror is readable by any signed-in (incl. anonymous) caller, but writable only by a member of the underlying team.
+Expected: the `teamPublic` mirror can be fetched by id (`get`) by any signed-in (incl. anonymous) caller but never listed, and is writable only by a member of the underlying team.
 
 - As an anonymous portal user, read `artifacts/{appId}/public/data/teamPublic/{teamId}` — confirm success.
 - As an anonymous (non-member) user, attempt to write that mirror doc — confirm denial (`isTeamMember` `get()` on the real team fails).
@@ -303,12 +303,11 @@ so a rotated-out link stays dead.
 - As another team's owner (even with the same share id on their own team),
   overwrite or delete the link doc — denied.
 
-**Phase 1 (shipped):** the forms use the link doc when it exists and fall back
-to the legacy `teamPublic where tryoutShareId == slug` query when it doesn't,
-so no team's links break while their link docs are created. A team with a link
-doc is already hijack-proof.
+**Phase 1 (shipped):** the forms used the link doc when it existed and fell
+back to the legacy `teamPublic where tryoutShareId == slug` query when it
+didn't, so no team's links broke while their link docs were created.
 
-**Phase 2 (to do, once every team has its link doc):**
+**Phase 2 (shipped, after the backfill created every team's link doc):**
 
 1. Backfill every team. Easiest: GitHub → **Actions** → **Backfill
    parent-form links** → **Run workflow**, first with mode `dry-run` (reads
@@ -321,10 +320,20 @@ doc is already hijack-proof.
    `firebase-admin` and a service-account key; see the script header. It is
    emulator-tested by `scripts/test-backfill-portal-links.mjs`.) Review any
    `CONFLICT` / `SKIPPED duplicate` lines by hand.
-2. Remove the fallback query from `resolvePortalTeam` (`src/utils/portalLinks.ts`).
-3. Change `teamPublic`'s `allow read` to `allow get` in `firestore.rules`, so
+2. The fallback query is gone from `resolvePortalTeam`
+   (`src/utils/portalLinks.ts`): no link doc means no such link.
+3. `teamPublic` is `allow get` (was `allow read`) in `firestore.rules`, so
    nobody can list every team's mirror (team ids, branding, the public coach
    email).
+
+New teams need nothing extra: the coach app creates a team's link doc as soon
+as it has a share id (`TeamProvider`'s portal-link effect) and deletes the old
+one when the link is rotated. If a parent ever reports a working link that
+suddenly says "Link not found", have that team's coach open the team in the
+app (that creates the missing doc), or run the backfill workflow again.
+
+- As a parent's anonymous session, `get` a team's mirror — succeeds; list the
+  mirrors, or query them by `tryoutShareId` — denied.
 
 ## Sequencing the tryout-portal privacy fix
 

@@ -72,7 +72,8 @@ Parent-form links resolve through `artifacts/{appId}/public/data/portalLinks/{sl
 (`{ teamId }`) — a create-once, get-only doc owned by the team's members — and
 then this mirror **by id**, so another team can't hijack a link by publishing a
 mirror with the same share id (`resolvePortalTeam` in `src/utils/portalLinks.ts`;
-rollout phases in `docs/firebase-rules-rollout.md` §10).
+rollout phases in `docs/firebase-rules-rollout.md` §10). The mirror itself is
+**get-only**: it can be fetched by id but never listed or queried.
 
 When the head coach turns on **Show game and practice days on the form**
 (Availability tab, `team.availabilityShowsSchedule`), the coach client also
@@ -80,8 +81,8 @@ publishes `artifacts/{appId}/public/data/portalSchedules/{slug}`:
 `{ teamId, gameDays, practiceDays, updatedAt }`, bare `yyyy-mm-dd` dates for the
 next ~6 months and nothing else (`buildPortalSchedule` in
 `src/utils/portalSchedule.ts`). It is deliberately **not** in the mirror: the
-mirror can be listed by any signed-in session, so dates there would publish
-every team's schedule. This doc is get-only by its link, writable only by a
+mirror is fetched by team id, which isn't a secret the way the form link is
+(and the mirror was listable when this shipped). This doc is get-only by its link, writable only by a
 member under the team's current share id **and** its owned `portalLinks` doc
 (so a team that copies another's share id can't squat it), and is deleted when
 the coach turns the option off, turns Availability off, or rotates the link.
@@ -243,7 +244,7 @@ Screen action     ←useTeam()── action callback ─────→ persistT
 2. **Bootstrap**: `allow create` when `ownerId` matches the caller and the caller is a coach account (not an anonymous parent-form session) — used by `createTeam` and the `bootstrapDefaultTeam` fallback
 3. **Join by code**: `allow update` when only `members` + `coachRoles` (+ the `lastJoin` proof) change, and `lastJoin.code` equals the team's current `joinCode` — used by `joinTeamByCode` in `src/hooks/useInviteFlows.ts`. Coach accounts only. Codes resolve through `teamInvites/{code}`, which can be fetched one at a time but never listed
 
-Anonymous sessions belong to parents: the portals sign in anonymously and that session persists in the browser. The coach app treats one as signed out (`TeamProvider`'s auth listener), and the rules' `isCoachAccount()` keeps it out of team creation, joining, and invite lookups — it can read the `teamPublic` mirror and submit the forms, nothing else. 4. **Public tryouts**: `allow update` when only `tryoutSignups` changes and `tryoutsOpen == true` (and a sibling lane for `interestSignups`) — used by `TryoutsPortal.tsx` (anonymous-auth). There is deliberately **no** public _read_ of the team doc; the portal reads branding/config from the `teamPublic` mirror instead. The mirror has its own match block: `allow read` for any signed-in caller, `allow write` only for a member of the underlying team (verified via a `get()` on the real team doc).
+Anonymous sessions belong to parents: the portals sign in anonymously and that session persists in the browser. The coach app treats one as signed out (`TeamProvider`'s auth listener), and the rules' `isCoachAccount()` keeps it out of team creation, joining, and invite lookups — it can read the `teamPublic` mirror and submit the forms, nothing else. 4. **Public tryouts**: `allow update` when only `tryoutSignups` changes and `tryoutsOpen == true` (and a sibling lane for `interestSignups`) — used by `TryoutsPortal.tsx` (anonymous-auth). There is deliberately **no** public _read_ of the team doc; the portal reads branding/config from the `teamPublic` mirror instead. The mirror has its own match block: `allow get` (never `list`) for any signed-in caller, `allow write` only for a member of the underlying team (verified via a `get()` on the real team doc).
 
 User settings docs are uid-scoped: `allow read, write: if request.auth.uid == uid`.
 

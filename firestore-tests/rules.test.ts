@@ -2241,6 +2241,24 @@ describe("public mirror", () => {
     await assertFails(getDoc(doc(dbFor(JOINER), ...teamPath("team-1"))));
   });
 
+  it("never lets anyone list the mirrors — not even by share id", async () => {
+    const mirrors = (db: any) =>
+      collection(db, "artifacts", APP_ID, "public", "data", "teamPublic");
+    // A parent's form session...
+    await assertFails(getDocs(mirrors(anonFor("parent-uid"))));
+    // ...the old "find the team by its share id" lookup...
+    await assertFails(
+      getDocs(
+        query(
+          mirrors(anonFor("parent-uid")),
+          where("tryoutShareId", "==", "share-1"),
+        ),
+      ),
+    );
+    // ...or even a coach.
+    await assertFails(getDocs(mirrors(dbFor(OWNER))));
+  });
+
   it("denies a non-member writing the mirror", async () => {
     await assertFails(
       setDoc(doc(dbFor(OUTSIDER), ...mirrorPath("team-1")), { name: "X" }),

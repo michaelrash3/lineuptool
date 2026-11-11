@@ -172,8 +172,8 @@ export const PlayerInfoPortal = () => {
         // Resolve the team from the sanitized public mirror by the SAME share
         // id the Tryouts Portal uses — never the full team doc. Submissions are
         // written to the real team doc by id below.
-        // The owned link doc first, the legacy mirror query as fallback —
-        // see resolvePortalTeam. Never the full team doc.
+        // The owned link doc, then the team's mirror by id — see
+        // resolvePortalTeam. Never the full team doc.
         const found = await resolvePortalTeam(db, appId, linkSlug);
         if (cancelled) return;
 

@@ -183,6 +183,11 @@ beforeEach(() => {
   listeners.length = 0;
   teamApi = null;
   vi.clearAllMocks();
+  // clearAllMocks keeps implementations, and some tests below make getDoc
+  // report docs as existing — put the default (nothing exists) back.
+  (firestore.getDoc as any).mockImplementation(() =>
+    Promise.resolve({ exists: () => false, data: () => ({}) }),
+  );
 });
 
 describe("availability-form schedule days", () => {
@@ -249,5 +254,32 @@ describe("availability-form schedule days", () => {
     );
     expect(callsTo(firestore.setDoc, SCHEDULE)).toHaveLength(0);
     expect(teamApi).toBeTruthy();
+  });
+});
+
+describe("the form-link doc", () => {
+  it("retries a failed create — without it the team's form links are dead", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      (firestore.setDoc as any).mockImplementation((ref: any) =>
+        ref?.__path === LINK && callsTo(firestore.setDoc, LINK).length === 1
+          ? Promise.reject(new Error("unavailable"))
+          : Promise.resolve(),
+      );
+      await mount({});
+      await vi.waitFor(() =>
+        expect(callsTo(firestore.setDoc, LINK)).toHaveLength(1),
+      );
+      // Nothing changes on the team — the retry has to come by itself.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      await vi.waitFor(() =>
+        expect(callsTo(firestore.setDoc, LINK)).toHaveLength(2),
+      );
+    } finally {
+      vi.useRealTimers();
+      (firestore.setDoc as any).mockImplementation(() => Promise.resolve());
+    }
   });
 });

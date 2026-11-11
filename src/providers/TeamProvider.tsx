@@ -1698,12 +1698,15 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     });
   }, [activeTeamId, user, teamData?.joinCode, teamData?.name]);
 
-  // Backfill the owned parent-form link doc (portalLinks/{shareId} →
-  // teamId) for the active team. The forms resolve a link through it first —
-  // so another team can't hijack the link with a look-alike mirror — and fall
-  // back to the legacy mirror query only while it's missing. Fires once per
-  // (team, share id); a member's create is exactly what the rules allow.
+  // Make sure the owned parent-form link doc (portalLinks/{shareId} →
+  // teamId) exists for the active team. It is the ONLY way the forms find a
+  // team (no fallback lookup, and the mirror can't be listed), so a missing
+  // one means the team's form links say "not found". Fires once per
+  // (team, share id) — including right after a new link is generated — and
+  // retries a failed create; a member's create is exactly what the rules
+  // allow.
   const lastPortalLinkBackfillRef = useRef("");
+  const [portalLinkRetry, setPortalLinkRetry] = useState(0);
   // `${teamId}:${slug}` once that link doc is known to exist — the
   // availability-form schedule below is only allowed under a confirmed link.
   const [portalLinkReadyKey, setPortalLinkReadyKey] = useState("");
@@ -1724,11 +1727,12 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       )
       .then(() => setPortalLinkReadyKey(key))
       .catch(() => {
-        // Retry on the next change; a missing link doc only means the forms
-        // use the fallback lookup for now.
+        // Without this doc the team's form links are dead, so don't wait for
+        // the next change: try again in 30 s (and on any change before then).
         lastPortalLinkBackfillRef.current = "";
+        setTimeout(() => setPortalLinkRetry((n) => n + 1), 30_000);
       });
-  }, [activeTeamId, user, teamData?.tryoutShareId]);
+  }, [activeTeamId, user, teamData?.tryoutShareId, portalLinkRetry]);
 
   // Game and practice DAYS for the parent availability form — only while the
   // head coach has it on (team.availabilityShowsSchedule), only bare dates,
