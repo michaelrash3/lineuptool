@@ -84,13 +84,13 @@ describe("batting trend", () => {
     expect(t.batting).toEqual({ class: "insufficient", basis: null });
   });
 
-  it("is insufficient with 4 lines but season AB of 7", () => {
+  it("is insufficient with 4 games when a half has under 10 trips to the plate", () => {
     const t = soloTrend(
       lineGames([
-        { ab: 2, h: 1 },
-        { ab: 2, h: 1 },
-        { ab: 2, h: 1 },
-        { ab: 1, h: 1 },
+        { pa: 4, ab: 4, h: 2, bb: 0 },
+        { pa: 4, ab: 4, h: 2, bb: 0 },
+        { pa: 4, ab: 4, h: 2, bb: 0 },
+        { pa: 4, ab: 4, h: 2, bb: 0 },
       ]),
     );
     expect(t.batting).toEqual({ class: "insufficient", basis: null });
@@ -115,77 +115,110 @@ describe("batting trend", () => {
     expect(soloTrend(games).batting.class).toBe("insufficient");
   });
 
-  it("classifies rising recent AVG as improving and builds the cumulative series", () => {
+  it("counts a kid who walks their way on base more as improving, though their average didn't move", () => {
+    // First half: 4 hits in 12 trips (.333 on-base, .333 average). Second
+    // half: 2 hits in 6 at-bats plus 6 walks, so on base 8 of 12 (.667) and
+    // still a .333 average. The old batting-average rule called this steady.
     const t = soloTrend(
       lineGames([
-        { ab: 4, h: 0 },
-        { ab: 4, h: 1 },
-        { ab: 4, h: 2 },
-        { ab: 4, h: 3 },
+        { pa: 6, ab: 6, h: 2, bb: 0 },
+        { pa: 6, ab: 6, h: 2, bb: 0 },
+        { pa: 6, ab: 3, h: 1, bb: 3 },
+        { pa: 6, ab: 3, h: 1, bb: 3 },
       ]),
     );
-    // baseline 6/16 = .375; recent (last 3) 6/12 = .500
     expect(t.batting.class).toBe("improving");
-    expect(t.batting.basis).toBe("avg");
-    expect(t.batting.delta).toBeCloseTo(0.125, 10);
-    expect(t.batting.series).toEqual([0, 0.125, 0.25, 0.375]);
+    expect(t.batting.basis).toBe("obp");
+    expect(t.batting.earlier).toBeCloseTo(1 / 3, 10);
+    expect(t.batting.recent).toBeCloseTo(2 / 3, 10);
+    expect(t.batting.delta).toBeCloseTo(1 / 3, 10);
+    // Running season on-base after each game.
+    expect(t.batting.series).toEqual([2 / 6, 4 / 12, 8 / 18, 12 / 24]);
   });
 
-  it("classifies falling recent AVG as declining", () => {
+  it("calls the same games in reverse declining", () => {
     const t = soloTrend(
       lineGames([
-        { ab: 4, h: 3 },
-        { ab: 4, h: 2 },
-        { ab: 4, h: 1 },
-        { ab: 4, h: 0 },
+        { pa: 6, ab: 3, h: 1, bb: 3 },
+        { pa: 6, ab: 3, h: 1, bb: 3 },
+        { pa: 6, ab: 6, h: 2, bb: 0 },
+        { pa: 6, ab: 6, h: 2, bb: 0 },
       ]),
     );
     expect(t.batting.class).toBe("declining");
-    expect(t.batting.delta).toBeCloseTo(-0.125, 10);
+    expect(t.batting.delta).toBeCloseTo(-1 / 3, 10);
   });
 
-  it("treats a delta of exactly +0.02 as steady", () => {
-    // baseline 30/240 = .125; recent 29/200 = .145 → delta exactly +0.02
+  it("calls a move inside the usual luck swing steady", () => {
+    // .333 → .500 on 12 trips a side: about what luck alone does (the swing
+    // here is ~.201), so it isn't a trend yet.
     const t = soloTrend(
       lineGames([
-        { ab: 40, h: 1 },
-        { ab: 100, h: 15 },
-        { ab: 50, h: 7 },
-        { ab: 50, h: 7 },
+        { pa: 6, ab: 6, h: 2, bb: 0 },
+        { pa: 6, ab: 6, h: 2, bb: 0 },
+        { pa: 6, ab: 6, h: 3, bb: 0 },
+        { pa: 6, ab: 6, h: 3, bb: 0 },
       ]),
     );
     expect(t.batting.class).toBe("steady");
-    expect(t.batting.delta).toBeCloseTo(0.02, 10);
+    expect(t.batting.delta).toBeCloseTo(1 / 6, 10);
+    expect(t.batting.threshold).toBeCloseTo(0.2013, 3);
   });
 
-  it("classifies a delta just above +0.02 as improving", () => {
-    // baseline 100/800 = .125; recent 73/500 = .146 → delta +0.021
+  it("needs at least a .050 move however big the sample", () => {
+    // 400 trips a side shrinks the luck swing to ~.033; the .050 floor holds.
+    const half = (on: number) => [
+      { pa: 200, ab: 200, h: on, bb: 0 },
+      { pa: 200, ab: 200, h: on, bb: 0 },
+    ];
+    const up6 = soloTrend(lineGames([...half(60), ...half(72)]));
+    expect(up6.batting.threshold).toBeCloseTo(0.05, 10);
+    expect(up6.batting.class).toBe("improving"); // .300 → .360
+    const up4 = soloTrend(lineGames([...half(60), ...half(68)]));
+    expect(up4.batting.class).toBe("steady"); // .300 → .340
+  });
+
+  it("uses GameChanger's OBP on lines imported before walks were read", () => {
     const t = soloTrend(
       lineGames([
-        { ab: 300, h: 27 },
-        { ab: 200, h: 30 },
-        { ab: 200, h: 29 },
-        { ab: 100, h: 14 },
+        { pa: 6, ab: 5, h: 1, obp: 1 / 3 },
+        { pa: 6, ab: 5, h: 1, obp: 1 / 3 },
+        { pa: 6, ab: 3, h: 2, bb: 3 },
+        { pa: 6, ab: 3, h: 2, bb: 3 },
       ]),
     );
+    expect(t.batting.basis).toBe("obp");
+    expect(t.batting.earlier).toBeCloseTo(1 / 3, 10);
+    expect(t.batting.recent).toBeCloseTo(5 / 6, 10);
     expect(t.batting.class).toBe("improving");
-    expect(t.batting.delta).toBeCloseTo(0.021, 10);
   });
 
-  it("falls back to QAB% when no AVG comparable exists", () => {
-    // Lines carry AB (so the sample guard passes) but no H → no AVG.
+  it("falls back to batting average when the lines can't say how often the kid got on", () => {
     const t = soloTrend(
       lineGames([
-        { ab: 2, qab: 0.2 },
-        { ab: 2, qab: 0.4 },
-        { ab: 2, qab: 0.4 },
-        { ab: 2, qab: 0.4 },
+        { ab: 6, h: 1 },
+        { ab: 6, h: 1 },
+        { ab: 6, h: 5 },
+        { ab: 6, h: 5 },
+      ]),
+    );
+    expect(t.batting.basis).toBe("avg");
+    expect(t.batting.class).toBe("improving");
+    expect(t.batting.delta).toBeCloseTo(8 / 12, 10);
+  });
+
+  it("falls back to QAB% when there's no on-base or average to compare", () => {
+    const t = soloTrend(
+      lineGames([
+        { pa: 6, qab: 0.2 },
+        { pa: 6, qab: 0.2 },
+        { pa: 6, qab: 0.8 },
+        { pa: 6, qab: 0.8 },
       ]),
     );
     expect(t.batting.basis).toBe("qab");
     expect(t.batting.class).toBe("improving");
-    // baseline mean .35 vs recent mean .40
-    expect(t.batting.delta).toBeCloseTo(0.05, 10);
+    expect(t.batting.delta).toBeCloseTo(0.6, 10);
   });
 });
 
@@ -321,14 +354,14 @@ describe("position trend", () => {
 
 describe("overall vote and roster handling", () => {
   it("improving + declining + steady signals net out to steady", () => {
-    // Batting improving (rising AVG), evals declining (-10), positions steady
-    // (same lone position in both halves).
+    // Batting improving (on-base .167 → .750), evals declining (-10),
+    // positions steady (same lone position in both halves).
     const t = soloTrend(
       lineGames([
-        { ab: 4, h: 0, fInnSS: 3 },
-        { ab: 4, h: 1, fInnSS: 3 },
-        { ab: 4, h: 2, fInnSS: 3 },
-        { ab: 4, h: 3, fInnSS: 3 },
+        { pa: 6, ab: 6, h: 1, bb: 0, fInnSS: 3 },
+        { pa: 6, ab: 6, h: 1, bb: 0, fInnSS: 3 },
+        { pa: 6, ab: 6, h: 4, bb: 0, fInnSS: 3 },
+        { pa: 6, ab: 6, h: 5, bb: 0, fInnSS: 3 },
       ]),
       [
         round("r1", "2026-04-01", { p1: { score: 60 } }),

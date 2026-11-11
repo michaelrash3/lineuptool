@@ -784,7 +784,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       },
       {
         heading: "Recent form",
-        body: "With per-game imports, recent form compares a player's last few games against their season line, so you can see who's heating up before the season averages catch up.",
+        body: "With per-game imports, recent form compares a player's last 3 games against the games before them, so you can see who's heating up before the season averages catch up. It goes by on-base percentage, so walks count. A player is Hot or Cold only when the change is bigger than the usual swing from luck for that many trips to the plate; a 2-for-3 day isn't a streak. Hover a Form cell to see the numbers behind it.",
       },
     ],
     related: ["gamechanger-import", "season-trends"],
@@ -821,6 +821,10 @@ export const HELP_TOPICS: HelpTopic[] = [
     sections: [
       {
         body: "The Development view blends three signals per player — batting production, evaluation scores, and position variety — into an improving, steady, or declining read, so a kid trending down gets attention before the season ends.",
+      },
+      {
+        heading: "The batting signal",
+        body: "Batting compares on-base percentage in the second half of the season's imported games against the first half. A change counts only when it's bigger than luck alone would explain for that many trips to the plate, and at least .050, so a kid isn't marked declining over one rough weekend. Hover the number to see both halves.",
       },
       {
         heading: "Development report",

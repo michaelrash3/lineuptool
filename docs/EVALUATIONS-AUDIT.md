@@ -408,8 +408,20 @@ NKB 6U–8U "big bat" slots read the batting value instead of raw OPS. Roster
 Decisions compares each kid's batting value to the team average and counts
 only kids with 15+ PA, replacing the raw OPS ratio, which had no minimum.
 
-**Still open.** The development-trend view (`playerDevelopment.ts`
-`battingTrend`, and the Stats tab's Recent Form) calls a kid hot or cold from
-AVG over the last 3 games against ±.020. At about 10 PA that's noise. It
-should move to OBP over a ≥15-PA window, with a threshold sized to the
-sample.
+**Hitting trends.** The development trends (`playerDevelopment.ts`
+`battingTrend`) and the Stats tab's Recent Form used to call a kid hot or
+cold from AVG over the last 3 games against ±.020. At about 10 PA that's
+noise. Both now go through `utils/hittingForm.ts`:
+
+- They compare on-base percentage, falling back to AVG and then QAB% only
+  when a game line can't give on-base, with the same basis on both sides.
+  On-base comes from H + BB + HBP when walks were imported, and from the
+  line's own OBP otherwise. Lines imported before walks were read still
+  carry that OBP.
+- A move counts only when it beats one standard error of the difference for
+  the trips on each side, with a .050 floor.
+- The development trend compares the second half of the season's games
+  against the first half (10+ trips each). Recent Form compares the last 3
+  games against the games before them (8+ and 10+ trips), falling back to
+  the season line when earlier games weren't imported one by one.
+- Scrimmages are left out of both.

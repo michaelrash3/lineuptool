@@ -27,12 +27,33 @@ import {
   analyzePitchingWorkload,
   resolvePitchRuleSet,
 } from "../lineupEngine";
-import {
-  recentGameLines,
-  aggregateGameLines,
-  isRosterPlayer,
-} from "../utils/helpers";
+import { aggregateGameLines, isRosterPlayer } from "../utils/helpers";
 import { ageFromTeamAge, isKidPitchFormat } from "../constants/ui";
+import {
+  compareHittingForm,
+  countedGameLines,
+  formSample,
+  formatFormDelta,
+  FORM_BASIS_LABEL,
+  type HittingForm,
+} from "../utils/hittingForm";
+
+// Recent Form looks at each hitter's last this-many imported games.
+const RECENT_FORM_GAMES = 3;
+
+// "Recent on-base .583, .400 before (needed a +.173 move)" for a Form cell.
+const formTitle = (form: HittingForm): string => {
+  if (form.class === "insufficient" || !form.basis) {
+    return "Not enough trips to the plate yet to tell";
+  }
+  const rate = (v?: number) =>
+    v == null
+      ? "—"
+      : form.basis === "qab"
+        ? `${(v * 100).toFixed(0)}%`
+        : v.toFixed(3).replace(/^0\./, ".");
+  return `Recent ${FORM_BASIS_LABEL[form.basis]} ${rate(form.recent)}, ${rate(form.earlier)} before (needed a ${formatFormDelta(form.threshold ?? 0, form.basis)} move)`;
+};
 import { Sparkline } from "../components/charts/Sparkline";
 import {
   CATEGORIES,
@@ -385,46 +406,46 @@ export const StatsTab = memo(() => {
   }, [players, evaluationEvents, team, games, scopedStatsForPlayer]);
 
   // Recent form — from per-game imported stat lines (Schedule → Import Stats
-  // on a finalized game). Aggregates each player's last 3 game lines and
-  // compares recent AVG (or QAB% when AVG is absent) against their season
-  // number: hot ↑, cold ↓. Players without per-game lines don't appear.
+  // on a finalized game). Each player's last 3 games against the games before
+  // them, by on-base percentage, through the same comparison the development
+  // trends use (utils/hittingForm.ts): hot / cold only when the move beats the
+  // usual luck swing for that many trips to the plate. A player whose earlier
+  // games weren't imported game by game is measured against the season line
+  // instead. Players without per-game lines don't appear.
   const recentForm = useMemo(() => {
     type RecentFormRow = {
       p: Player;
       agg: Record<string, number>;
+      obp: number | null;
       games: number;
-      delta: number | null;
-      basis: "avg" | "qab" | null;
+      form: HittingForm;
     };
     return players
       .map((p): RecentFormRow | null => {
-        const lines = recentGameLines(filteredGames, p.id, 3);
-        if (lines.length === 0) return null;
-        const agg = aggregateGameLines(lines.map((l) => l.line));
-        const scopedStats = scopedStatsForPlayer(p);
-        const seasonAvg = Number(scopedStats?.avg);
-        const seasonQab = Number(scopedStats?.qab);
-        let delta: number | null = null;
-        let basis: "avg" | "qab" | null = null;
-        if (
-          Number.isFinite(agg.avg) &&
-          Number.isFinite(seasonAvg) &&
-          seasonAvg > 0
-        ) {
-          delta = agg.avg - seasonAvg;
-          basis = "avg";
-        } else if (
-          Number.isFinite(agg.qab) &&
-          Number.isFinite(seasonQab) &&
-          seasonQab > 0
-        ) {
-          delta = agg.qab - seasonQab;
-          basis = "qab";
+        const all = countedGameLines(filteredGames, p.id).map((l) => l.line);
+        if (all.length === 0) return null;
+        const recentLines = all.slice(-RECENT_FORM_GAMES);
+        const earlierLines = all.slice(0, -RECENT_FORM_GAMES);
+        let form = compareHittingForm(earlierLines, recentLines);
+        if (form.class === "insufficient") {
+          const season = scopedStatsForPlayer(p);
+          if (season && Object.keys(season).length > 0) {
+            const vsSeason = compareHittingForm([season], recentLines);
+            if (vsSeason.class !== "insufficient") form = vsSeason;
+          }
         }
-        return { p, agg, games: lines.length, delta, basis };
+        return {
+          p,
+          agg: aggregateGameLines(recentLines as Array<Record<string, number>>),
+          obp: formSample(recentLines, "obp")?.rate ?? null,
+          games: recentLines.length,
+          form,
+        };
       })
       .filter((r): r is RecentFormRow => r !== null)
-      .sort((a, b) => (b.delta ?? -Infinity) - (a.delta ?? -Infinity));
+      .sort(
+        (a, b) => (b.form.delta ?? -Infinity) - (a.form.delta ?? -Infinity),
+      );
   }, [filteredGames, players, scopedStatsForPlayer]);
 
   // Per-player eval-grade trend (avg grade per Head round, chronological) for
@@ -804,6 +825,7 @@ export const StatsTab = memo(() => {
                           <th className="p-2.5 t-eyebrow text-center">PA</th>
                           <th className="p-2.5 t-eyebrow text-center">AB</th>
                           <th className="p-2.5 t-eyebrow text-center">H</th>
+                          <th className="p-2.5 t-eyebrow text-center">OBP</th>
                           <th className="p-2.5 t-eyebrow text-center">AVG</th>
                           <th className="p-2.5 t-eyebrow text-center">QAB%</th>
                           <th className="p-2.5 t-eyebrow text-center">Hard%</th>
@@ -811,67 +833,63 @@ export const StatsTab = memo(() => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-line">
-                        {recentForm.map(
-                          ({ p, agg, games: n, delta, basis }) => (
-                            <tr key={p.id} className="hover:bg-surface-2">
-                              <td className="p-2">
-                                <button
-                                  type="button"
-                                  onClick={() => openPlayerProfile(p.id)}
-                                  className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
-                                >
-                                  {p.name}
-                                </button>
-                              </td>
-                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                                {n}
-                              </td>
-                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                                {fmt(numOf(agg.pa), "int")}
-                              </td>
-                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                                {fmt(numOf(agg.ab), "int")}
-                              </td>
-                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                                {fmt(numOf(agg.h), "int")}
-                              </td>
-                              <td className="p-2 text-center tabular-nums font-black text-ink">
-                                {fmt(numOf(agg.avg), "dec3")}
-                              </td>
-                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                                {fmt(numOf(agg.qab), "pct")}
-                              </td>
-                              <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                                {fmt(numOf(agg.hard), "pct")}
-                              </td>
-                              <td className="p-2 text-center">
-                                {delta == null ? (
-                                  <span className="text-ink-3 font-bold">
-                                    —
-                                  </span>
-                                ) : delta > 0.02 ? (
-                                  <span
-                                    className="text-xs font-black uppercase tracking-widest text-win"
-                                    title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} above season`}
-                                  >
-                                    Hot ↑
-                                  </span>
-                                ) : delta < -0.02 ? (
-                                  <span
-                                    className="text-xs font-black uppercase tracking-widest text-loss"
-                                    title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} below season`}
-                                  >
-                                    Cold ↓
-                                  </span>
-                                ) : (
-                                  <span className="text-xs font-black uppercase tracking-widest text-ink-3">
-                                    Steady
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          ),
-                        )}
+                        {recentForm.map(({ p, agg, obp, games: n, form }) => (
+                          <tr key={p.id} className="hover:bg-surface-2">
+                            <td className="p-2">
+                              <button
+                                type="button"
+                                onClick={() => openPlayerProfile(p.id)}
+                                className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
+                              >
+                                {p.name}
+                              </button>
+                            </td>
+                            <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                              {n}
+                            </td>
+                            <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                              {fmt(numOf(agg.pa), "int")}
+                            </td>
+                            <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                              {fmt(numOf(agg.ab), "int")}
+                            </td>
+                            <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                              {fmt(numOf(agg.h), "int")}
+                            </td>
+                            <td className="p-2 text-center tabular-nums font-black text-ink">
+                              {fmt(obp ?? undefined, "dec3")}
+                            </td>
+                            <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                              {fmt(numOf(agg.avg), "dec3")}
+                            </td>
+                            <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                              {fmt(numOf(agg.qab), "pct")}
+                            </td>
+                            <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                              {fmt(numOf(agg.hard), "pct")}
+                            </td>
+                            <td
+                              className="p-2 text-center"
+                              title={formTitle(form)}
+                            >
+                              {form.class === "improving" ? (
+                                <span className="text-xs font-black uppercase tracking-widest text-win">
+                                  Hot ↑
+                                </span>
+                              ) : form.class === "declining" ? (
+                                <span className="text-xs font-black uppercase tracking-widest text-loss">
+                                  Cold ↓
+                                </span>
+                              ) : form.class === "steady" ? (
+                                <span className="text-xs font-black uppercase tracking-widest text-ink-3">
+                                  Steady
+                                </span>
+                              ) : (
+                                <span className="text-ink-3 font-bold">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>

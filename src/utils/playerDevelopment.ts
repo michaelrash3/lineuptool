@@ -4,7 +4,12 @@
 // in stats.ts / season.ts so the numbers here can never drift from the ones
 // the Stats tab shows.
 
-import { aggregateGameLines, seasonSeriesFromGameLines } from "./stats";
+import {
+  compareHittingForm,
+  countedGameLines,
+  runningFormSeries,
+  type FormBasis,
+} from "./hittingForm";
 import { countsTowardStats } from "./gameStatus";
 import { buildSeasonPositionVariety, POSITION_INNINGS_FIELDS } from "./season";
 import { currentEvaluationScore100 } from "./evaluationScore";
@@ -22,12 +27,13 @@ import type {
 // ============================================================================
 // Trend heuristics — the single source of truth for "is this kid trending up":
 //
-// Batting — needs ≥ 4 imported game lines AND season AB ≥ 8 (else the sample
-//   is noise). recent = the last 3 lines aggregated; baseline = ALL lines
-//   aggregated. Compare AVG when both sides have one (baseline > 0), falling
-//   back to QAB% — the same comparable the Stats tab's Recent Form picks.
-//   delta > +0.02 improving, < -0.02 declining, else steady (the exact ±0.02
-//   Hot/Cold classification from Recent Form).
+// Batting — on-base percentage, second half of the season's games against
+//   the first half (an odd count gives the extra game to the first half, as
+//   Positions does). Needs ≥ 4 imported game lines and ≥ 10 trips to the
+//   plate in each half. A move counts only when it beats the usual luck swing
+//   for that many trips (and is at least .050); utils/hittingForm.ts has the
+//   math and the fallbacks (AVG, then QAB%) for lines without on-base, and
+//   the Stats tab's Recent Form uses the same comparison.
 //
 // Evals — rounds selected exactly like PlayerDevelopmentReport's useEvalTrend:
 //   skip tryout rounds, keep rounds that graded this player, chronological by
@@ -54,7 +60,11 @@ export interface TrendSignal {
 }
 
 export interface BattingTrend extends TrendSignal {
-  basis: "avg" | "qab" | null;
+  basis: FormBasis | null;
+  // First-half and second-half rates, and the move that had to be beaten.
+  earlier?: number;
+  recent?: number;
+  threshold?: number;
 }
 
 export interface EvalTrend extends TrendSignal {
@@ -79,9 +89,7 @@ export interface PlayerDevelopmentTrend {
 }
 
 const BATTING_MIN_LINES = 4;
-const BATTING_MIN_AB = 8;
-const BATTING_RECENT_LINES = 3;
-const BATTING_DELTA = 0.02;
+const BATTING_MIN_TRIPS_PER_HALF = 10;
 const EVAL_MIN_ROUNDS = 2;
 const EVAL_DELTA = 4;
 const POSITION_MIN_LINES = 4;
@@ -101,48 +109,22 @@ const battingTrend = (
   playerId: string,
 ): BattingTrend => {
   const insufficient: BattingTrend = { class: "insufficient", basis: null };
-  const withLines = countedGamesWithLine(games, playerId);
-  const lines = withLines.map((g) => g.playerStats![playerId]);
+  const lines = countedGameLines(games, playerId).map((l) => l.line);
   if (lines.length < BATTING_MIN_LINES) return insufficient;
-
-  const baseline = aggregateGameLines(lines);
-  if (!(Number(baseline.ab) >= BATTING_MIN_AB)) return insufficient;
-  const recent = aggregateGameLines(lines.slice(-BATTING_RECENT_LINES));
-
-  let basis: "avg" | "qab";
-  let delta: number;
-  if (
-    Number.isFinite(recent.avg) &&
-    Number.isFinite(baseline.avg) &&
-    baseline.avg > 0
-  ) {
-    basis = "avg";
-    delta = recent.avg - baseline.avg;
-  } else if (
-    Number.isFinite(recent.qab) &&
-    Number.isFinite(baseline.qab) &&
-    baseline.qab > 0
-  ) {
-    basis = "qab";
-    delta = recent.qab - baseline.qab;
-  } else {
-    return insufficient;
-  }
-
-  const series = seasonSeriesFromGameLines(withLines, playerId)
-    .map((s) => s[basis])
-    .filter((v): v is number => Number.isFinite(v));
-
+  const split = Math.ceil(lines.length / 2);
+  const form = compareHittingForm(lines.slice(0, split), lines.slice(split), {
+    minEarlier: BATTING_MIN_TRIPS_PER_HALF,
+    minRecent: BATTING_MIN_TRIPS_PER_HALF,
+  });
+  if (form.class === "insufficient" || !form.basis) return insufficient;
   return {
-    class:
-      delta > BATTING_DELTA
-        ? "improving"
-        : delta < -BATTING_DELTA
-          ? "declining"
-          : "steady",
-    delta,
-    basis,
-    series,
+    class: form.class,
+    delta: form.delta,
+    basis: form.basis,
+    earlier: form.earlier,
+    recent: form.recent,
+    threshold: form.threshold,
+    series: runningFormSeries(lines, form.basis),
   };
 };
 
