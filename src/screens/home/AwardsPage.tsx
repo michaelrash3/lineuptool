@@ -74,8 +74,14 @@ export const AwardsPage = memo(() => {
 
   const improver = useMemo(() => {
     const overallOf = (g: any, p: any) =>
-      currentEvaluationScore100(g, p, team?.teamAge, null, extraCategories) ??
-      undefined;
+      currentEvaluationScore100(
+        g,
+        p,
+        team?.teamAge,
+        null,
+        extraCategories,
+        team?.pitchingFormat,
+      ) ?? undefined;
     let best: any = null;
     let bestDelta = 0;
     for (const p of players) {
@@ -100,7 +106,13 @@ export const AwardsPage = memo(() => {
     return best
       ? { playerId: best.id, value: `+${bestDelta.toFixed(1)}` }
       : null;
-  }, [players, evaluationEvents, team?.teamAge, extraCategories]);
+  }, [
+    players,
+    evaluationEvents,
+    team?.teamAge,
+    team?.pitchingFormat,
+    extraCategories,
+  ]);
 
   const ironman = useMemo(() => {
     const maps = [

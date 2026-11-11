@@ -36,7 +36,12 @@ export type { CatcherPolicy } from "./lineupEngine/eligibility";
 export {
   getCombinedGrades,
   statContactGrade,
+  statOnBaseGrade,
   statPowerGrade,
+  hittingTier,
+  plateAppearances,
+  HITTING_WEIGHTS,
+  HITTING_SAMPLE_K,
   statFieldingGrade,
   statArmGrade,
   statBlockingGrade,
@@ -44,6 +49,7 @@ export {
   getOffensiveScore,
   calcVelocityQuality,
 } from "./lineupEngine/grades";
+export type { HittingContext, HittingTier } from "./lineupEngine/grades";
 
 // --- Total score ---
 export {

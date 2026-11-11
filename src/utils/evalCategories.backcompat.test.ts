@@ -315,8 +315,11 @@ const team = {
 // supposed to change that, and only that.
 const aggregateNumbers = (config?: EvalCategoryConfig) => {
   const extra = scoredCustomCategories(config);
+  // Scored the way the screens score this team: age group AND pitching
+  // format (they pick the hitting tier — kid pitch through 12U here).
   const combined = getCombinedGrades(evaluationEvents, players, {
     teamAge: TEAM_AGE,
+    pitchingFormat: FORMAT,
     extraCategories: extra,
   });
   return {
@@ -331,12 +334,16 @@ const aggregateNumbers = (config?: EvalCategoryConfig) => {
           TEAM_AGE,
           null,
           extra,
+          FORMAT,
         ),
       ),
     ),
     // Engine total off the merged map.
     totals: players.map((p) =>
-      calculateTotalScore(combined[p.id], p.stats, extra),
+      calculateTotalScore(combined[p.id], p.stats, extra, {
+        teamAge: TEAM_AGE,
+        pitchingFormat: FORMAT,
+      }),
     ),
     // Round-over-round comparison averages.
     perRoundAverages: evaluationEvents.map((round: any) =>
@@ -354,6 +361,16 @@ const aggregateNumbers = (config?: EvalCategoryConfig) => {
 // behavior change — this literal is the record of what every existing team's
 // evaluations already look like.
 // ---------------------------------------------------------------------------
+// Regenerated for the hitting recalibration (Nov 2026), a deliberate
+// behavior change: hitting is now graded from stats as on-base (OBP),
+// strikeout avoidance and power, weighted by age/pitching format (kid pitch
+// through 12U here, where on-base counts most and a walk counts like a
+// double), each shrunk by sample size — replacing the old offensive score,
+// where OBP barely moved the total. Stats now come BEFORE a stored
+// Contact/Power value, and new rounds no longer seed Power/Glove/Arm with 3,
+// so `sanitized` carries only what a coach grades (plus real seeded values).
+// A kid with no stats moves 58 → 60: all-neutral grades are now exactly
+// 60/100 (the old offensive slot's neutral sat below the grades' neutral).
 const LEGACY_AGGREGATE = {
   combined: {
     p1: {
@@ -366,11 +383,12 @@ const LEGACY_AGGREGATE = {
       blocking: 3,
       receiving: 3,
       pitchVelo: 44,
-      power: 4,
+      power: 4.2,
       glove: 4.1,
       armStrength: 3.8,
       armAccuracy: 3.8,
-      contact: 4.2,
+      onBase: 3.1,
+      contact: 3.9,
       fielding: 4.1,
       range: 4.1,
       arm: 3.8,
@@ -386,8 +404,9 @@ const LEGACY_AGGREGATE = {
       composure: 4,
       blocking: 4,
       receiving: 3,
-      contact: 2.4,
-      power: 2.2,
+      onBase: 2.5,
+      contact: 2.6,
+      power: 2.7,
       fielding: 3.2,
       glove: 3.2,
       range: 3.2,
@@ -405,8 +424,7 @@ const LEGACY_AGGREGATE = {
       composure: 3,
       blocking: 3,
       receiving: 3,
-      contact: 2.8,
-      power: 2.3,
+      onBase: 2.5,
       fielding: 2.7,
       glove: 2.7,
       range: 2.7,
@@ -421,8 +439,7 @@ const LEGACY_AGGREGATE = {
       blocking: 3,
       receiving: 2,
       pitchVelo: 38,
-      contact: 2.9,
-      power: 2.5,
+      onBase: 2.7,
       arm: 2.6,
       armStrength: 2.6,
       armAccuracy: 2.6,
@@ -437,14 +454,14 @@ const LEGACY_AGGREGATE = {
     },
   },
   perRoundScores: [
-    [87, 63, 55, 46, null],
-    [78, null, 57, null, null],
-    [79, 50, null, null, null],
-    [77, 53, null, null, null],
-    [82, null, 46, null, null],
-    [74, null, null, null, null],
+    [85, 65, 62, 50, null],
+    [76, null, 64, null, null],
+    [76, 52, null, null, null],
+    [74, 54, null, null, null],
+    [79, null, 52, null, null],
+    [71, null, null, null, null],
   ],
-  totals: [87, 62, 59, 50, 58],
+  totals: [83, 64, 66, 55, 60],
   perRoundAverages: [
     [4.4, 3.5, 3.5, 2.5, null],
     [4.4, null, 3.6, null, null],
@@ -456,10 +473,6 @@ const LEGACY_AGGREGATE = {
   sanitized: [
     {
       approach: 5,
-      power: 4,
-      glove: 4,
-      armStrength: 5,
-      armAccuracy: 4,
       speed: 4,
       baserunning: 4,
       baseballIQ: 5,
@@ -467,6 +480,10 @@ const LEGACY_AGGREGATE = {
       composure: 4,
       blocking: 3,
       receiving: 3,
+      power: 4,
+      glove: 4,
+      armStrength: 5,
+      armAccuracy: 4,
       // The radar reading survives sanitize verbatim. This literal used to
       // read 5: pitchVelo is an mph MEASUREMENT, not a 1-5 grade, and the
       // clamp rewrote it — so Copy From Last Round destroyed the reading and
@@ -478,10 +495,6 @@ const LEGACY_AGGREGATE = {
     },
     {
       approach: 3,
-      power: 3,
-      glove: 3,
-      armStrength: 3,
-      armAccuracy: 3,
       speed: 2,
       baserunning: 3,
       baseballIQ: 4,
@@ -492,10 +505,6 @@ const LEGACY_AGGREGATE = {
     },
     {
       approach: 3,
-      power: 3,
-      glove: 3,
-      armStrength: 3,
-      armAccuracy: 3,
       speed: 4,
       baserunning: 4,
       baseballIQ: 3,
@@ -506,10 +515,6 @@ const LEGACY_AGGREGATE = {
     },
     {
       approach: 2,
-      power: 3,
-      glove: 3,
-      armStrength: 3,
-      armAccuracy: 3,
       speed: 3,
       baserunning: 2,
       baseballIQ: 3,
@@ -522,10 +527,6 @@ const LEGACY_AGGREGATE = {
     },
     {
       approach: 3,
-      power: 3,
-      glove: 3,
-      armStrength: 3,
-      armAccuracy: 3,
       speed: 3,
       baserunning: 3,
       baseballIQ: 3,
@@ -685,12 +686,12 @@ describe("adding a category never restates a saved round", () => {
   it("widens the score denominator by exactly the category's weight", () => {
     const extra = scoredCustomCategories(added);
     const graded = { ...(evaluationEvents[0] as any).grades.p1 };
-    // TOTAL_SCORE_MAX (105) + 5 × the fixed custom weight (1.5) = 112.5.
+    // TOTAL_SCORE_MAX (115) + 5 × the fixed custom weight (1.5) = 122.5.
     expect(totalScoreMaxFor(graded, extra)).toBe(TOTAL_SCORE_MAX);
     expect(totalScoreMaxFor({ ...graded, custom_bunting: 3 }, extra)).toBe(
       TOTAL_SCORE_MAX + 5 * CUSTOM_EVAL_CATEGORY_WEIGHT,
     );
-    // Frozen: a top grade on the added category moves Ace 87 → 88.
+    // Frozen: a top grade on the added category moves Ace 85 → 86.
     expect(
       currentEvaluationScore100(
         { ...graded, custom_bunting: 5 },
@@ -698,8 +699,9 @@ describe("adding a category never restates a saved round", () => {
         TEAM_AGE,
         null,
         extra,
+        FORMAT,
       ),
-    ).toBe(88);
+    ).toBe(86);
   });
 
   it("carries the category through the head+assistant merge", () => {

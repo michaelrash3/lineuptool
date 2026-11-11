@@ -75,6 +75,7 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     evaluationEvents,
     games,
     teamAge,
+    pitchingFormat,
   });
 
   const defSizeNum = parseInt(defenseSize, 10) || 9;

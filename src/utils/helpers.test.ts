@@ -1734,7 +1734,12 @@ describe("public-form input hygiene", () => {
 
 describe("evalStatHint", () => {
   it("maps categories to the right objective stat and formats it", () => {
-    expect(evalStatHint("contact", { avg: 0.312 })).toBe("AVG .312");
+    // Contact now reads strikeouts per plate appearance; Approach shows the
+    // on-base result swing decisions earn.
+    expect(evalStatHint("contact", { k: 6, pa: 40 })).toBe("K 15%");
+    expect(evalStatHint("contact", { contact: 0.8 })).toBe("C% 80%");
+    expect(evalStatHint("approach", { obp: 0.455, qab: 0.5 })).toBe("OBP .455");
+    expect(evalStatHint("approach", { qab: 0.5 })).toBe("QAB 50%");
     expect(evalStatHint("fielding", { fFpct: 0.95 })).toBe("FPCT .950");
     expect(evalStatHint("strikes", { pStrikePct: 0.62 })).toBe("S% 62%");
     expect(evalStatHint("throwing", { fCsPct: 0.4 })).toBe("CS% 40%");
@@ -1927,6 +1932,28 @@ describe("parseGameChangerStatsCsv", () => {
     const out = parseGameChangerStatsCsv(csv) as any;
     expect(out.error).toBeUndefined();
     expect(out.rows[0].patch).toMatchObject({ pa: 5, ab: 3, h: 2 });
+  });
+
+  it("reads walks, hit-by-pitch and slugging — the on-base and power grades need them", () => {
+    const csv =
+      "First,Last,PA,AB,H,BB,HBP,SO,SLG\n" + "Sammy,Sosa,40,30,10,9,1,6,.367\n";
+    const out = parseGameChangerStatsCsv(csv) as any;
+    expect(out.rows[0].patch).toMatchObject({
+      pa: 40,
+      ab: 30,
+      h: 10,
+      bb: 9,
+      hbp: 1,
+      k: 6,
+      slg: 0.367,
+    });
+  });
+
+  it("takes QAB% over the QAB count when an export has both", () => {
+    const csv =
+      "First,Last,AB,H,AVG,QAB,QAB%\n" + "Sammy,Sosa,30,10,.333,14,46.7%\n";
+    const out = parseGameChangerStatsCsv(csv) as any;
+    expect(out.rows[0].patch.qab).toBeCloseTo(0.467, 3);
   });
 
   it("leaves PA out of the patch when the export has no PA column", () => {

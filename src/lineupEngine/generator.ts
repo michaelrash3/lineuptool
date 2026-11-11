@@ -143,6 +143,7 @@ export function generateLineup(input: EngineInput): EngineResult {
     evaluationEvents,
     games,
     teamAge,
+    pitchingFormat,
   });
 
   // D4 — pitcher pool. For 9U+ Kid Pitch we rank the staff by

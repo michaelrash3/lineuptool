@@ -407,6 +407,7 @@ export const useTeamLifecycle = ({
         practices: teamData.practices || [],
         evaluationEvents: teamData.evaluationEvents || [],
         teamAge: teamData.teamAge,
+        pitchingFormat: teamData.pitchingFormat,
         // The team's own eval categories, so an archived summary scores the
         // same way the live screens did (utils/evalCategories.ts).
         extraCategories: scoredCustomCategories(

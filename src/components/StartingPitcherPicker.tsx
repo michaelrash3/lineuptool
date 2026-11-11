@@ -74,6 +74,7 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
       isKidPitch
         ? getCombinedGrades(evaluationEvents || [], players || [], {
             teamAge,
+            pitchingFormat: team.pitchingFormat,
             games: team.games || [],
           })
         : null,

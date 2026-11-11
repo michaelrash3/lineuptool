@@ -2,7 +2,8 @@
 // Normalized 0–100 "total score" blending defensive grades with offense.
 import type { GradeMap, PlayerStats } from "../types";
 import {
-  getOffensiveScore,
+  HITTING_WEIGHTS,
+  hittingTier,
   numOrNull,
   gloveOf,
   rangeOf,
@@ -13,9 +14,11 @@ import {
   approachOf,
   powerOf,
   statContactGrade,
+  statOnBaseGrade,
   statPowerGrade,
   statFieldingGrade,
   statArmGrade,
+  type HittingContext,
 } from "./grades";
 
 // Sum of universal-category weights, used to derive the normalized 0–100
@@ -23,10 +26,13 @@ import {
 // the matching divisor automatically.
 const TOTAL_SCORE_CATEGORY_WEIGHTS =
   // glove + range + armStr + armAcc + baserunning + baseballIQ +
-  // coachability(3.0) + contact + power + plateDiscipline + approach
-  2.5 + 2.0 + 1.5 + 1.5 + 1.5 + 2.0 + 3.0 + 1.5 + 1.0 + 1.0 + 1.5;
-// Max possible raw total = 5 × sum(category weights) + 10 (max offensive) × 2.
-export const TOTAL_SCORE_MAX = 5 * TOTAL_SCORE_CATEGORY_WEIGHTS + 10 * 2.0; // = 105
+  // coachability(3.0) + approach (2.5, the old plateDiscipline slot folded in)
+  // + the stat-graded hitting parts (on-base + contact + power, 6.5 in every
+  // tier — see HITTING_WEIGHTS).
+  2.5 + 2.0 + 1.5 + 1.5 + 1.5 + 2.0 + 3.0 + 2.5 + 6.5;
+// Max possible raw total = 5 × sum(category weights) = 115 — unchanged by the
+// hitting recalibration, which only moved weight between the hitting parts.
+export const TOTAL_SCORE_MAX = 5 * TOTAL_SCORE_CATEGORY_WEIGHTS;
 
 // A team's own eval categories (src/utils/evalCategories.ts) reach the engine
 // as plain id+weight pairs — the engine keeps no label vocabulary.
@@ -81,9 +87,12 @@ export function calculateTotalScore(
   // The team's added categories. Omitted / empty ⇒ every number below is
   // bit-for-bit what it was before per-team categories existed.
   extra?: ReadonlyArray<ExtraScoredCategory> | null,
+  // The team's age group + pitching format: picks the hitting tier (how much
+  // on-base, strikeout avoidance and power count — see HITTING_WEIGHTS).
+  // Omitted ⇒ kid pitch through 12U.
+  hitting?: HittingContext | null,
 ): number {
   if (!grades) return 0;
-  const off = getOffensiveScore(stats);
   // Tangible slots (fielding/arm/contact/power) are stats-graded as of schema
   // v9. The grade map carries them when it came through getCombinedGrades'
   // overlay; otherwise (e.g. the live eval form's in-progress grades) they
@@ -98,8 +107,20 @@ export function calculateTotalScore(
     3;
   const arm =
     numOrNull(g.armStrength) ?? numOrNull(g.arm) ?? statArmGrade(stats) ?? 3;
-  const contact = numOrNull(g.contact) ?? statContactGrade(stats) ?? 3;
-  const power = numOrNull(g.power) ?? statPowerGrade(stats) ?? 3;
+  // Hitting is graded from the stats FIRST. A saved round can carry a value
+  // for these (an old hand-graded Contact, or the default 3 every new round
+  // used to be seeded with), and reading that first let a stored 3 bury a
+  // kid's real stat line on the eval card and in Roster Decisions. The stored
+  // value is the fallback when there are no stats — and, for Power, the prior
+  // (a tryout exit-velo grade) that the stats take over from.
+  const tier = hittingTier(hitting);
+  const W = HITTING_WEIGHTS[tier];
+  const onBase = statOnBaseGrade(stats, hitting) ?? numOrNull(g.onBase) ?? 3;
+  const contact = statContactGrade(stats, hitting) ?? numOrNull(g.contact) ?? 3;
+  const power =
+    statPowerGrade(stats, hitting, { prior: numOrNull(g.power) }) ??
+    numOrNull(g.power) ??
+    3;
   const raw =
     fielding * 2.5 +
     fielding * 2.0 +
@@ -108,13 +129,13 @@ export function calculateTotalScore(
     speedBaseOf(grades) * 1.5 +
     (grades.baseballIQ || 3) * 2.0 +
     (grades.coachability || 3) * 3.0 +
-    contact * 1.5 +
-    power * 1.0 +
     // The old plateDiscipline slot folded into Approach (v7); Approach keeps
     // the combined weight so the divisor stays stable.
     approachOf(grades) * 1.0 +
     approachOf(grades) * 1.5 +
-    off * 2.0;
+    onBase * W.onBase +
+    contact * W.contact +
+    power * W.power;
   const bonus = extraParts(g, extra);
   // Normalize to 0–100 so the surfaced Total Score is intuitive.
   return Math.min(

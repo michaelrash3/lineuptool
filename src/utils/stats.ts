@@ -92,6 +92,9 @@ export interface CsvHeaderIndex {
   hard: number;
   qab: number;
   babip: number;
+  bb: number;
+  hbp: number;
+  slg: number;
   isTeamSnap: boolean;
 }
 
@@ -139,8 +142,16 @@ export const buildCsvHeaderIndex = (headers: string[]): CsvHeaderIndex => {
     fb: find("fb", "fb%", "fly ball", "fly balls"),
     gb: find("gb", "gb%", "ground ball", "ground balls"),
     hard: find("hard", "hard%", "hard hit", "hard hit%"),
-    qab: find("qab", "qab%", "quality at bat"),
+    // QAB% before QAB: an export with both would otherwise read the at-bat
+    // COUNT as a percentage.
+    qab: find("qab%", "qab", "quality at bat"),
     babip: find("babip"),
+    // Walks / hit-by-pitch (on-base, and at 9–12U a walk counts like a
+    // double) and slugging (isolated power). First occurrence = the Batting
+    // section, same as H and SO above.
+    bb: find("bb", "walks"),
+    hbp: find("hbp", "hit by pitch"),
+    slg: find("slg"),
     isTeamSnap:
       headers.includes("contact 1 name") || headers.includes("jersey number"),
   };
@@ -313,6 +324,9 @@ export const buildStatsPatchFromCsvRow = (
   setPct("hard", idx.hard);
   setPct("qab", idx.qab);
   setNum("babip", idx.babip);
+  setInt("bb", idx.bb);
+  setInt("hbp", idx.hbp);
+  setNum("slg", idx.slg);
   Object.assign(patch, extractAdvancedStats(labelRow, rawHeaders, cols));
   return patch;
 };
@@ -396,6 +410,8 @@ const SUMMABLE_KEYS = [
   "pa",
   "ab",
   "h",
+  "bb",
+  "hbp",
   "doubles",
   "triples",
   "hr",
@@ -441,6 +457,7 @@ const WEIGHTED_KEYS: Array<{
 }> = [
   { key: "obp", weightBy: "pa", weightAlt: "ab" },
   { key: "ops", weightBy: "pa", weightAlt: "ab" },
+  { key: "slg", weightBy: "ab" },
   { key: "contact", weightBy: "ab" },
   { key: "qab", weightBy: "pa", weightAlt: "ab" },
   { key: "hard", weightBy: "ab" },

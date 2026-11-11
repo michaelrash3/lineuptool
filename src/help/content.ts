@@ -633,6 +633,16 @@ export const HELP_TOPICS: HelpTopic[] = [
         body: "Power, fielding, arm strength, and accuracy never appear as hand grades — they're data-driven, seeded from tryout showcase measurements and taken over by GameChanger stats as real games accumulate.",
       },
       {
+        heading: "How hitting is scored",
+        body: "Hitting is about 40% of a player's score. You grade Approach (swing decisions: swinging at strikes, taking balls, battling with two strikes). The stats grade the results:",
+        list: [
+          "Getting on base (OBP) counts most. At 9–12U kid pitch a walk counts about like a double, so a kid who walks a lot ranks above a free swinger who strikes out.",
+          "Not striking out comes next, and counts most at machine and coach pitch, where there are no walks and on-base is hits only.",
+          "Power counts more from 13U up.",
+          "Stats take over gradually: they count about halfway after roughly 35 plate appearances, so a hot first week doesn't jump a kid to the top.",
+        ],
+      },
+      {
         heading: "Cadence",
         body: "Rounds are due on a calendar cadence so grading stays a habit, not a year-end scramble. Home nudges you when a round is due, and consistent rounds are what make the trend lines meaningful.",
       },
@@ -1095,7 +1105,7 @@ export const HELP_TOPICS: HelpTopic[] = [
           "PA — plate appearances: every trip to the plate, including the walks, hit-by-pitch and sacrifices an at-bat leaves out. It's the fairest read of how much a kid has actually hit.",
           "AVG — batting average: hits divided by at-bats.",
           "OBP — on-base percentage: how often a plate appearance ends on base (hits, walks, hit-by-pitch).",
-          "OPS — OBP plus slugging; the best single number for overall offense.",
+          "OPS — OBP plus slugging; a quick all-around number, but it undersells getting on base, which is what matters most at youth levels.",
           "QAB — quality at-bats: productive plate appearances (hard contact, moving runners, long counts), as scored in GameChanger.",
           "BABIP — batting average on balls in play; extreme values usually mean luck, not skill, at this level.",
         ],

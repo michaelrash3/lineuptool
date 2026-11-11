@@ -128,9 +128,15 @@ export const SUGGESTED_POSITIONS = [
 
 export const DEFAULT_GRADES = EVAL_CATEGORIES.reduce<EvalGradeRecord>(
   // Measurement fields (e.g. Pitch Velocity in mph) are optional and have no
-  // default — only 1–5 grades seed a starting value.
+  // default — only 1–5 grades seed a starting value. Data-driven categories
+  // (Power, Glove, Arm) aren't seeded either: no coach grades them, and a
+  // seeded 3 saved into a round used to sit in front of the player's real
+  // stats wherever a round was scored directly. They come from stats (or a
+  // tryout showcase reading) instead.
   (acc, c) =>
-    c.inputKind === "mph" ? acc : { ...acc, [c.id]: EVAL_SCALE_DEFAULT },
+    c.inputKind === "mph" || c.dataDriven
+      ? acc
+      : { ...acc, [c.id]: EVAL_SCALE_DEFAULT },
   {},
 );
 

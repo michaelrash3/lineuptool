@@ -96,6 +96,7 @@ export const DevelopmentPlanCard = memo(
         team.players || [],
         {
           teamAge: team.teamAge,
+          pitchingFormat: team.pitchingFormat,
           games: team.games || [],
           extraCategories: scoredCustomCategories(categoryConfig),
         },
@@ -105,6 +106,7 @@ export const DevelopmentPlanCard = memo(
       team.evaluationEvents,
       team.players,
       team.teamAge,
+      team.pitchingFormat,
       team.games,
       player.id,
       categoryConfig,

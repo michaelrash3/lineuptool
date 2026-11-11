@@ -564,6 +564,9 @@ export const parseGameChangerPastSeasonCsv = (
     setPct("hard", idx.hard);
     setPct("qab", idx.qab);
     setNum("babip", idx.babip);
+    setInt("bb", idx.bb);
+    setInt("hbp", idx.hbp);
+    setNum("slg", idx.slg);
     Object.assign(stats, extractAdvancedStats(labelRow, rawHeaders, cols));
 
     if (Object.keys(stats).length === 0) continue;
