@@ -273,8 +273,9 @@ describe("RosterDecisionsPanel", () => {
     // These grades score 67/100 — just over the 66 "above the bar" line. A
     // floor grade on the team's own category pulls it to 64, so the rationale
     // must stop claiming the eval is above average. A panel that ignored team
-    // categories would still read 67 and keep the line.
-    const nearBar = { ...allGrades(4), coachability: 3 };
+    // categories would still read 67 and keep the line. (No on-base stats on
+    // the fixture, so on-base sits at the neutral 3.)
+    const nearBar = { ...allGrades(4), coachability: 3, approach: 1 };
     const { unmount } = renderWithConfig({
       evaluationEvents: [headRound({ p1: nearBar })],
     });
@@ -293,16 +294,17 @@ describe("RosterDecisionsPanel", () => {
   });
 
   it("counts a team's own category in the roster-decision score", () => {
-    // Baseline: all-5 built-ins, no team categories → a frozen 86.
+    // Baseline: all-5 built-ins, no team categories → a frozen 93 (on-base
+    // stays at the neutral 3: the fixture has no on-base stats).
     const { unmount } = renderWithConfig({
       evaluationEvents: [headRound({ p1: allGrades(5) })],
     });
-    expect(screen.getAllByText("86").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("93").length).toBeGreaterThan(0);
     unmount();
 
     // Same round, but the team added a category and graded it at the FLOOR.
     // The score must come down — if the panel ignored team categories it
-    // would still read 84.
+    // would still read 93.
     renderWithConfig({
       evalCustomCategories: [
         { id: "custom_bunting", label: "Bunting", group: "Hitting" },
@@ -311,10 +313,10 @@ describe("RosterDecisionsPanel", () => {
         headRound({ p1: { ...allGrades(5), custom_bunting: 1 } }),
       ],
     });
-    // 86 → 82: the floor grade on the team's own category pulls the score
-    // down. If the panel ignored team categories it would still read 86.
-    expect(screen.getAllByText("82").length).toBeGreaterThan(0);
-    expect(screen.queryAllByText("86")).toHaveLength(0);
+    // 93 → 89: the floor grade on the team's own category pulls the score
+    // down. If the panel ignored team categories it would still read 93.
+    expect(screen.getAllByText("89").length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("93")).toHaveLength(0);
   });
 });
 

@@ -159,6 +159,7 @@ const evalScoresForPlayer = (
   // scored against ITS OWN contents, so a round saved before a category
   // existed keeps the score it always had.
   extraCategories?: ReadonlyArray<{ id: string; weight: number }>,
+  pitchingFormat?: string,
 ): number[] => {
   const rounds = (evaluationEvents || [])
     .filter((e) => !e?.tryoutSignupId && e?.grades?.[player.id])
@@ -176,6 +177,7 @@ const evalScoresForPlayer = (
       teamAge,
       null,
       extraCategories,
+      pitchingFormat,
     );
     if (score !== null) scores.push(score);
   }
@@ -280,14 +282,29 @@ export const computeDevelopmentTrends = (args: {
   teamAge?: string;
   // See evalScoresForPlayer — omitted ⇒ stock catalog, unchanged numbers.
   extraCategories?: ReadonlyArray<{ id: string; weight: number }>;
+  // With teamAge, picks the hitting tier for the eval scores.
+  pitchingFormat?: string;
 }): PlayerDevelopmentTrend[] => {
-  const { players, games, evaluationEvents, teamAge, extraCategories } = args;
+  const {
+    players,
+    games,
+    evaluationEvents,
+    teamAge,
+    extraCategories,
+    pitchingFormat,
+  } = args;
   return (players || [])
     .filter((p) => p && isRosterPlayer(p))
     .map((p): PlayerDevelopmentTrend => {
       const batting = battingTrend(games, p.id);
       const evals = evalTrend(
-        evalScoresForPlayer(evaluationEvents, p, teamAge, extraCategories),
+        evalScoresForPlayer(
+          evaluationEvents,
+          p,
+          teamAge,
+          extraCategories,
+          pitchingFormat,
+        ),
       );
       const positions = positionTrend(games, p.id);
       const { overall, signalCount } = overallOf([batting, evals, positions]);
@@ -320,9 +337,11 @@ export const buildPlayerSeasonSummaries = (args: {
   games: Game[];
   practices: Practice[];
   evaluationEvents: EvaluationEvent[];
-  // Same optional pitcher-velocity context as computeDevelopmentTrends.
+  // Same optional pitcher-velocity / hitting-tier context as
+  // computeDevelopmentTrends.
   teamAge?: string;
   extraCategories?: ReadonlyArray<{ id: string; weight: number }>;
+  pitchingFormat?: string;
 }): Map<string, PlayerPastSeasonSummary> => {
   const {
     players,
@@ -331,6 +350,7 @@ export const buildPlayerSeasonSummaries = (args: {
     evaluationEvents,
     teamAge,
     extraCategories,
+    pitchingFormat,
   } = args;
   const out = new Map<string, PlayerPastSeasonSummary>();
   const variety = buildSeasonPositionVariety(games);
@@ -366,6 +386,7 @@ export const buildPlayerSeasonSummaries = (args: {
       player,
       teamAge,
       extraCategories,
+      pitchingFormat,
     );
     if (scores.length > 0) {
       summary.evalRounds = scores.length;

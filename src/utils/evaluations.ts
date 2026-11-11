@@ -34,8 +34,15 @@ export const evalStatHint = (
       ? v.toFixed(3).replace(/^0(?=\.)/, "")
       : null;
   switch (catId) {
-    case "contact":
-      return s.avg != null ? `AVG ${avg3(s.avg)}` : null;
+    case "contact": {
+      // Strikeouts per plate appearance — what the Contact grade now reads.
+      const pa = Number(s.pa) || Number(s.ab) || 0;
+      return pa > 0 && s.k != null
+        ? `K ${Math.round((Number(s.k) / pa) * 100)}%`
+        : s.contact != null
+          ? `C% ${pct(s.contact)}`
+          : null;
+    }
     case "power":
       return s.hard != null
         ? `Hard ${pct(s.hard)}`
@@ -44,7 +51,13 @@ export const evalStatHint = (
           : null;
     case "approach":
     case "plateDiscipline":
-      return s.qab != null ? `QAB ${pct(s.qab)}` : null;
+      // On-base is the result swing decisions earn; QAB% when that's all
+      // there is.
+      return s.obp != null
+        ? `OBP ${avg3(s.obp)}`
+        : s.qab != null
+          ? `QAB ${pct(s.qab)}`
+          : null;
     case "fielding":
     case "glove":
     case "range":

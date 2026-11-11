@@ -554,6 +554,7 @@ const PlayerProfile = memo(() => {
     if (!pl) return null;
     const grades = getCombinedGrades(evaluationEvents || [], players || [], {
       teamAge,
+      pitchingFormat,
     })[pid];
     return suggestPrimaryPosition(pl, grades, {
       kidPitch: isKidPitchFormat(pitchingFormat),

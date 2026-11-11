@@ -365,6 +365,7 @@ export const StatsTab = memo(() => {
   const rows: StatRow[] = useMemo(() => {
     const grades = getCombinedGrades(evaluationEvents, players, {
       teamAge: team.teamAge,
+      pitchingFormat: team.pitchingFormat,
       games,
     });
     return players.map((p) => {
@@ -375,7 +376,10 @@ export const StatsTab = memo(() => {
         number: p.number,
         primaryPosition: p.primaryPosition,
         stats: scopedStats,
-        total: calculateTotalScore(grades[p.id], scopedStats),
+        total: calculateTotalScore(grades[p.id], scopedStats, null, {
+          teamAge: team.teamAge,
+          pitchingFormat: team.pitchingFormat,
+        }),
       };
     });
   }, [players, evaluationEvents, team, games, scopedStatsForPlayer]);

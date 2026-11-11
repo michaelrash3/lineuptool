@@ -144,6 +144,7 @@ export const RosterDecisionsPanel = memo(() => {
             team?.teamAge,
             null,
             extraCategories,
+            team?.pitchingFormat,
           );
           if (score == null) return null;
           return {
@@ -201,6 +202,7 @@ export const RosterDecisionsPanel = memo(() => {
         asGradeMap({ ...seedGrades, ...savedGrades }),
         player.stats,
         extraCategories,
+        { teamAge: team?.teamAge, pitchingFormat: team?.pitchingFormat },
       );
       const totalScore = Math.min(
         100,

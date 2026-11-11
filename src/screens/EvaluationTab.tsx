@@ -504,6 +504,7 @@ export const EvaluationTab = memo(() => {
       players || [],
       {
         teamAge,
+        pitchingFormat,
         extraCategories,
       },
     );
@@ -522,6 +523,7 @@ export const EvaluationTab = memo(() => {
             teamAge,
             null,
             extraCategories,
+            pitchingFormat,
           ) ?? 0,
         );
         const primarySuggestion = suggestPrimaryPosition(
@@ -939,6 +941,7 @@ export const EvaluationTab = memo(() => {
                           teamAge,
                           null,
                           extraCategories,
+                          pitchingFormat,
                         ) ?? 0,
                       );
                       const expanded = expandedPlayerIds.has(player.id);

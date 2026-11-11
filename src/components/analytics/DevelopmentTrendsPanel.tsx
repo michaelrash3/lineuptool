@@ -86,8 +86,16 @@ export const DevelopmentTrendsPanel = ({
         evaluationEvents,
         teamAge,
         extraCategories,
+        pitchingFormat: team?.pitchingFormat,
       }),
-    [players, games, evaluationEvents, teamAge, extraCategories],
+    [
+      players,
+      games,
+      evaluationEvents,
+      teamAge,
+      extraCategories,
+      team?.pitchingFormat,
+    ],
   );
 
   if (rows.length === 0) {

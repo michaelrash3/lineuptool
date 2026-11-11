@@ -350,3 +350,54 @@ Opportunistic (bundle when touching the code): single-pass tryout blend (3.3) �
 mph-clamp bug noted at the end of §4.1, and editable per-category weights.
 
 Everything in "not planning" stays out of scope until a coach reopens it.
+
+## 6. Hitting recalibration (Nov 2026)
+
+**Why.** The head coach flagged a disconnect: OBP is the biggest hitting
+signal in youth baseball, but it barely moved the score. It was one fifth of
+a 1–10 offensive score that was rounded to a whole number, so two kids with
+.350 and .550 OBP over 60 PA scored the same. Walks weren't imported at all,
+strikeouts weren't used, and a default Power grade of 3 saved into every new
+round sat in front of the player's real stats wherever a round was scored
+directly (the eval card and Roster Decisions).
+
+**What hitting is now** (`lineupEngine/grades.ts`, `totalScore.ts`):
+
+- Approach (hand-graded, weight 2.5) is the coach's half: swing decisions.
+  The stats grade the results in three stat-only parts. **On-base** is OBP,
+  or (H + BB + HBP) / PA. **Contact** is strikeout avoidance (SO / PA), plus
+  C% and QAB%; AVG is dropped. **Power** is extra bases per PA plus ISO and
+  Hard%.
+- The weights depend on the tier (`hittingTier`), from the team's age group
+  and pitching format. Each tier sums to 6.5, so hitting keeps about 39% of
+  the score, `TOTAL_SCORE_MAX` stays 115, and every cut line keeps its
+  meaning.
+
+  | Tier                  | On-base | Contact | Power |
+  | --------------------- | ------- | ------- | ----- |
+  | Machine / coach pitch | 2.25    | 3.5     | 0.75  |
+  | Kid pitch through 12U | 4.0     | 1.75    | 0.75  |
+  | Kid pitch 13U+        | 3.0     | 1.5     | 2.0   |
+
+- At kid pitch through 12U a walk or HBP counts as an extra base, like a
+  double, which is the coach's read of the run value at 9–11U. At machine and
+  coach pitch, on-base is hits only, because errors aren't reliably scored
+  there.
+- Each part is shrunk by sample size, confidence = PA / (PA + k), with
+  k = 35 / 20 / 60 PA for on-base / contact / power. Stats count about
+  halfway at ~35 PA, as the coach chose. Power starts from a tryout exit-velo
+  grade when there is one, instead of dropping it after one at-bat.
+- Stats come first, and a stored value is only the fallback. New rounds no
+  longer seed the data-driven categories (Power, Glove, Arm).
+- The GameChanger import now reads BB, HBP and SLG, and prefers QAB% over the
+  QAB count. The season blend (`getEffectiveStats`) weights by PA and no
+  longer counts a stat missing from a past season as 0.
+- A kid with no stats is now exactly neutral (60/100). The old offensive
+  slot's neutral sat below the grades' neutral, so no-stats kids move
+  58 → 60. The frozen back-compat record was regenerated with that note.
+
+**Still to do (next PR).** The batting order, Roster Decisions' OPS fit and
+the development-trend basis have their own hitting formulas, and they don't
+read this score: `profile.ts`, `RosterDecisionsPanel.tsx` and
+`playerDevelopment.ts`. Each needs the same treatment: shrunk OBP-first
+values, and a walk counted like a double through 12U.

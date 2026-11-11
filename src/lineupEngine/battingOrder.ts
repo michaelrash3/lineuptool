@@ -243,6 +243,7 @@ export function generateBattingOnly(input: EngineInput): EngineResult {
     evaluationEvents = [],
     leagueRuleSet = "USSSA",
     teamAge = "8U",
+    pitchingFormat,
     battingSize = "roster",
     seed,
   } = input;
@@ -257,6 +258,7 @@ export function generateBattingOnly(input: EngineInput): EngineResult {
     evaluationEvents,
     games: input.games,
     teamAge,
+    pitchingFormat,
   });
 
   const battingLineup = generateBattingOrder(profiled, battingSize, {

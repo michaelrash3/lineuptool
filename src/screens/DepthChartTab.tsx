@@ -324,6 +324,7 @@ export const DepthChartTab = memo(() => {
     () =>
       getCombinedGrades(evaluationEvents, players, {
         teamAge,
+        pitchingFormat: team.pitchingFormat,
         games: team.games || [],
       }),
     [evaluationEvents, players, teamAge, team],

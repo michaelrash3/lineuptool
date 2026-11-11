@@ -505,6 +505,7 @@ export const computeRosterProjection = (
     returningUnknown,
     {
       teamAge: team?.teamAge,
+      pitchingFormat: team?.pitchingFormat,
       games: team?.games || [],
     },
   );
@@ -626,6 +627,7 @@ const computeImpact = (
   // For each returner, sum the eval scores; sort descending.
   const grades = getCombinedGrades(evaluationEvents || [], returners, {
     teamAge: team.teamAge,
+    pitchingFormat: team.pitchingFormat,
     games: team.games || [],
   });
   const scoreOf = (p: Player) => {
@@ -695,6 +697,7 @@ const rosterEvalScore = (
 ) => {
   const grades = getCombinedGrades(evaluationEvents || [], [player], {
     teamAge: team?.teamAge,
+    pitchingFormat: team?.pitchingFormat,
     games: team?.games || [],
   });
   const g = grades[player.id];

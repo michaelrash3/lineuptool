@@ -29,6 +29,9 @@ export const currentEvaluationScore100 = (
   teamAge?: string,
   statsOverride?: PlayerStats | null,
   extraCategories?: ReadonlyArray<ExtraScoredCategory> | null,
+  // With teamAge, picks the hitting tier (lineupEngine hittingTier). Omitted,
+  // the tier comes from the age alone (9U+ is always kid pitch).
+  pitchingFormat?: string,
 ): number | null => {
   if (!grades) return null;
   const stats = statsOverride ?? player?.stats ?? null;
@@ -36,7 +39,12 @@ export const currentEvaluationScore100 = (
   // a graded team category widens both sides of the fraction together.
   const universalMax = totalScoreMaxFor(grades, extraCategories);
   let earned =
-    (calculateTotalScore(grades, stats, extraCategories) / 100) * universalMax;
+    (calculateTotalScore(grades, stats, extraCategories, {
+      teamAge,
+      pitchingFormat,
+    }) /
+      100) *
+    universalMax;
   let possible = universalMax;
 
   if (playerIsPitcher(player)) {
