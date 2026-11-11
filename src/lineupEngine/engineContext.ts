@@ -41,7 +41,10 @@ export function buildProfiledPlayers(input: {
   );
   const profiled: ProfiledPlayer[] = activePlayers.map((p) => ({
     ...p,
-    profile: buildPlayerProfile(p, combinedGrades[p.id]),
+    profile: buildPlayerProfile(p, combinedGrades[p.id], {
+      teamAge,
+      pitchingFormat,
+    }),
   }));
   const byId = new Map(
     profiled.map((p): [string, ProfiledPlayer] => [p.id, p]),
