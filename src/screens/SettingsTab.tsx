@@ -15,7 +15,6 @@ import { QRCodeImg } from "../components/QRCodeImg";
 import {
   parseGameChangerPastSeasonCsv,
   suggestPlayerMatch,
-  buildScheduleIcs,
 } from "../utils/helpers";
 import {
   allowedPitchingFormats,

@@ -25,6 +25,7 @@ import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
 import { Link, useNavigate } from "react-router-dom";
 import { useTeam, useUI, useToast } from "../contexts";
+import { downloadScheduleIcs } from "../utils/ics";
 import { RecordBadge, EmptyState, MetaRow } from "../components/shared";
 import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
 import { TournamentsSection } from "../components/tournament/TournamentsSection";
@@ -2242,6 +2243,43 @@ export const ScheduleTab = memo(() => {
                   </div>
                 );
               })}
+            </div>
+          )}
+          {/* The schedule on the coach's own calendar. In-app reminders only
+              fire while the app is open; a calendar entry alerts on its own.
+              At the foot of the list rather than in the header, which is
+              already four buttons deep on a phone. */}
+          {sortedGames.some(
+            (g: any) =>
+              !isGameFinalized(g) && (g.status || "scheduled") !== "postponed",
+          ) && (
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border border-line rounded-xl bg-surface p-4 print:hidden">
+              <div className="min-w-0 flex-1 basis-64">
+                <p className="text-xs font-black uppercase tracking-widest text-ink">
+                  Add games to your calendar
+                </p>
+                <p className="text-[11px] font-medium text-ink-3 mt-1">
+                  Downloads every upcoming game as a calendar file, so your
+                  phone can remind you even when this app is closed. A game with
+                  a start time gets a two-hour slot; one without is an all-day
+                  entry.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  downloadScheduleIcs(sortedGames, team?.name);
+                  toast.push({
+                    kind: "success",
+                    title: "Calendar file downloaded",
+                    message:
+                      "Open it to add the games. Download again after the schedule changes.",
+                  });
+                }}
+                className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2 transition-colors"
+              >
+                <Icons.Calendar className="w-4 h-4" /> Download calendar
+              </button>
             </div>
           )}
         </div>
