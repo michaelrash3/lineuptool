@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { featureEnabled } from "../constants/features";
 
 // Exported for help-content integrity tests (every help CTA must target a
@@ -127,13 +127,34 @@ export const useMainShellRouting = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, (disabledFeatures || []).join(","), setActiveTab]);
 
-  useEffect(() => {
-    const tabFromUrl = pathToTab(location.pathname);
-    if (tabFromUrl !== activeTab) setActiveTab(tabFromUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
+  // The router glue is three pairs of effects — active tab, in-game, game
+  // editor — each mirroring a piece of state into the URL and the URL back
+  // into that state. Two rules keep a pair from fighting itself:
+  //
+  //  1. State → URL acts only when the state CHANGES, never on mount. On mount
+  //     the state is still its default ("home" / no game) while the URL may be
+  //     a refresh or a deep link; mirroring the default into the URL kicked
+  //     the visitor to "/" in the same flush that URL → state adopted the real
+  //     page, and the two then traded navigations forever (thousands of
+  //     history pushes a second, the sub-path lost, /help and friends dumped
+  //     on Home).
+  //  2. A value adopted FROM the URL is never pushed back to it. URL → state
+  //     records what it adopted in the pair's ref, so state → URL sees nothing
+  //     new. Without this a route guard's redirect (an assistant opening
+  //     /settings is replaced to "/") landing in the same flush set off the
+  //     same endless trade.
+  //
+  // Each ref holds the value last reconciled with the URL. State → URL must
+  // stay declared BEFORE its URL → state partner: it has to compare against
+  // the ref as the previous commit left it. Comparing values rather than
+  // counting runs keeps StrictMode's double-invoked mount effects a no-op.
+  const mirroredTabRef = useRef(activeTab);
+  const mirroredInGameIdRef = useRef(inGameId);
+  const mirroredGameIdRef = useRef(selectedGameId);
 
   useEffect(() => {
+    if (mirroredTabRef.current === activeTab) return;
+    mirroredTabRef.current = activeTab;
     if (location.pathname.startsWith("/in-game/")) return;
     // Phantom ids have no path — the URL already IS the page; never yank the
     // user off a standalone route.
@@ -147,6 +168,17 @@ export const useMainShellRouting = ({
   }, [activeTab]);
 
   useEffect(() => {
+    const tabFromUrl = pathToTab(location.pathname);
+    if (tabFromUrl !== activeTab) {
+      mirroredTabRef.current = tabFromUrl;
+      setActiveTab(tabFromUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (mirroredInGameIdRef.current === inGameId) return;
+    mirroredInGameIdRef.current = inGameId;
     if (inGameId) {
       if (!location.pathname.startsWith(`/in-game/${inGameId}`)) {
         navigate(`/in-game/${inGameId}`);
@@ -159,8 +191,11 @@ export const useMainShellRouting = ({
 
   useEffect(() => {
     const match = location.pathname.match(/^\/in-game\/([^/]+)/);
-    if (match && match[1] !== inGameId) setInGameId(match[1]);
-    else if (!match && inGameId) setInGameId(null);
+    const idFromUrl = match ? match[1] : null;
+    if (idFromUrl !== inGameId) {
+      mirroredInGameIdRef.current = idFromUrl;
+      setInGameId(idFromUrl);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
@@ -172,6 +207,8 @@ export const useMainShellRouting = ({
   // selection into the URL (and vice-versa) with no per-call-site changes.
   // In-game takes precedence, so don't fight its route while it's active.
   useEffect(() => {
+    if (mirroredGameIdRef.current === selectedGameId) return;
+    mirroredGameIdRef.current = selectedGameId;
     if (location.pathname.startsWith("/in-game/")) return;
     if (selectedGameId) {
       if (!location.pathname.startsWith(`/schedule/game/${selectedGameId}`)) {
@@ -185,8 +222,11 @@ export const useMainShellRouting = ({
 
   useEffect(() => {
     const match = location.pathname.match(/^\/schedule\/game\/([^/]+)/);
-    if (match && match[1] !== selectedGameId) setSelectedGameId(match[1]);
-    else if (!match && selectedGameId) setSelectedGameId(null);
+    const idFromUrl = match ? match[1] : null;
+    if (idFromUrl !== selectedGameId) {
+      mirroredGameIdRef.current = idFromUrl;
+      setSelectedGameId(idFromUrl);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 

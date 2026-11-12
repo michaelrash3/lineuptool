@@ -789,32 +789,37 @@ export const EvaluationTab = memo(() => {
             {/* Spells out exactly what Save will do right now — the fix for "is
             this updating a file or starting a new eval?" */}
             <div className="px-1 py-2 border-b border-line">
+              {/* The sentence is ONE flex item: as bare children its text runs
+                  and <strong> each became a column of their own, splitting the
+                  line into three ragged blocks on a phone. */}
               <p className="text-[11px] font-medium text-ink-2 flex items-center gap-1.5">
                 <Icons.Save className="w-3 h-3 text-ink-3 shrink-0" />
-                {isCreatingNew ? (
-                  <>
-                    Save creates a{" "}
-                    <strong className="font-black text-ink">
-                      new eval round
-                    </strong>
-                    {promptStatus.active
-                      ? promptStatus.kind === "preseason"
-                        ? " (preseason)."
-                        : " (monthly)."
-                      : myRounds.length > 0
-                        ? ", pre-filled from your latest round."
-                        : "."}
-                  </>
-                ) : (
-                  <>
-                    Save{" "}
-                    <strong className="font-black text-ink">
-                      overwrites the saved round
-                    </strong>{" "}
-                    &ldquo;{activeRoundName}&rdquo; — it does not create a new
-                    one.
-                  </>
-                )}
+                <span>
+                  {isCreatingNew ? (
+                    <>
+                      Save creates a{" "}
+                      <strong className="font-black text-ink">
+                        new eval round
+                      </strong>
+                      {promptStatus.active
+                        ? promptStatus.kind === "preseason"
+                          ? " (preseason)."
+                          : " (monthly)."
+                        : myRounds.length > 0
+                          ? ", pre-filled from your latest round."
+                          : "."}
+                    </>
+                  ) : (
+                    <>
+                      Save{" "}
+                      <strong className="font-black text-ink">
+                        overwrites the saved round
+                      </strong>{" "}
+                      &ldquo;{activeRoundName}&rdquo; — it does not create a new
+                      one.
+                    </>
+                  )}
+                </span>
               </p>
             </div>
           </div>

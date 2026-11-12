@@ -18,7 +18,7 @@ import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
 import { Link, useNavigate } from "react-router-dom";
 import { useTeam, useUI, useToast } from "../contexts";
-import { RecordBadge, EmptyState } from "../components/shared";
+import { RecordBadge, EmptyState, MetaRow } from "../components/shared";
 import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
 import { TournamentsSection } from "../components/tournament/TournamentsSection";
 import { GameStakesPanel } from "../components/tournament/GameStakesPanel";
@@ -556,7 +556,9 @@ export const ScheduleTab = memo(() => {
           <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 border-b border-line">
             <div className="flex items-center gap-4">
               <button
+                type="button"
                 onClick={() => setSelectedGameId(null)}
+                aria-label="Back to schedule"
                 className="p-2 hover:bg-surface text-ink-3 hover:text-ink rounded-full transition-colors"
               >
                 <Icons.ChevronUp className="w-6 h-6 -rotate-90" />
@@ -1624,7 +1626,7 @@ export const ScheduleTab = memo(() => {
   return (
     <div>
       <div className="pb-4 mb-1 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-line">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 shrink-0">
           <div
             className="p-2.5 rounded-full"
             style={{ backgroundColor: `${primaryColor}15` }}
@@ -1638,7 +1640,9 @@ export const ScheduleTab = memo(() => {
             Schedule <HelpTip topicId="add-games" label="About the schedule" />
           </h2>
         </div>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+        {/* Wraps from sm up: the record and four actions on one unbreakable
+            row ran ~280px past the edge of a portrait tablet. */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-end gap-3 w-full sm:w-auto sm:flex-1 sm:min-w-0">
           {(record.wins > 0 || record.losses > 0 || record.ties > 0) && (
             <RecordBadge record={record} variant="full" />
           )}
@@ -1963,20 +1967,21 @@ export const ScheduleTab = memo(() => {
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <Icons.Clock className="w-3.5 h-3.5 shrink-0" />{" "}
-                            <span className="whitespace-nowrap">
-                              {formatGameDateDisplay(game.date)}
-                            </span>{" "}
-                            {isoInstantToLocalTime(game.startUtc) && (
-                              <>
-                                <span className="text-ink-3">·</span>{" "}
-                                <span className="whitespace-nowrap">
-                                  {isoInstantToLocalTime(game.startUtc)}
-                                </span>{" "}
-                              </>
-                            )}
-                            <span className="text-ink-3">|</span>{" "}
+                          <MetaRow className="text-[11px] font-bold text-ink-3 uppercase tracking-widest">
+                            <>
+                              <Icons.Clock className="w-3.5 h-3.5 shrink-0" />
+                              <span className="whitespace-nowrap">
+                                {formatGameDateDisplay(game.date)}
+                              </span>
+                              {isoInstantToLocalTime(game.startUtc) && (
+                                <>
+                                  <span>·</span>
+                                  <span className="whitespace-nowrap">
+                                    {isoInstantToLocalTime(game.startUtc)}
+                                  </span>
+                                </>
+                              )}
+                            </>
                             <span className="whitespace-nowrap">
                               {leagueRuleSetLabel(
                                 game.leagueRuleSet || leagueRuleSet,
@@ -1984,12 +1989,9 @@ export const ScheduleTab = memo(() => {
                               {game.pitchingFormat || pitchingFormat}
                             </span>
                             {game.location && (
-                              <>
-                                <span className="text-ink-3">|</span>{" "}
-                                <span className="normal-case tracking-normal">
-                                  {String(game.location).split("\n")[0]}
-                                </span>
-                              </>
+                              <span className="normal-case tracking-normal">
+                                {String(game.location).split("\n")[0]}
+                              </span>
                             )}
                             {tournamentByGameId.has(game.id) && (
                               <span
@@ -2004,7 +2006,7 @@ export const ScheduleTab = memo(() => {
                                 {tournamentByGameId.get(game.id)}
                               </span>
                             )}
-                          </p>
+                          </MetaRow>
 
                           <div className="mt-2 flex flex-wrap items-center gap-3">
                             <label className="inline-flex items-center gap-2 cursor-pointer select-none">

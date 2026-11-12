@@ -28,7 +28,7 @@ import { isoInstantToLocalTime } from "../utils/icsParse";
 import { leagueRuleSetLabel } from "../constants/ui";
 import { featureEnabled } from "../constants/features";
 import { useTeam, useUI } from "../contexts";
-import { LeaderboardCard, EmptyState } from "../components/shared";
+import { LeaderboardCard, EmptyState, MetaRow } from "../components/shared";
 import { WeatherWidget } from "../components/WeatherWidget";
 import { ReminderActions } from "../components/ReminderActions";
 import {
@@ -402,39 +402,33 @@ const UpcomingGameCard = memo(
                 {game.isHome === false ? "@ " : "VS. "}
                 {game.opponent}
               </h3>
-              <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest mt-1 flex items-center gap-2 flex-wrap">
-                <Icons.Clock className="w-3.5 h-3.5" /> {fullDate}
-                {isoInstantToLocalTime(game.startUtc) && (
-                  <>
-                    <span className="text-ink-3">·</span>
-                    <span>{isoInstantToLocalTime(game.startUtc)}</span>
-                  </>
-                )}
-                <span className="text-ink-3">|</span>
+              <MetaRow className="text-[11px] font-bold text-ink-3 uppercase tracking-widest mt-1">
+                <>
+                  <Icons.Clock className="w-3.5 h-3.5 shrink-0" />
+                  <span>{fullDate}</span>
+                  {isoInstantToLocalTime(game.startUtc) && (
+                    <>
+                      <span>·</span>
+                      <span>{isoInstantToLocalTime(game.startUtc)}</span>
+                    </>
+                  )}
+                </>
                 <span>
                   {leagueRuleSetLabel(game.leagueRuleSet || leagueRuleSet)}{" "}
                   {game.pitchingFormat || pitchingFormat}
                 </span>
                 {game.location && (
-                  <>
-                    <span className="text-ink-3">|</span>
-                    <span className="normal-case tracking-normal">
-                      {String(game.location).split("\n")[0]}
-                    </span>
-                  </>
+                  <span className="normal-case tracking-normal">
+                    {String(game.location).split("\n")[0]}
+                  </span>
                 )}
                 {sameDayCount > 1 && (
-                  <>
-                    <span className="text-ink-3">|</span>
-                    <span className="text-team-primary">
-                      +{sameDayCount - 1} more{" "}
-                      {whenLabel.toLowerCase() === "today"
-                        ? "today"
-                        : "this day"}
-                    </span>
-                  </>
+                  <span className="text-team-primary">
+                    +{sameDayCount - 1} more{" "}
+                    {whenLabel.toLowerCase() === "today" ? "today" : "this day"}
+                  </span>
                 )}
-              </p>
+              </MetaRow>
               {!isFinal && (
                 <WeatherWidget
                   location={game.location}
@@ -1227,7 +1221,10 @@ const RunStreakTile = memo(({ games }: RunStreakTileProps) => {
     );
   }
   const diff = s.runDiff;
-  const last5 = s.results.slice(-5).reverse();
+  // Oldest → newest, the same direction as the season card's and the Last 5
+  // Games tile's strips on this screen — newest-first here read as a
+  // different run of results ("W T W L W" beside "W L W T W").
+  const last5 = s.results.slice(-5);
   const streak = s.streakType ? `${s.streakType}${s.streakCount}` : "—";
   return (
     <InsightTile
@@ -1411,7 +1408,12 @@ const UpcomingWeekSection = memo(
           kind: "game" as const,
           id: x.id,
           date: x.date ?? "",
-          time: x.time || "",
+          // First pitch lives in startUtc; `time` is only on games saved
+          // before that field existed.
+          time:
+            isoInstantToLocalTime(x.startUtc) ||
+            (typeof x.time === "string" ? x.time : ""),
+          startMs: Date.parse(x.startUtc || "") || 0,
           title: x.opponent ? `vs ${x.opponent}` : "Game",
         }));
       const p = (practices || [])
@@ -1421,12 +1423,13 @@ const UpcomingWeekSection = memo(
           id: x.id,
           date: x.date,
           time: x.startUtc ? isoInstantToLocalTime(x.startUtc) : "",
+          startMs: Date.parse(x.startUtc || "") || 0,
           title: x.location ? `Practice · ${x.location}` : "Practice",
         }));
+      // By day, then by the clock — on the instant, not the "9:00 AM" label,
+      // which sorts a 10 o'clock start ahead of a 9 o'clock one.
       return [...g, ...p]
-        .sort((a, b) =>
-          `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`),
-        )
+        .sort((a, b) => a.date.localeCompare(b.date) || a.startMs - b.startMs)
         .slice(0, 8);
     }, [games, practices, todayStr]);
     if (items.length === 0) return null;
@@ -2057,8 +2060,11 @@ export const HomeTab = memo(() => {
         <aside className="space-y-8 lg:space-y-6 lg:w-[22rem] lg:shrink-0">
           {/* ===== Season scoreboard — open/fluid; becomes a rail panel at lg ===== */}
           <div className="relative pb-7 border-b border-line lg:pb-5 lg:border lg:border-line lg:rounded-2xl lg:bg-surface lg:p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
+            {/* Wraps: the rail is only 22rem at lg, and a three-part record
+                beside the Season block is wider than that — the block drops
+                under the record instead of spilling out of the panel. */}
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span
                     className="block h-3.5 w-1 rounded-sm"
@@ -2067,7 +2073,7 @@ export const HomeTab = memo(() => {
                   <span className="t-eyebrow text-ink-3">{activeTeamName}</span>
                 </div>
                 <div className="flex items-baseline flex-wrap gap-x-3 gap-y-1 mt-2.5">
-                  <span className="font-black tabular-nums leading-none whitespace-nowrap text-5xl sm:text-6xl text-ink">
+                  <span className="font-black tabular-nums leading-none whitespace-nowrap text-5xl sm:text-6xl lg:text-5xl text-ink">
                     <AnimatedNumber value={record.wins} />
                     <span className="text-ink-3">–</span>
                     <AnimatedNumber value={record.losses} />
@@ -2118,7 +2124,7 @@ export const HomeTab = memo(() => {
                     );
                   })()}
               </div>
-              <div className="text-right shrink-0">
+              <div className="text-right shrink-0 ml-auto">
                 <div className="t-eyebrow text-ink-3">Season</div>
                 <div className="text-sm font-black uppercase tracking-wide mt-1 text-ink">
                   {currentSeason}
@@ -2386,11 +2392,11 @@ const LeaderboardsSection = memo(
 
     return (
       <div className="pt-1">
-        <div className="flex items-center justify-between gap-3 mb-3 px-1">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3 px-1">
           <h2 className="text-sm font-black uppercase tracking-tight text-ink">
             Leaderboards
           </h2>
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {tabs.map((t) => {
               const isActive = t.id === visibleTab?.id;
               return (
@@ -2398,6 +2404,7 @@ const LeaderboardsSection = memo(
                   key={t.id}
                   type="button"
                   onClick={() => setActiveTab(t.id)}
+                  aria-pressed={isActive}
                   className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md transition-colors ${
                     isActive ? "shadow-sm" : "text-ink-3 hover:bg-surface"
                   }`}

@@ -1261,6 +1261,24 @@ describe("buildScheduleIcs", () => {
     expect(ics).toContain("DTSTAMP:20260501T120000Z");
   });
 
+  it("puts the first-pitch time from startUtc in the title", () => {
+    // Games store their time as a startUtc instant — a game added in the app
+    // has no `time` field at all, so the title used to carry no time.
+    const startUtc = new Date(2026, 4, 1, 17, 30).toISOString();
+    const ics = buildScheduleIcs(
+      [{ id: "g1", date: "2026-05-01", opponent: "Rays", startUtc }],
+      "Hawks",
+      now,
+    );
+    const local = new Date(startUtc).toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    expect(ics).toContain(`SUMMARY:Hawks vs Rays (${local})`);
+    // Still an all-day event on the game's calendar day.
+    expect(ics).toContain("DTSTART;VALUE=DATE:20260501");
+  });
+
   it("omits finalized, postponed, and undated games", () => {
     const ics = buildScheduleIcs(
       [

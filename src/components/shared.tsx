@@ -240,6 +240,36 @@ export const Eyebrow = ({ className = "", children, ...rest }: any) => (
   </span>
 );
 
+// A wrapping row of short facts split by hairline dividers — a game card's
+// "Thu, Nov 12 · 7:30 PM | USSSA Kid Pitch | Field 3". Each child is one fact;
+// falsy children are skipped, so callers can pass `cond && <span/>` directly.
+//
+// The divider is each fact's own left border, and the row is pulled 9px (the
+// border plus its padding) outside a clipping box. A fact that starts a line
+// therefore has its divider clipped away, while one sitting mid-line shows it.
+// A literal "|" between facts can't do that: whenever the row wraps, one is
+// left dangling at the end of the line above.
+export const MetaRow = ({
+  className = "",
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) => (
+  <div className={`overflow-hidden ${className}`}>
+    <div className="flex flex-wrap items-center gap-y-1 -ml-[9px]">
+      {React.Children.toArray(children).map((child, i) => (
+        <span
+          key={i}
+          className="flex flex-wrap items-center gap-x-2 min-w-0 border-l border-line-strong pl-2 mr-2"
+        >
+          {child}
+        </span>
+      ))}
+    </div>
+  </div>
+);
+
 export const getPlayerInitials = (name: string) => {
   if (!name) return "?";
   const parts = name.trim().split(/\s+/);

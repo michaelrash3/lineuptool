@@ -6,14 +6,14 @@
 // even when the app is closed. This builder is pure so it's unit-testable; the
 // UI wraps the string in a Blob download.
 //
-// Games are emitted as all-day events: the stored date has no reliable time or
-// timezone, and an all-day event shows on the correct calendar day everywhere.
-// Any free-text `time` is appended to the title for the coach's reference
-// without affecting scheduling.
+// Games are emitted as all-day events, which show on the correct calendar day
+// everywhere. The first-pitch time (startUtc, in the exporting coach's local
+// clock) is appended to the title for reference without affecting scheduling.
 
 import { APP_NAME } from "../constants/ui";
 import { normalizeDateToIso } from "./dates";
 import { isGameFinalized } from "./gameStatus";
+import { isoInstantToLocalTime } from "./icsParse";
 
 const icsEscapeText = (value: string): string =>
   String(value)
@@ -53,6 +53,7 @@ export const buildScheduleIcs = (
         id?: string;
         date?: string;
         time?: string;
+        startUtc?: string | null;
         opponent?: string;
         status?: string;
         teamScore?: number | string | null;
@@ -82,7 +83,8 @@ export const buildScheduleIcs = (
   ];
   for (const { g, iso } of events) {
     const opp = (g.opponent || "").trim() || "TBD";
-    const time = (g.time || "").trim();
+    // First pitch lives in startUtc; `time` is only on games saved before it.
+    const time = (isoInstantToLocalTime(g.startUtc) || g.time || "").trim();
     const summary = `${team} vs ${opp}${time ? ` (${time})` : ""}`;
     lines.push(
       "BEGIN:VEVENT",

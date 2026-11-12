@@ -10,7 +10,7 @@ import {
 } from "../utils/helpers";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { StaggerList, StaggerItem } from "../components/motion";
-import { EmptyState } from "../components/shared";
+import { EmptyState, MetaRow } from "../components/shared";
 import { DEFAULT_DRILL_LIBRARY, EVAL_CATEGORIES } from "../constants/ui";
 import { featureEnabled } from "../constants/features";
 import { drillAssignmentIndex } from "../utils/developmentPlan";
@@ -237,24 +237,23 @@ const PracticeRow = memo(
                 </span>
               )}
             </div>
-            <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest flex flex-wrap items-center gap-x-2 mt-1">
-              <Icons.Clock className="w-3.5 h-3.5 shrink-0" />
-              {formatGameDateDisplay(practice.date)}
-              {isoInstantToLocalTime(practice.startUtc) && (
-                <>
-                  <span className="text-ink-3">·</span>
-                  {isoInstantToLocalTime(practice.startUtc)}
-                </>
-              )}
+            <MetaRow className="text-[11px] font-bold text-ink-3 uppercase tracking-widest mt-1">
+              <>
+                <Icons.Clock className="w-3.5 h-3.5 shrink-0" />
+                <span>{formatGameDateDisplay(practice.date)}</span>
+                {isoInstantToLocalTime(practice.startUtc) && (
+                  <>
+                    <span>·</span>
+                    <span>{isoInstantToLocalTime(practice.startUtc)}</span>
+                  </>
+                )}
+              </>
               {practice.location && (
-                <>
-                  <span className="text-ink-3">|</span>
-                  <span className="normal-case tracking-normal">
-                    {String(practice.location).split("\n")[0]}
-                  </span>
-                </>
+                <span className="normal-case tracking-normal">
+                  {String(practice.location).split("\n")[0]}
+                </span>
               )}
-            </p>
+            </MetaRow>
           </div>
           <div className="shrink-0 text-right">
             <div className="t-stat-num-sm text-ink tabular-nums">
