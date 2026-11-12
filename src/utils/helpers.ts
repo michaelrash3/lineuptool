@@ -98,7 +98,6 @@ export {
   deriveSeasonFromGameLines,
   latestGameLineMovement,
   seasonSeriesFromGameLines,
-  recentGameLines,
 } from "./stats";
 export type { CsvHeaderIndex } from "./stats";
 

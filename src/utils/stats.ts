@@ -629,35 +629,6 @@ export const seasonSeriesFromGameLines = (
   return lines.map((_, i) => aggregateGameLines(lines.slice(0, i + 1)));
 };
 
-// The last `n` per-game stat lines for a player, newest game first. Powers the
-// Stats tab's Recent Form (hot/cold) view.
-export const recentGameLines = (
-  games:
-    | Array<{
-        date?: string;
-        opponent?: string;
-        playerStats?: Record<string, any>;
-      }>
-    | null
-    | undefined,
-  playerId: string,
-  n = 3,
-): Array<{
-  date?: string;
-  opponent?: string;
-  line: Record<string, number>;
-}> => {
-  return (games || [])
-    .filter((g) => g?.playerStats?.[playerId])
-    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
-    .slice(0, n)
-    .map((g: any) => ({
-      date: g.date,
-      opponent: g.opponent,
-      line: g.playerStats[playerId],
-    }));
-};
-
 // --- Stat display readers (shared by the season report + awards pages) ---
 
 // How a leaderboard/award value renders: whole number, 2- or 3-decimal

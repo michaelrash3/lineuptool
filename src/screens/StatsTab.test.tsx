@@ -442,6 +442,111 @@ describe("StatsTab — performance only", () => {
   });
 });
 
+describe("StatsTab — Recent Form reads on-base", () => {
+  const game = (i: number, lines: Record<string, Record<string, number>>) => ({
+    id: `g${i}`,
+    date: `2026-04-${String(i).padStart(2, "0")}`,
+    opponent: "Hawks",
+    status: "final",
+    teamScore: 5,
+    opponentScore: 3,
+    playerStats: lines,
+  });
+
+  const renderForm = (games: any[], players: any[] = team.players) => {
+    const { container } = renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: { ...team, players, games },
+          currentRole: "head",
+          realRole: "head",
+        },
+      },
+    );
+    const table = Array.from(container.querySelectorAll("table")).find((t) =>
+      (t.textContent || "").includes("Form"),
+    ) as HTMLTableElement;
+    const headers = Array.from(table.querySelectorAll("th")).map(
+      (h) => h.textContent,
+    );
+    const cell = (name: string, header: string) => {
+      const row = Array.from(table.querySelectorAll("tbody tr")).find((r) =>
+        (r.textContent || "").includes(name),
+      ) as HTMLTableRowElement;
+      return row.querySelectorAll("td")[headers.indexOf(header)];
+    };
+    return { cell };
+  };
+
+  it("calls a kid who's walking their way on base hot, though their average held", () => {
+    // Apex: 6-for-18 with no walks, then 3-for-9 with 9 walks over the last
+    // three games. Same .333 average; on-base .333 → .667.
+    // Bolt: .250 → .333 on 12 trips a side, inside the usual luck swing.
+    const earlier = { pa: 6, ab: 6, h: 2, bb: 0 };
+    const walking = { pa: 6, ab: 3, h: 1, bb: 3 };
+    const games = [1, 2, 3, 4, 5, 6].map((i) =>
+      game(i, {
+        a: i <= 3 ? earlier : walking,
+        b: { pa: 4, ab: 4, h: i === 6 ? 2 : 1, bb: 0 },
+      }),
+    );
+    const { cell } = renderForm(games);
+    expect(cell("Apex", "OBP").textContent).toBe(".667");
+    expect(cell("Apex", "AVG").textContent).toBe(".333");
+    expect(cell("Apex", "Form").textContent).toBe("Hot ↑");
+    expect(cell("Apex", "Form")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/^Recent on-base \.667, \.333 before/),
+    );
+    expect(cell("Bolt", "Form").textContent).toBe("Steady");
+  });
+
+  it("measures the last games against the season line when earlier games weren't imported one by one", () => {
+    const players = [
+      { ...team.players[0], stats: { pa: 40, ab: 40, h: 10, bb: 0 } },
+      team.players[1],
+    ];
+    const recent = { pa: 4, ab: 2, h: 1, bb: 2 };
+    const { cell } = renderForm(
+      [1, 2, 3].map((i) => game(i, { a: recent })),
+      players,
+    );
+    expect(cell("Apex", "Form").textContent).toBe("Hot ↑");
+    expect(cell("Apex", "Form")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/^Recent on-base \.750, \.250 before/),
+    );
+  });
+
+  it("makes no call on too few trips to the plate", () => {
+    const { cell } = renderForm([
+      game(1, { a: { pa: 4, ab: 3, h: 2, bb: 1 } }),
+    ]);
+    expect(cell("Apex", "Form").textContent).toBe("—");
+    expect(cell("Apex", "Form")).toHaveAttribute(
+      "title",
+      "Not enough trips to the plate yet to tell",
+    );
+  });
+
+  it("leaves scrimmages out", () => {
+    const hot = { pa: 6, ab: 3, h: 1, bb: 3 };
+    const games: any[] = [1, 2, 3, 4, 5, 6].map((i) =>
+      game(i, { a: i <= 3 ? { pa: 6, ab: 6, h: 2, bb: 0 } : hot }),
+    );
+    // A cold scrimmage last: it doesn't count, so the hot run still stands.
+    games.push({
+      ...game(7, { a: { pa: 6, ab: 6, h: 0, bb: 0 } }),
+      isScrimmage: true,
+    });
+    const { cell } = renderForm(games);
+    expect(cell("Apex", "Form").textContent).toBe("Hot ↑");
+  });
+});
+
 // Overview / Season Trends / Development used to be one useState inside the
 // screen, so all three shared the single /stats address. Each is its own URL
 // now: linkable, reload-safe, and steppable with the back button.

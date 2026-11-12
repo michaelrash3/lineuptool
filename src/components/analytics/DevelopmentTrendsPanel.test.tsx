@@ -50,16 +50,22 @@ const finalGame = (
   ...extra,
 });
 
-// Ava: batting improving (+.125), evals improving (50→60), positions steady
-// (SS both halves) → overall improving, 3 of 3 signals. Ben: no data at all.
+// Ava: batting improving (on-base .167 → .667, +.500), evals improving
+// (50→60), positions steady (SS both halves) → overall improving, 3 of 3
+// signals. Ben: no data at all.
 const players = [
   player("p1", "Ava"),
   player("p2", "Ben"),
   player("p3", "Gone Kid", { rosterStatus: "departed" }),
 ];
-const games: Game[] = [0, 1, 2, 3].map((h, i) =>
+const games: Game[] = [
+  { pa: 6, ab: 6, h: 1, bb: 0 },
+  { pa: 6, ab: 6, h: 1, bb: 0 },
+  { pa: 6, ab: 4, h: 2, bb: 2 },
+  { pa: 6, ab: 4, h: 2, bb: 2 },
+].map((line, i) =>
   finalGame(`g${i + 1}`, `2026-04-0${i + 1}`, {
-    p1: { ab: 4, h, fInnSS: 3 },
+    p1: { ...line, fInnSS: 3 },
   }),
 );
 const evaluationEvents: EvaluationEvent[] = [
@@ -95,7 +101,14 @@ describe("DevelopmentTrendsPanel", () => {
     expect(screen.getByRole("button", { name: "Ben" })).toBeInTheDocument();
     expect(screen.queryByText("Gone Kid")).toBeNull();
     // Ava's cells: batting delta, eval first→last, position counts, chip, tally.
-    expect(screen.getByText("+.125")).toBeInTheDocument();
+    expect(screen.getByText("+.500")).toBeInTheDocument();
+    // Hovering the batting cell says what moved and what it had to beat.
+    expect(screen.getByText("+.500").parentElement).toHaveAttribute(
+      "title",
+      expect.stringMatching(
+        /^On-base: \.167 in the first half of the season, \.667 since \(a move had to beat \.\d{3} to count\)$/,
+      ),
+    );
     expect(screen.getByText("50→60")).toBeInTheDocument();
     expect(screen.getByText("1 → 1")).toBeInTheDocument();
     expect(screen.getByText("Improving")).toBeInTheDocument();
@@ -137,7 +150,7 @@ describe("DevelopmentTrendsPanel", () => {
     const bare = renderPanel({ stripped: true });
     expect(bare.container.querySelector(".recharts-surface")).toBeNull();
     // The classification cells survive stripping.
-    expect(screen.getByText("+.125")).toBeInTheDocument();
+    expect(screen.getByText("+.500")).toBeInTheDocument();
   });
 
   it("shows the empty state when there are no active players", () => {

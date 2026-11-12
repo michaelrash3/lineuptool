@@ -16,6 +16,7 @@ import {
 import { Icons } from "../../icons";
 import { Chip, EmptyState } from "../shared";
 import { Sparkline } from "../charts/Sparkline";
+import { FORM_BASIS_LABEL, formatFormDelta } from "../../utils/hittingForm";
 import type { EvaluationEvent, Game, Player } from "../../types";
 
 const Dash = () => <span className="text-ink-3 font-bold">—</span>;
@@ -38,15 +39,20 @@ const toneClass = (cls: TrendClass): string =>
       ? "text-loss"
       : "text-ink-2";
 
-// avg deltas read like the Stats tab (±.020 style); qab deltas read as points
-// of QAB percentage.
-const fmtBattingDelta = (
-  delta: number,
-  basis: "avg" | "qab" | null,
-): string => {
-  const sign = delta >= 0 ? "+" : "";
-  if (basis === "qab") return `${sign}${(delta * 100).toFixed(1)}%`;
-  return `${sign}${delta.toFixed(3).replace(/^([-+]?)0\./, "$1.")}`;
+// "On-base .350 → .480 (a move had to beat .110)" for the batting cell.
+const battingTitle = (r: PlayerDevelopmentTrend): string | undefined => {
+  const { basis, earlier, recent, threshold } = r.batting;
+  if (!basis || earlier == null || recent == null) return undefined;
+  const rate = (v: number) =>
+    basis === "qab"
+      ? `${(v * 100).toFixed(0)}%`
+      : v.toFixed(3).replace(/^0\./, ".");
+  const label = FORM_BASIS_LABEL[basis];
+  return `${label[0].toUpperCase()}${label.slice(1)}: ${rate(earlier)} in the first half of the season, ${rate(recent)} since${
+    threshold != null
+      ? ` (a move had to beat ${formatFormDelta(threshold, basis).replace("+", "")} to count)`
+      : ""
+  }`;
 };
 
 const OVERALL_CHIP: Record<TrendClass, { variant: string; label: string }> = {
@@ -121,12 +127,15 @@ export const DevelopmentTrendsPanel = ({
   const battingCell = (r: PlayerDevelopmentTrend) => {
     if (r.batting.class === "insufficient") return <Dash />;
     return (
-      <span className="inline-flex items-center gap-1.5">
+      <span
+        className="inline-flex items-center gap-1.5"
+        title={battingTitle(r)}
+      >
         <TrendArrow cls={r.batting.class} />
         <span
           className={`tabular-nums font-black ${toneClass(r.batting.class)}`}
         >
-          {fmtBattingDelta(r.batting.delta ?? 0, r.batting.basis)}
+          {formatFormDelta(r.batting.delta ?? 0, r.batting.basis)}
         </span>
         {sparkline(r.batting.series)}
       </span>
@@ -248,13 +257,16 @@ export const DevelopmentTrendsPanel = ({
       </div>
 
       <p className="t-meta text-ink-3">
-        Batting compares the last 3 imported game lines against the full season
-        (needs 4+ lines and 8+ at-bats; a move beyond ±.020 counts). Evals
-        compare the first and last scored evaluation rounds, tryouts excluded
-        (needs 2+ rounds; a 4+ point move on the 100 scale counts). Positions
-        compare distinct positions played in the first half of imported games vs
-        the second (needs 4+ lines). Overall tallies one vote per signal with
-        data — any net positive reads improving, any net negative declining.
+        Batting compares on-base percentage in the second half of the
+        season&apos;s imported games against the first half (needs 4+ games and
+        10+ trips to the plate in each half). A move counts only when it&apos;s
+        bigger than the usual swing from luck for that many trips, and at least
+        .050. Evals compare the first and last scored evaluation rounds, tryouts
+        excluded (needs 2+ rounds; a 4+ point move on the 100 scale counts).
+        Positions compare distinct positions played in the first half of
+        imported games vs the second (needs 4+ lines). Overall tallies one vote
+        per signal with data — any net positive reads improving, any net
+        negative declining.
       </p>
     </div>
   );

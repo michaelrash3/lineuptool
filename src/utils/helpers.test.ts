@@ -55,7 +55,6 @@ import {
   playersOutOnDate,
   buildMonthGrid,
   isDepartedPlayer,
-  recentGameLines,
   evalStatHint,
   deriveTournaments,
   recordCatchingOuting,
@@ -2258,17 +2257,12 @@ describe("availability calendar helpers", () => {
   });
 });
 
-describe("recentGameLines + aggregateGameLines (Recent Form)", () => {
-  it("returns the newest N lines and aggregates them", () => {
-    const games = [
-      { id: "a", date: "2026-04-01", playerStats: { p1: { ab: 3, h: 0 } } },
-      { id: "b", date: "2026-05-01", playerStats: { p1: { ab: 3, h: 2 } } },
-      { id: "c", date: "2026-06-01", playerStats: { p1: { ab: 2, h: 2 } } },
-      { id: "d", date: "2026-03-01", playerStats: {} }, // no line for p1
-    ];
-    const last2 = recentGameLines(games, "p1", 2);
-    expect(last2.map((l) => l.date)).toEqual(["2026-06-01", "2026-05-01"]);
-    const agg = aggregateGameLines(last2.map((l) => l.line));
+describe("aggregateGameLines", () => {
+  it("sums the counts across game lines and works AVG out from them", () => {
+    const agg = aggregateGameLines([
+      { ab: 3, h: 2 },
+      { ab: 2, h: 2 },
+    ]);
     expect(agg.ab).toBe(5);
     expect(agg.h).toBe(4);
     expect(agg.avg).toBeCloseTo(0.8);
