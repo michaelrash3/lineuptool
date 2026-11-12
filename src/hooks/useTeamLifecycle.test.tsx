@@ -288,6 +288,27 @@ describe("deleteTeamCmd", () => {
     );
   });
 
+  it("takes the published calendar feed down before the team doc is deleted", async () => {
+    // The feed is readable by anyone holding the link, and its delete rule
+    // reads membership off the team doc too — left behind, it would keep
+    // serving the old schedule forever with no way to remove it.
+    const token = "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4";
+    const { result } = setup({
+      teamDataRef: {
+        current: { ...makeFixture(), calendarFeedToken: token },
+      } as Args["teamDataRef"],
+    });
+    await act(async () => {
+      await result.current.deleteTeamCmd();
+    });
+    expect(
+      mockDeleteDoc.mock.calls.map((c: unknown[]) => (c[0] as any).path),
+    ).toEqual([
+      `artifacts/test-app/public/data/calendarFeeds/t1.${token}`,
+      "artifacts/test-app/public/data/teams/t1",
+    ]);
+  });
+
   it("AWAITS every sweep to completion before deleting the parent doc", async () => {
     // The subcollection delete rules resolve membership with get() on the
     // team doc, so a delete that reaches the server AFTER the parent is gone

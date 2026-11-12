@@ -115,6 +115,15 @@ service cloud.firestore {
               && v.matches('https://(www[.]|account[.])?venmo[.]com/[^ <>"]*'));
       }
 
+      // The secret in the team's calendar subscription link (see the
+      // calendarFeeds match below): absent/null for "no link", else a long
+      // random URL-safe string. Mirrors CALENDAR_FEED_TOKEN_RE in
+      // src/utils/calendarFeed.ts.
+      function calendarFeedTokenOk(v) {
+        return v == null
+          || (v is string && v.matches('[A-Za-z0-9_-]{32,64}'));
+      }
+
       function isLegitimateAutoClaim() {
         // Team is genuinely unowned AND caller becomes the new owner AND no
         // other members exist on the previous doc. Mirrors the client-side
@@ -164,6 +173,14 @@ service cloud.firestore {
                     // an assistant can't reword them (or slip in another
                     // payment link).
                     && (untouched('letterTemplates') || isHeadCoach())
+                    // The calendar subscription link publishes opponents,
+                    // times and fields to whoever holds it, so creating or
+                    // retiring it is the head coach's call — and it must be
+                    // long enough to be unguessable, since the feed doc it
+                    // names is readable without sign-in.
+                    && (untouched('calendarFeedToken')
+                        || (isHeadCoach()
+                            && calendarFeedTokenOk(request.resource.data.get('calendarFeedToken', null))))
                     // evaluationEvents is a DROPPED legacy field (finding 3.1
                     // — rounds live in the evalRounds subcollection below).
                     // Ratchet: a doc still carrying the array may rewrite or
@@ -709,6 +726,48 @@ service cloud.firestore {
         && linkIsTeams(request.resource.data.teamId)
         && (resource == null || resource.data.teamId == request.resource.data.teamId);
       allow delete: if isCoachAccount() && isSchedTeamMember(resource.data.teamId);
+    }
+
+    // The team schedule as a calendar SUBSCRIPTION: { teamId, ics, updatedAt },
+    // where `ics` is the finished calendar text the coach client built.
+    // api/calendar.js (a Vercel function) fetches this doc and hands the text
+    // to calendar apps. The doc id is "<teamId>.<calendarFeedToken>".
+    //
+    // The ONE read in these rules that needs no sign-in — a calendar app polling
+    // a link can't sign in, even anonymously. What stands in for it is the
+    // token half of the id: 192 random bits that only the team's members can
+    // see (it lives on the member-only team doc), `get` only so ids can't be
+    // listed, and gone the moment the head coach turns the link off. The doc
+    // holds the schedule and nothing else: opponents, times, fields. No
+    // player names, no roster, no contact details. See
+    // src/utils/calendarFeed.ts.
+    match /artifacts/{appId}/public/data/calendarFeeds/{feedId} {
+      function feedTeam(teamId) {
+        return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;
+      }
+      function isFeedTeamMember(teamId) {
+        return request.auth != null
+          && (feedTeam(teamId).ownerId == request.auth.uid
+              || (feedTeam(teamId).members != null
+                  && request.auth.uid in feedTeam(teamId).members));
+      }
+      // ONE doc by its id — `get`, never `list`.
+      allow get: if true;
+      // Written by a member of the team, only under that team's own id and
+      // CURRENT token, with only these fields and a bounded body. The team id
+      // is half of the doc id, so no other team can publish here — not even
+      // one that learned the token and set it as its own — and a token the
+      // head has retired (or one somebody made up) matches nothing.
+      allow create, update: if isCoachAccount()
+        && request.resource.data.keys().hasOnly(['teamId', 'ics', 'updatedAt'])
+        && request.resource.data.teamId is string
+        && request.resource.data.ics is string
+        && request.resource.data.ics.size() <= 200000
+        && isFeedTeamMember(request.resource.data.teamId)
+        && feedTeam(request.resource.data.teamId).get('calendarFeedToken', null) is string
+        && feedId == request.resource.data.teamId + '.'
+                     + feedTeam(request.resource.data.teamId).calendarFeedToken;
+      allow delete: if isCoachAccount() && isFeedTeamMember(resource.data.teamId);
     }
 
     // Sanitized invite lookup, keyed by join code. Replaces the old "read the

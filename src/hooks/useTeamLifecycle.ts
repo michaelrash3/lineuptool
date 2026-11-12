@@ -35,6 +35,7 @@ import {
   appendOpponentArchive,
 } from "../utils/opponentHistory";
 import { saveEvalRound, deleteEvalRound } from "../utils/evalRounds";
+import { CALENDAR_FEED_TOKEN_RE, calendarFeedRef } from "../utils/calendarFeed";
 import {
   deleteAllSignupDocs,
   dropLegacySignupArray,
@@ -886,6 +887,7 @@ export const useTeamLifecycle = ({
       // up the ordering guarantee the sweep is built on. advanceSeason keeps
       // the window: it never deletes the team doc, so abandoning there is
       // harmless.
+      const feedToken = String(teamDataRef.current?.calendarFeedToken || "");
       const sweepResults = await Promise.allSettled([
         deleteAllSignupDocs(db, appId, activeTeamId!, "tryoutSignups"),
         deleteAllSignupDocs(db, appId, activeTeamId!, "interestSignups"),
@@ -898,6 +900,12 @@ export const useTeamLifecycle = ({
         ),
         deleteAllSignupDocs(db, appId, activeTeamId!, "games"),
         deleteAllSignupDocs(db, appId, activeTeamId!, "players"),
+        // The published calendar feed is readable by anyone holding the
+        // link, and its delete rule resolves membership through the team doc
+        // too — left behind, it would keep serving the old schedule forever.
+        CALENDAR_FEED_TOKEN_RE.test(feedToken)
+          ? deleteDoc(calendarFeedRef(db, appId, activeTeamId!, feedToken))
+          : Promise.resolve(),
       ]);
       const sweepFailures = sweepResults.filter(
         (r) => r.status === "rejected",
@@ -932,7 +940,7 @@ export const useTeamLifecycle = ({
           kind: "warn",
           title: "Some team records couldn't be deleted",
           message:
-            "The team is gone, but some of its records (signups, submissions, or games) stayed behind and can no longer be reached from the app. Contact support if you need them purged.",
+            "The team is gone, but some of its records (signups, submissions, games, or the calendar link) stayed behind and can no longer be reached from the app. Contact support if you need them purged.",
         });
       }
       toast.push({ kind: "success", title: "Team deleted" });

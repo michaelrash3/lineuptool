@@ -124,6 +124,7 @@ import { useTeamMembership } from "../hooks/useTeamMembership";
 import { useViewAsRole } from "../hooks/useViewAsRole";
 import { useTeamLifecycle } from "../hooks/useTeamLifecycle";
 import { useInviteFlows } from "../hooks/useInviteFlows";
+import { useCalendarFeed } from "../hooks/useCalendarFeed";
 import { useImportExportFlows } from "../hooks/useImportExportFlows";
 import { useGameCrud } from "../hooks/useGameCrud";
 import { useTournamentCrud } from "../hooks/useTournamentCrud";
@@ -2618,6 +2619,22 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const { viewAsRole, setViewAsRole, realRole, roleResolved, currentRole } =
     useViewAsRole({ teamData, user });
 
+  // ----- Calendar subscription link ----- (src/hooks/useCalendarFeed.ts)
+  // realRole, not currentRole: a head previewing the assistant view is still
+  // the one the rules let create or retire the link.
+  const { enableCalendarFeed, disableCalendarFeed } = useCalendarFeed({
+    activeTeamId,
+    user,
+    teamData,
+    gamesReady:
+      gamesServerConfirmed &&
+      !loadingActive &&
+      loadedTeamIdRef.current === activeTeamId,
+    isHead: realRole === "head",
+    updateTeam,
+    toast,
+  });
+
   // The eval-rounds read path (finding-3.1, docs/eval-authz-design.md): a
   // SECOND, role-scoped subscription to the per-author evalRounds
   // subcollection that assembles teamData.evaluationEvents from those docs.
@@ -3638,6 +3655,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       setCoachRole,
       removeMember,
       regenerateJoinCode,
+      enableCalendarFeed,
+      disableCalendarFeed,
       joinTeamByCode,
     }),
     [
@@ -3733,6 +3752,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       setCoachRole,
       removeMember,
       regenerateJoinCode,
+      enableCalendarFeed,
+      disableCalendarFeed,
       joinTeamByCode,
     ],
   );

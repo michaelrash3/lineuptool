@@ -50,10 +50,21 @@ const icsStamp = (now: Date): string => {
   )}Z`;
 };
 
-// Build an RFC 5545 VCALENDAR string for the team's upcoming games. Finalized
-// and postponed games and rows without a parseable date are omitted; events
-// are sorted by date, then by start time. Returns a valid (empty) calendar
-// when nothing qualifies.
+export interface ScheduleIcsOptions {
+  // Keep games that have been played. The one-time download leaves them out
+  // (nobody adds last week's game to a calendar), but a SUBSCRIBED feed must
+  // keep them: an event that drops out of a feed is deleted from every
+  // subscriber's calendar, so the season's history would vanish game by game.
+  includePlayed?: boolean;
+  // Names the calendar and asks subscribers to re-fetch hourly. Only a feed
+  // needs it — a downloaded file is merged into a calendar the user picks.
+  calendarName?: string;
+}
+
+// Build an RFC 5545 VCALENDAR string for the team's games. Postponed games
+// and rows without a parseable date are omitted, as are played games unless
+// `includePlayed`; events are sorted by date, then by start time. Returns a
+// valid (empty) calendar when nothing qualifies.
 export const buildScheduleIcs = (
   games:
     | Array<{
@@ -72,6 +83,7 @@ export const buildScheduleIcs = (
     | undefined,
   teamName: string | null | undefined,
   now: Date = new Date(),
+  { includePlayed = false, calendarName = "" }: ScheduleIcsOptions = {},
 ): string => {
   const stamp = icsStamp(now);
   const team = (teamName || "").trim() || "Team";
@@ -79,7 +91,7 @@ export const buildScheduleIcs = (
   const events = (Array.isArray(games) ? games : [])
     .filter((g) => g && g.id)
     .filter((g) => (g!.status || "scheduled") !== "postponed")
-    .filter((g) => !isGameFinalized(g!))
+    .filter((g) => includePlayed || !isGameFinalized(g!))
     .map((g) => ({
       g: g!,
       iso: normalizeDateToIso(g!.date),
@@ -98,6 +110,14 @@ export const buildScheduleIcs = (
     "VERSION:2.0",
     `PRODID:-//${APP_NAME}//Schedule//EN`,
     "CALSCALE:GREGORIAN",
+    ...(calendarName
+      ? [
+          `X-WR-CALNAME:${icsEscapeText(calendarName)}`,
+          // Two spellings of the same hint; calendar apps each read one.
+          "REFRESH-INTERVAL;VALUE=DURATION:PT1H",
+          "X-PUBLISHED-TTL:PT1H",
+        ]
+      : []),
   ];
   for (const { g, iso, startMs } of events) {
     const opp = (g.opponent || "").trim() || "TBD";
