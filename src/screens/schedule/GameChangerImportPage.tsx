@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useId, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { Icons } from "../../icons";
 import { type GcEvent } from "../../utils/icsParse";
@@ -40,6 +40,7 @@ interface Candidate {
 }
 
 export const GameChangerImportPage = memo(() => {
+  const fieldId = useId();
   const {
     team,
     currentRole,
@@ -222,7 +223,10 @@ export const GameChangerImportPage = memo(() => {
     >
       <div className="space-y-4">
         <div>
-          <label className="text-[11px] font-black uppercase tracking-widest text-ink-3">
+          <label
+            htmlFor={`${fieldId}-feed-url`}
+            className="text-[11px] font-black uppercase tracking-widest text-ink-3"
+          >
             Calendar feed URL
           </label>
           <p className="text-xs text-ink-3 mt-1 mb-2">
@@ -231,6 +235,7 @@ export const GameChangerImportPage = memo(() => {
             or <code>https://</code>).
           </p>
           <textarea
+            id={`${fieldId}-feed-url`}
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             rows={2}

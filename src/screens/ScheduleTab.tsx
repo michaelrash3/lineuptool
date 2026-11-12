@@ -1,4 +1,11 @@
-import React, { memo, useState, useMemo, useEffect, useRef } from "react";
+import React, {
+  memo,
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useId,
+} from "react";
 import { Icons } from "../icons";
 import { HelpTip } from "../components/help/HelpTip";
 import {
@@ -201,6 +208,7 @@ const gcAutoSyncedAt = new Map<string, number>();
 const GC_AUTOSYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 export const ScheduleTab = memo(() => {
+  const fieldId = useId();
   const {
     team,
     activeTeamId,
@@ -729,6 +737,7 @@ export const ScheduleTab = memo(() => {
                           </span>
                           <div className="h-6 w-px bg-line shrink-0" />
                           <select
+                            aria-label={`${pos} in the first inning`}
                             value={firstInningLineup[pos] || ""}
                             onChange={(e) => {
                               const val = e.target.value;
@@ -790,10 +799,14 @@ export const ScheduleTab = memo(() => {
           <GameDetailsDisclosure summary={detailsSummary}>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 p-6 bg-transparent">
               <div className="w-full col-span-2 md:col-span-1">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-date`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Date
                 </label>
                 <input
+                  id={`${fieldId}-date`}
                   type="date"
                   value={normalizeDateToIso(currentGame.date) || ""}
                   onChange={(e) => {
@@ -813,10 +826,14 @@ export const ScheduleTab = memo(() => {
                 />
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-time`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Time
                 </label>
                 <input
+                  id={`${fieldId}-time`}
                   type="time"
                   value={isoInstantToLocalTimeInput(currentGame.startUtc)}
                   onChange={(e) =>
@@ -832,10 +849,14 @@ export const ScheduleTab = memo(() => {
                 />
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-home-away`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Home / Away
                 </label>
                 <select
+                  id={`${fieldId}-home-away`}
                   value={currentGame.isHome === false ? "away" : "home"}
                   onChange={(e) =>
                     updateGame(selectedGameId, {
@@ -849,10 +870,14 @@ export const ScheduleTab = memo(() => {
                 </select>
               </div>
               <div className="w-full col-span-2">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-location`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Location
                 </label>
                 <input
+                  id={`${fieldId}-location`}
                   type="text"
                   value={currentGame.location || ""}
                   onChange={(e) =>
@@ -863,10 +888,14 @@ export const ScheduleTab = memo(() => {
                 />
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-game-rules`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Game Rules
                 </label>
                 <select
+                  id={`${fieldId}-game-rules`}
                   value={gameLeague}
                   onChange={(e) => {
                     const newLeague = e.target.value;
@@ -897,10 +926,14 @@ export const ScheduleTab = memo(() => {
                     regular-season default. Also the classification chip in the
                     week planner. */}
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-game-type`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Game Type
                 </label>
                 <select
+                  id={`${fieldId}-game-type`}
                   value={gameType}
                   aria-label="Game type"
                   onChange={(e) =>
@@ -914,7 +947,16 @@ export const ScheduleTab = memo(() => {
                 </select>
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  // Only a label while there is a dropdown to label: with one
+                  // legal format the value below is plain text.
+                  htmlFor={
+                    allowedPitchingFormats(gameLeague, teamAge).length > 1
+                      ? `${fieldId}-pitching`
+                      : undefined
+                  }
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Pitching
                 </label>
                 {(() => {
@@ -933,6 +975,7 @@ export const ScheduleTab = memo(() => {
                   }
                   return (
                     <select
+                      id={`${fieldId}-pitching`}
                       value={gamePitching}
                       onChange={(e) =>
                         updateGame(selectedGameId, {
@@ -951,10 +994,14 @@ export const ScheduleTab = memo(() => {
                 })()}
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-fielders`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Fielders
                 </label>
                 <select
+                  id={`${fieldId}-fielders`}
                   value={gameDefenseSize}
                   onChange={(e) =>
                     updateGame(selectedGameId, { defenseSize: e.target.value })
@@ -966,10 +1013,14 @@ export const ScheduleTab = memo(() => {
                 </select>
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-position-rotation`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Position Rotation
                 </label>
                 <select
+                  id={`${fieldId}-position-rotation`}
                   value={gamePositionLock}
                   onChange={(e) =>
                     updateGame(selectedGameId, { positionLock: e.target.value })
@@ -983,10 +1034,14 @@ export const ScheduleTab = memo(() => {
                 </select>
               </div>
               <div className="w-full col-span-2 md:col-span-1">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-batters`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Batters
                 </label>
                 <select
+                  id={`${fieldId}-batters`}
                   value={gameBattingSize}
                   onChange={(e) =>
                     updateGame(selectedGameId, { battingSize: e.target.value })
@@ -1683,6 +1738,7 @@ export const ScheduleTab = memo(() => {
       {isAddingGame && (
         <div className="p-5 bg-surface border-b border-white/30 flex flex-col sm:flex-row gap-3">
           <input
+            aria-label="Game date"
             type="date"
             value={newGameForm.date}
             onChange={(e) =>
@@ -1700,6 +1756,7 @@ export const ScheduleTab = memo(() => {
             className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
           />
           <input
+            aria-label="Opponent name"
             type="text"
             value={newGameForm.opponent}
             onChange={(e) =>
@@ -1709,6 +1766,7 @@ export const ScheduleTab = memo(() => {
             className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 uppercase shadow-inner"
           />
           <input
+            aria-label="Field or location"
             type="text"
             value={newGameForm.location}
             onChange={(e) =>
@@ -1718,6 +1776,7 @@ export const ScheduleTab = memo(() => {
             className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 shadow-inner"
           />
           <select
+            aria-label="Game rules"
             value={newGameForm.leagueRuleSet}
             onChange={(e) => {
               const newLeague = e.target.value;
@@ -1751,6 +1810,7 @@ export const ScheduleTab = memo(() => {
             }
             return (
               <select
+                aria-label="Pitching format"
                 value={newGameForm.pitchingFormat}
                 onChange={(e) =>
                   setNewGameForm({

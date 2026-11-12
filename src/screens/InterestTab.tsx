@@ -77,6 +77,7 @@ export const InterestTab = memo(() => {
         <div className="pt-5 space-y-3">
           <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
             <input
+              aria-label="Search interest leads"
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}

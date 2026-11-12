@@ -422,12 +422,14 @@ const PracticeRow = memo(
                     className="flex items-center gap-2 mb-3"
                   >
                     <input
+                      aria-label="Drill name"
                       value={drillName}
                       onChange={(e) => setDrillName(e.target.value)}
                       placeholder="Add a drill…"
                       className="flex-1 min-w-0 px-2.5 py-2 text-sm bg-surface border border-line rounded-sm outline-none focus:ring-2 focus:ring-[var(--team-primary)] placeholder:text-ink-3"
                     />
                     <input
+                      aria-label="Minutes"
                       value={drillMin}
                       onChange={(e) =>
                         setDrillMin(e.target.value.replace(/[^0-9]/g, ""))

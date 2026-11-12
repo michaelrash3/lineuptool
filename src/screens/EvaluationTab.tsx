@@ -1154,6 +1154,7 @@ export const EvaluationTab = memo(() => {
                                 </div>
                               </div>
                               <textarea
+                                aria-label={`Notes for ${player.name}`}
                                 value={grades.notes || ""}
                                 onChange={(e) =>
                                   setNotes(player.id, e.target.value)

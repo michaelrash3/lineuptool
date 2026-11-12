@@ -1,4 +1,4 @@
-import React, { memo, useState } from "react";
+import React, { memo, useState, useId } from "react";
 import { Icons } from "../icons";
 import { useTeam, useToast } from "../contexts";
 import { ShareLinkBlock } from "./PortalShareCard";
@@ -18,6 +18,7 @@ import {
 // configuration lives.
 
 const TryoutDatesPanel = memo(({ team, updateTeam, toast }: any) => {
+  const fieldId = useId();
   const [date, setDate] = useState("");
   const today = new Date().toISOString().slice(0, 10);
   const dates: string[] = Array.isArray(team.tryoutDates)
@@ -53,10 +54,14 @@ const TryoutDatesPanel = memo(({ team, updateTeam, toast }: any) => {
       </div>
       <div className="flex gap-2 items-end">
         <div className="flex-1">
-          <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+          <label
+            htmlFor={`${fieldId}-tryout-date`}
+            className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1"
+          >
             Tryout Date
           </label>
           <input
+            id={`${fieldId}-tryout-date`}
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}

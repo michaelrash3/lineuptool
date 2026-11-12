@@ -1330,6 +1330,7 @@ export const TryoutsTab = memo(() => {
         >
           <div className="cc-card p-3 flex flex-wrap items-center gap-2">
             <input
+              aria-label="Search signups"
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}

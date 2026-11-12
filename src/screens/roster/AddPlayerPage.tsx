@@ -1,4 +1,4 @@
-import React, { memo, useState } from "react";
+import React, { memo, useState, useId } from "react";
 import { Navigate } from "react-router-dom";
 import { useTeam } from "../../contexts";
 import { PageShell } from "../../components/PageShell";
@@ -16,6 +16,7 @@ import { parseRosterLines } from "../../utils/rosterPaste";
 // back-button friendly) per the app-wide modals→pages rule. Head-coach
 // only: assistants bounce to the roster.
 export const AddPlayerPage = memo(() => {
+  const fieldId = useId();
   const { team, addPlayer, addPlayers, currentRole } = useTeam();
   const back = useBackOrFallback("/roster");
   const { primaryColor, tertiaryColor } = team;
@@ -185,10 +186,14 @@ export const AddPlayerPage = memo(() => {
               </p>
             </div>
             <div>
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+              <label
+                htmlFor={`${fieldId}-name`}
+                className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+              >
                 Name *
               </label>
               <input
+                id={`${fieldId}-name`}
                 autoFocus
                 type="text"
                 required
@@ -199,10 +204,14 @@ export const AddPlayerPage = memo(() => {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-number`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Number
                 </label>
                 <input
+                  id={`${fieldId}-number`}
                   type="text"
                   value={form.number}
                   onChange={(e) => setForm({ ...form, number: e.target.value })}
@@ -217,10 +226,14 @@ export const AddPlayerPage = memo(() => {
                 </p>
               )}
               <div>
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-bats`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Bats
                 </label>
                 <select
+                  id={`${fieldId}-bats`}
                   value={form.bats}
                   onChange={(e) => setForm({ ...form, bats: e.target.value })}
                   className="w-full p-3 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"
@@ -231,10 +244,14 @@ export const AddPlayerPage = memo(() => {
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-throws`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Throws
                 </label>
                 <select
+                  id={`${fieldId}-throws`}
                   value={form.throws}
                   onChange={(e) => setForm({ ...form, throws: e.target.value })}
                   className="w-full p-3 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"

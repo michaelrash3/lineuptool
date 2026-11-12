@@ -1,4 +1,11 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useId,
+} from "react";
 import { TEAM_AGE_OPTIONS } from "../constants/ui";
 import { LetterTemplatesPanel } from "./settings/LetterTemplatesPanel";
 import { normalizeVenmoLink } from "../utils/venmo";
@@ -75,6 +82,7 @@ const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }: any) => {
           {label}
         </span>
         <input
+          aria-label={`${label} color hex code`}
           type="text"
           value={draft}
           onChange={(e) => {
@@ -374,6 +382,7 @@ const EvalCategoriesPanel = memo(({ team, updateTeam }: any) => {
 // name so a rename can't erase it. The team-doc name is authoritative: the
 // switcher list and the public portal mirror sync from it automatically.
 const TeamNameField = memo(({ team, updateTeam }: any) => {
+  const fieldId = useId();
   const stored = team?.name || "";
   const [draft, setDraft] = useState(stored);
   // Re-seed the draft when the stored name changes elsewhere (another device,
@@ -393,10 +402,14 @@ const TeamNameField = memo(({ team, updateTeam }: any) => {
   };
   return (
     <div>
-      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+      <label
+        htmlFor={`${fieldId}-team-name`}
+        className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+      >
         Team Name
       </label>
       <input
+        id={`${fieldId}-team-name`}
         type="text"
         value={draft}
         maxLength={60}
@@ -425,9 +438,11 @@ const TeamNameField = memo(({ team, updateTeam }: any) => {
 // families pay from): typed as a draft, saved on blur only if it's a real
 // Venmo address or a handle, otherwise left unsaved with a note.
 const VenmoLinkField = ({
+  id,
   value,
   onSave,
 }: {
+  id?: string;
   value: string;
   onSave: (next: string) => void;
 }) => {
@@ -450,6 +465,7 @@ const VenmoLinkField = ({
   return (
     <>
       <input
+        id={id}
         type="url"
         value={draft}
         onChange={(e) => {
@@ -475,6 +491,7 @@ const VenmoLinkField = ({
 };
 
 const TryoutsSettingsPanel = memo(({ team, updateTeam }: any) => {
+  const fieldId = useId();
   return (
     <div>
       <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
@@ -485,10 +502,14 @@ const TryoutsSettingsPanel = memo(({ team, updateTeam }: any) => {
       </p>
       <div className="mb-4 space-y-3">
         <div>
-          <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+          <label
+            htmlFor={`${fieldId}-head-coach-phone-for`}
+            className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1"
+          >
             Head coach phone (for offer letters)
           </label>
           <input
+            id={`${fieldId}-head-coach-phone-for`}
             type="tel"
             value={team.headCoachPhone || ""}
             onChange={(e) => updateTeam?.({ headCoachPhone: e.target.value })}
@@ -502,10 +523,14 @@ const TryoutsSettingsPanel = memo(({ team, updateTeam }: any) => {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
           <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+            <label
+              htmlFor={`${fieldId}-coach-venmo-account-name`}
+              className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1"
+            >
               Coach Venmo account name
             </label>
             <input
+              id={`${fieldId}-coach-venmo-account-name`}
               type="text"
               value={team.coachVenmoAccountName || ""}
               onChange={(e) =>
@@ -516,10 +541,14 @@ const TryoutsSettingsPanel = memo(({ team, updateTeam }: any) => {
             />
           </div>
           <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+            <label
+              htmlFor={`${fieldId}-coach-venmo-link`}
+              className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1"
+            >
               Coach Venmo link
             </label>
             <VenmoLinkField
+              id={`${fieldId}-coach-venmo-link`}
               value={team.coachVenmoLink || ""}
               onSave={(next: string) => updateTeam?.({ coachVenmoLink: next })}
             />
@@ -527,10 +556,14 @@ const TryoutsSettingsPanel = memo(({ team, updateTeam }: any) => {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+            <label
+              htmlFor={`${fieldId}-coach-name-public`}
+              className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1"
+            >
               Coach name (public)
             </label>
             <input
+              id={`${fieldId}-coach-name-public`}
               type="text"
               value={team.headCoachName || ""}
               onChange={(e) => updateTeam?.({ headCoachName: e.target.value })}
@@ -539,10 +572,14 @@ const TryoutsSettingsPanel = memo(({ team, updateTeam }: any) => {
             />
           </div>
           <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+            <label
+              htmlFor={`${fieldId}-coach-email-public`}
+              className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1"
+            >
               Coach email (public)
             </label>
             <input
+              id={`${fieldId}-coach-email-public`}
               type="email"
               value={team.headCoachPublicEmail || ""}
               onChange={(e) =>
@@ -812,6 +849,7 @@ const Row = ({ label, value, badge, badgeKind }: any) => (
 );
 
 export const SettingsTab = memo(() => {
+  const fieldId = useId();
   const {
     team,
     teams,
@@ -1041,10 +1079,14 @@ export const SettingsTab = memo(() => {
                     <TeamNameField team={team} updateTeam={updateTeam} />
                     <div className="grid grid-cols-2 gap-5">
                       <div>
-                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                        <label
+                          htmlFor={`${fieldId}-league-rules`}
+                          className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                        >
                           League Rules
                         </label>
                         <select
+                          id={`${fieldId}-league-rules`}
                           value={leagueRuleSet}
                           onChange={(e) =>
                             updateTeam({ leagueRuleSet: e.target.value })
@@ -1056,7 +1098,17 @@ export const SettingsTab = memo(() => {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                        <label
+                          // Only a label while there is a dropdown to label:
+                          // with one legal format the value below is plain text.
+                          htmlFor={
+                            allowedPitchingFormats(leagueRuleSet, teamAge)
+                              .length > 1
+                              ? `${fieldId}-pitching-format`
+                              : undefined
+                          }
+                          className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                        >
                           Pitching Format
                         </label>
                         {(() => {
@@ -1075,6 +1127,7 @@ export const SettingsTab = memo(() => {
                           }
                           return (
                             <select
+                              id={`${fieldId}-pitching-format`}
                               value={pitchingFormat}
                               onChange={(e) =>
                                 updateTeam({ pitchingFormat: e.target.value })
@@ -1093,10 +1146,14 @@ export const SettingsTab = memo(() => {
                     </div>
                     <div className="grid grid-cols-2 gap-5">
                       <div>
-                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                        <label
+                          htmlFor={`${fieldId}-age-group`}
+                          className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                        >
                           Age Group
                         </label>
                         <select
+                          id={`${fieldId}-age-group`}
                           value={teamAge}
                           onChange={(e) =>
                             updateTeam({ teamAge: e.target.value })
@@ -1111,10 +1168,14 @@ export const SettingsTab = memo(() => {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                        <label
+                          htmlFor={`${fieldId}-innings`}
+                          className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                        >
                           Innings
                         </label>
                         <select
+                          id={`${fieldId}-innings`}
                           value={inningsCount}
                           onChange={(e) =>
                             updateTeam({ inningsCount: e.target.value })
@@ -1131,10 +1192,14 @@ export const SettingsTab = memo(() => {
                     </div>
                     <div className="grid grid-cols-2 gap-5">
                       <div>
-                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                        <label
+                          htmlFor={`${fieldId}-rotation`}
+                          className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                        >
                           Rotation
                         </label>
                         <select
+                          id={`${fieldId}-rotation`}
                           value={positionLock}
                           onChange={(e) =>
                             updateTeam({ positionLock: e.target.value })
@@ -1148,10 +1213,14 @@ export const SettingsTab = memo(() => {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                        <label
+                          htmlFor={`${fieldId}-batters`}
+                          className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                        >
                           Batters
                         </label>
                         <select
+                          id={`${fieldId}-batters`}
                           value={battingSize}
                           onChange={(e) =>
                             updateTeam({ battingSize: e.target.value })
@@ -1165,10 +1234,16 @@ export const SettingsTab = memo(() => {
                         </select>
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
+                    <div
+                      role="group"
+                      aria-labelledby={`${fieldId}-defense-mode`}
+                    >
+                      <div
+                        id={`${fieldId}-defense-mode`}
+                        className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2"
+                      >
                         Defense Mode
-                      </label>
+                      </div>
                       <div className="flex border border-line bg-surface rounded-xl shadow-sm overflow-hidden p-1">
                         <button
                           onClick={() => updateTeam({ defenseSize: "9" })}
@@ -1205,10 +1280,14 @@ export const SettingsTab = memo(() => {
                     </div>
                     <div className="grid grid-cols-2 gap-5">
                       <div>
-                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                        <label
+                          htmlFor={`${fieldId}-catcher-innings`}
+                          className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                        >
                           Catcher Innings
                         </label>
                         <select
+                          id={`${fieldId}-catcher-innings`}
                           value={catcherMaxInnings || "auto"}
                           onChange={(e) =>
                             updateTeam({ catcherMaxInnings: e.target.value })
@@ -1224,9 +1303,12 @@ export const SettingsTab = memo(() => {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                        <div
+                          id={`${fieldId}-back-to-back`}
+                          className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                        >
                           Back-to-back
-                        </label>
+                        </div>
                         {(() => {
                           const capIsExplicit =
                             catcherMaxInnings &&
@@ -1235,6 +1317,8 @@ export const SettingsTab = memo(() => {
                           const consecutiveOn = catcherConsecutive !== false;
                           return (
                             <button
+                              aria-labelledby={`${fieldId}-back-to-back`}
+                              aria-pressed={capIsExplicit && consecutiveOn}
                               type="button"
                               disabled={!capIsExplicit}
                               onClick={() =>
@@ -1263,10 +1347,14 @@ export const SettingsTab = memo(() => {
                     </div>
                     <div className="grid grid-cols-2 gap-5 mt-5">
                       <div>
-                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                        <label
+                          htmlFor={`${fieldId}-pitch-count-rules`}
+                          className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                        >
                           Pitch-Count Rules
                         </label>
                         <select
+                          id={`${fieldId}-pitch-count-rules`}
                           value={pitchRuleSet || "littleLeague"}
                           onChange={(e) =>
                             updateTeam({ pitchRuleSet: e.target.value })
@@ -1291,10 +1379,14 @@ export const SettingsTab = memo(() => {
                       </div>
                       {pitchRuleSet === "custom" && (
                         <div>
-                          <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                          <label
+                            htmlFor={`${fieldId}-daily-pitch-limit`}
+                            className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                          >
                             Daily Pitch Limit
                           </label>
                           <input
+                            id={`${fieldId}-daily-pitch-limit`}
                             type="number"
                             min="1"
                             max="200"
@@ -1315,10 +1407,17 @@ export const SettingsTab = memo(() => {
                         </div>
                       )}
                     </div>
-                    <div className="mt-5">
-                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                    <div
+                      role="group"
+                      aria-labelledby={`${fieldId}-stat-display`}
+                      className="mt-5"
+                    >
+                      <div
+                        id={`${fieldId}-stat-display`}
+                        className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                      >
                         Stat display
-                      </label>
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         {(["rich", "stripped"] as const).map((mode) => {
                           const active = (statDisplay || "rich") === mode;
@@ -1385,6 +1484,7 @@ export const SettingsTab = memo(() => {
                   {isAddingCoach ? (
                     <div className="bg-surface p-4 border border-line rounded-xl space-y-3 shadow-sm">
                       <input
+                        aria-label="Coach name"
                         type="text"
                         value={newCoachForm.name}
                         onChange={(e) =>
@@ -1397,6 +1497,7 @@ export const SettingsTab = memo(() => {
                         className="w-full p-2.5 border border-line-strong text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-lg shadow-inner"
                       />
                       <select
+                        aria-label="Coach role"
                         value={newCoachForm.role}
                         onChange={(e) =>
                           setNewCoachForm({
@@ -1611,10 +1712,14 @@ export const SettingsTab = memo(() => {
                   <div className="space-y-5">
                     <div className="flex flex-col sm:flex-row gap-5">
                       <div className="flex-1">
-                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                        <label
+                          htmlFor={`${fieldId}-current-season`}
+                          className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                        >
                           Current Season
                         </label>
                         <input
+                          id={`${fieldId}-current-season`}
                           type="text"
                           value={currentSeason}
                           onChange={(e) =>
@@ -1662,10 +1767,16 @@ export const SettingsTab = memo(() => {
                         Players CSV
                       </button>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
+                    <div
+                      role="group"
+                      aria-labelledby={`${fieldId}-team-colors`}
+                    >
+                      <div
+                        id={`${fieldId}-team-colors`}
+                        className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2"
+                      >
                         Team Colors
-                      </label>
+                      </div>
                       <div className="bg-surface p-4 border border-line rounded-xl shadow-sm space-y-3">
                         {[
                           {
@@ -1739,10 +1850,16 @@ export const SettingsTab = memo(() => {
                         </span>
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
+                    <div
+                      role="group"
+                      aria-labelledby={`${fieldId}-logo-upload`}
+                    >
+                      <div
+                        id={`${fieldId}-logo-upload`}
+                        className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2"
+                      >
                         Logo Upload
-                      </label>
+                      </div>
                       <div className="flex items-center gap-4 bg-surface p-4 border border-line rounded-xl shadow-sm">
                         {logoUrl ? (
                           <div className="relative group">

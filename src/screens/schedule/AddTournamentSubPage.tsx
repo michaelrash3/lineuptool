@@ -1,4 +1,4 @@
-import React, { memo, useState } from "react";
+import React, { memo, useId, useState } from "react";
 import { Navigate, useParams, useNavigate } from "react-router-dom";
 import { useTeam } from "../../contexts";
 import { PageShell } from "../../components/PageShell";
@@ -20,6 +20,7 @@ import type { Player, Tournament } from "../../types";
 // to seat them for a few games — name, number, handedness, and where they can
 // play. Everything season-long (stats, evals, development, fees) skips them.
 export const AddTournamentSubPage = memo(() => {
+  const fieldId = useId();
   const { tournamentId } = useParams();
   const { team, addSubPlayer, currentRole } = useTeam();
   const navigate = useNavigate();
@@ -183,10 +184,13 @@ export const AddTournamentSubPage = memo(() => {
           )}
         </div>
 
-        <div>
-          <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+        <div role="group" aria-labelledby={`${fieldId}-can-play`}>
+          <div
+            id={`${fieldId}-can-play`}
+            className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+          >
             Can Play
-          </label>
+          </div>
           <p className="text-[11px] text-ink-3 font-medium mb-2">
             Leave empty to let the engine use them anywhere except catcher — C
             is opt-in, and P is what puts them on the weekend pitching plan.
