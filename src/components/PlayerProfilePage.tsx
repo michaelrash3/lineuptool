@@ -1,4 +1,11 @@
-import React, { memo, useMemo, useState, useRef, useEffect } from "react";
+import React, {
+  memo,
+  useMemo,
+  useState,
+  useRef,
+  useEffect,
+  useId,
+} from "react";
 import { Icons } from "../icons";
 import {
   formatStat,
@@ -181,6 +188,7 @@ const PastSeasonForm = memo(
     onCancel,
     onDelete,
   }: any) => {
+    const fieldId = useId();
     const [season, setSeason] = useState(initial?.season || "");
     const [ageGroup, setAgeGroup] = useState(initial?.ageGroup || "");
     const [pitchingFormat, setPitchingFormat] = useState(
@@ -212,10 +220,14 @@ const PastSeasonForm = memo(
       <div className="bg-surface border-2 border-line-strong rounded-xl p-4 shadow-md mb-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           <div>
-            <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+            <label
+              htmlFor={`${fieldId}-season`}
+              className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+            >
               Season *
             </label>
             <input
+              id={`${fieldId}-season`}
               type="text"
               value={season}
               onChange={(e) => setSeason(e.target.value)}
@@ -224,10 +236,14 @@ const PastSeasonForm = memo(
             />
           </div>
           <div>
-            <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+            <label
+              htmlFor={`${fieldId}-age-group`}
+              className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+            >
               Age Group *
             </label>
             <select
+              id={`${fieldId}-age-group`}
               value={ageGroup}
               onChange={(e) => setAgeGroup(e.target.value)}
               className="w-full p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
@@ -241,10 +257,14 @@ const PastSeasonForm = memo(
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+            <label
+              htmlFor={`${fieldId}-pitching-format`}
+              className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+            >
               Pitching Format
             </label>
             <select
+              id={`${fieldId}-pitching-format`}
               value={pitchingFormat}
               onChange={(e) => setPitchingFormat(e.target.value)}
               className="w-full p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
@@ -258,10 +278,14 @@ const PastSeasonForm = memo(
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
           {fields.map((key) => (
             <div key={key}>
-              <label className="block text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1">
+              <label
+                htmlFor={`${fieldId}-stat-${key}`}
+                className="block text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1"
+              >
                 {STAT_META[key]?.label ?? key.toUpperCase()}
               </label>
               <input
+                id={`${fieldId}-stat-${key}`}
                 type="number"
                 step="0.001"
                 value={stats[key] || 0}
@@ -313,6 +337,7 @@ const PastSeasonForm = memo(
 // open is a plain navigation, so browser/Android back, refresh, and deep
 // links all behave like any other page.
 const PlayerProfile = memo(() => {
+  const fieldId = useId();
   const navigate = useNavigate();
   const goBack = useBackOrFallback("/roster");
   const {
@@ -599,6 +624,7 @@ const PlayerProfile = memo(() => {
           <div className="flex-1 w-full">
             {editingPlayerName ? (
               <input
+                aria-label="Player name"
                 type="text"
                 value={tempPlayerName}
                 autoFocus
@@ -716,10 +742,14 @@ const PlayerProfile = memo(() => {
               <h3 className="t-h3">General Info</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  <label
+                    htmlFor={`${fieldId}-number`}
+                    className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                  >
                     Number
                   </label>
                   <input
+                    id={`${fieldId}-number`}
                     type="text"
                     value={player.number || ""}
                     onChange={(e) =>
@@ -729,10 +759,14 @@ const PlayerProfile = memo(() => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  <label
+                    htmlFor={`${fieldId}-bats`}
+                    className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                  >
                     Bats
                   </label>
                   <select
+                    id={`${fieldId}-bats`}
                     value={player.bats || "R"}
                     onChange={(e) =>
                       updatePlayer(player.id, { bats: e.target.value })
@@ -745,10 +779,14 @@ const PlayerProfile = memo(() => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  <label
+                    htmlFor={`${fieldId}-throws`}
+                    className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                  >
                     Throws
                   </label>
                   <select
+                    id={`${fieldId}-throws`}
                     value={player.throws || "R"}
                     onChange={(e) =>
                       updatePlayer(player.id, { throws: e.target.value })
@@ -760,10 +798,14 @@ const PlayerProfile = memo(() => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  <label
+                    htmlFor={`${fieldId}-primary-pos`}
+                    className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                  >
                     Primary Pos
                   </label>
                   <select
+                    id={`${fieldId}-primary-pos`}
                     value={player.primaryPosition || ""}
                     onChange={(e) =>
                       updatePlayer(player.id, {
@@ -799,10 +841,14 @@ const PlayerProfile = memo(() => {
                     )}
                 </div>
                 <div className="col-span-2 sm:col-span-2">
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  <label
+                    htmlFor={`${fieldId}-date-of-birth`}
+                    className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                  >
                     Date of Birth
                   </label>
                   <input
+                    id={`${fieldId}-date-of-birth`}
                     type="date"
                     value={player.dob || ""}
                     onChange={(e) =>
@@ -813,10 +859,16 @@ const PlayerProfile = memo(() => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
+              <div
+                role="group"
+                aria-labelledby={`${fieldId}-comfortable-positions`}
+              >
+                <div
+                  id={`${fieldId}-comfortable-positions`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2"
+                >
                   Comfortable Positions
-                </label>
+                </div>
                 <p className="text-[11px] text-ink-3 font-medium mb-3">
                   Tap positions you&apos;re comfortable with this player
                   playing. Leave empty to let the engine consider them anywhere
@@ -908,6 +960,7 @@ const PlayerProfile = memo(() => {
                   attendance.
                 </p>
                 <select
+                  aria-label="Roster status"
                   value={rosterStatusOf(player)}
                   onChange={(e) => {
                     const rosterStatus = e.target.value;
@@ -942,10 +995,14 @@ const PlayerProfile = memo(() => {
                   </h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                      <label
+                        htmlFor={`${fieldId}-pitches-last-game`}
+                        className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                      >
                         Pitches Last Game
                       </label>
                       <input
+                        id={`${fieldId}-pitches-last-game`}
                         type="number"
                         min="0"
                         value={player.pitching?.recentPitches || 0}
@@ -958,10 +1015,14 @@ const PlayerProfile = memo(() => {
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                      <label
+                        htmlFor={`${fieldId}-last-date-pitched`}
+                        className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                      >
                         Last Date Pitched
                       </label>
                       <input
+                        id={`${fieldId}-last-date-pitched`}
                         type="date"
                         value={player.pitching?.lastPitchDate || ""}
                         onChange={(e) =>
@@ -973,10 +1034,14 @@ const PlayerProfile = memo(() => {
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                      <label
+                        htmlFor={`${fieldId}-top-fastball-mph`}
+                        className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                      >
                         Top Fastball (mph)
                       </label>
                       <input
+                        id={`${fieldId}-top-fastball-mph`}
                         type="number"
                         min="0"
                         max="120"
@@ -1682,10 +1747,14 @@ const PlayerProfile = memo(() => {
                 { key: "notes", label: "Player Info Notes" },
               ].map(({ key, label }) => (
                 <div key={key}>
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  <label
+                    htmlFor={`${fieldId}-${key}`}
+                    className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                  >
                     {label}
                   </label>
                   <input
+                    id={`${fieldId}-${key}`}
                     type="text"
                     value={player[key] || ""}
                     disabled={!editingContact}

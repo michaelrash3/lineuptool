@@ -429,7 +429,10 @@ export const DepthChartTab = memo(() => {
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="grid grid-cols-3 gap-2 text-center flex-1 md:flex-none md:min-w-[22rem]">
+          {/* basis-full below md: beside the Export button the three tiles
+              were squeezed narrower than their labels on a phone, so
+              "Players", "Positions" and "Custom" ran into each other. */}
+          <div className="grid grid-cols-3 gap-2 text-center basis-full md:basis-auto md:flex-none md:min-w-[22rem]">
             <div className="border border-line bg-surface/60 px-3 py-2">
               <div className="t-stat-num-sm tabular-nums">{players.length}</div>
               <div className="t-meta">Players</div>

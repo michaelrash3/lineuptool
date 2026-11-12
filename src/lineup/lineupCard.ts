@@ -6,6 +6,7 @@
 
 import { Game, SlimPlayer, Team, Toast } from "../types";
 import { countsTowardStats } from "../utils/helpers";
+import { isoInstantToLocalTime } from "../utils/icsParse";
 import {
   maxPitchesForAge,
   pitchesOnDate,
@@ -356,7 +357,8 @@ const buildLineupCanvasInternal = ({
     );
   }
   const dateStr = game.date ? formatDate(game.date) : "";
-  const timeStr = game.time || "";
+  // First pitch lives in startUtc; `time` is only on games saved before it.
+  const timeStr = isoInstantToLocalTime(game.startUtc) || game.time || "";
   const dateTime = [dateStr, timeStr].filter(Boolean).join(" • ");
   rightLine(
     dateTime,

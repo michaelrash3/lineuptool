@@ -289,6 +289,7 @@ export const EvalGradeCard = memo(
               </p>
             ) : (
               <textarea
+                aria-label={`Notes for ${player.name}`}
                 value={playerGrades.notes || ""}
                 onChange={(e) => onNotesChange?.(player.id, e.target.value)}
                 rows={2}

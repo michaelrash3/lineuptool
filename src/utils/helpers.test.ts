@@ -1261,6 +1261,83 @@ describe("buildScheduleIcs", () => {
     expect(ics).toContain("DTSTAMP:20260501T120000Z");
   });
 
+  it("emits a game with a start time as a timed event with a two-hour slot", () => {
+    // Games store first pitch as a startUtc instant. As an all-day event the
+    // phone's calendar had no hour to alert before.
+    const ics = buildScheduleIcs(
+      [
+        {
+          id: "g1",
+          date: "2026-05-01",
+          opponent: "Rays",
+          startUtc: "2026-05-01T22:30:00.000Z",
+        },
+      ],
+      "Hawks",
+      now,
+    );
+    expect(ics).toContain("DTSTART:20260501T223000Z");
+    expect(ics).toContain("DTEND:20260502T003000Z");
+    expect(ics).not.toContain("VALUE=DATE");
+    // The event carries the time, so the title doesn't repeat it.
+    expect(ics).toContain("SUMMARY:Hawks vs Rays\r\n");
+  });
+
+  it("keeps a game with no usable start time as an all-day event", () => {
+    const ics = buildScheduleIcs(
+      [
+        { id: "g1", date: "2026-05-01", opponent: "Rays", startUtc: null },
+        { id: "g2", date: "2026-05-02", opponent: "Cubs", startUtc: "nope" },
+      ],
+      "Hawks",
+      now,
+    );
+    expect(ics).toContain("DTSTART;VALUE=DATE:20260501");
+    expect(ics).toContain("DTSTART;VALUE=DATE:20260502");
+    expect(ics).not.toMatch(/DTSTART:\d/);
+  });
+
+  it("orders a doubleheader by first pitch", () => {
+    const ics = buildScheduleIcs(
+      [
+        {
+          id: "late",
+          date: "2026-05-01",
+          startUtc: "2026-05-01T20:00:00.000Z",
+        },
+        {
+          id: "early",
+          date: "2026-05-01",
+          startUtc: "2026-05-01T15:00:00.000Z",
+        },
+      ],
+      "Hawks",
+      now,
+    );
+    const uids = [...ics.matchAll(/UID:(.+)/g)].map((m) => m[1].trim());
+    expect(uids).toEqual(["game-early@coachscard", "game-late@coachscard"]);
+  });
+
+  it("marks an away game and carries the field as the location", () => {
+    const ics = buildScheduleIcs(
+      [
+        {
+          id: "g1",
+          date: "2026-05-01",
+          opponent: "Rays",
+          isHome: false,
+          location: "Legion Complex, Field 2\nPark behind the gym",
+        },
+      ],
+      "Hawks",
+      now,
+    );
+    expect(ics).toContain("SUMMARY:Hawks @ Rays");
+    expect(ics).toContain(
+      "LOCATION:Legion Complex\\, Field 2\\nPark behind the gym",
+    );
+  });
+
   it("omits finalized, postponed, and undated games", () => {
     const ics = buildScheduleIcs(
       [

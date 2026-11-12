@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useMemo, useState, useId } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useTeam, useUI, useConfirm, useToast } from "../contexts";
 import { PageShell } from "../components/PageShell";
@@ -27,6 +27,7 @@ import {
 // only the explicit "Apply to this game" button writes the scenario's lineup
 // (and syncs attendance). Head-coach only.
 export const WhatIfLineupPage = memo(() => {
+  const fieldId = useId();
   const { team, currentRole, updateGame } = useTeam() as any;
   const { setSelectedGameId, setActiveTab } = useUI();
   const { confirm } = useConfirm();
@@ -216,10 +217,14 @@ export const WhatIfLineupPage = memo(() => {
 
           {/* Game picker */}
           <div className="cc-card p-4">
-            <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+            <label
+              htmlFor={`${fieldId}-game`}
+              className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+            >
               Game
             </label>
             <select
+              id={`${fieldId}-game`}
               value={game.id}
               onChange={(e) => setGameId(e.target.value)}
               className="w-full p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"

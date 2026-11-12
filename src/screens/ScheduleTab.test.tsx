@@ -167,6 +167,82 @@ describe("ScheduleTab", () => {
     expect(screen.getByText("No Games Scheduled")).toBeInTheDocument();
   });
 
+  it("downloads the upcoming games as a calendar file", () => {
+    // The export had no button anywhere in the app — the builder was tested
+    // but unreachable. Stub only the browser's download plumbing.
+    const blobs: Blob[] = [];
+    const createObjectURL = jest.fn((b: Blob) => {
+      blobs.push(b);
+      return "blob:calendar";
+    });
+    const revokeObjectURL = jest.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    const click = jest
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    const { toastValue } = renderWithProviders(
+      <MemoryRouter>
+        <ScheduleTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...baseTeam,
+            name: "Hawks",
+            games: [
+              {
+                id: "g1",
+                date: "2099-05-01",
+                opponent: "Rays",
+                status: "scheduled",
+                startUtc: "2099-05-01T22:30:00.000Z",
+              },
+            ],
+          },
+          record: { wins: 0, losses: 0, ties: 0 },
+          currentRole: "assistant",
+        },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /download calendar/i }));
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(blobs[0].type).toContain("text/calendar");
+    expect(toastValue.push).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Calendar file downloaded" }),
+    );
+    click.mockRestore();
+  });
+
+  it("offers no calendar download when nothing is upcoming", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <ScheduleTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...baseTeam,
+            games: [
+              {
+                id: "g1",
+                date: "2026-05-01",
+                opponent: "Rays",
+                status: "final",
+                teamScore: 4,
+                opponentScore: 2,
+              },
+            ],
+          },
+          record: { wins: 1, losses: 0, ties: 0 },
+          currentRole: "head",
+        },
+      },
+    );
+    expect(
+      screen.queryByRole("button", { name: /download calendar/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("offers Import Schedule at the bottom for head coaches", () => {
     renderWithProviders(
       <MemoryRouter>

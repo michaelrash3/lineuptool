@@ -1,4 +1,11 @@
-import React, { memo, useState, useMemo, useEffect, useRef } from "react";
+import React, {
+  memo,
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useId,
+} from "react";
 import { Icons } from "../icons";
 import { HelpTip } from "../components/help/HelpTip";
 import {
@@ -18,7 +25,8 @@ import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
 import { Link, useNavigate } from "react-router-dom";
 import { useTeam, useUI, useToast } from "../contexts";
-import { RecordBadge, EmptyState } from "../components/shared";
+import { downloadScheduleIcs } from "../utils/ics";
+import { RecordBadge, EmptyState, MetaRow } from "../components/shared";
 import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
 import { TournamentsSection } from "../components/tournament/TournamentsSection";
 import { GameStakesPanel } from "../components/tournament/GameStakesPanel";
@@ -201,6 +209,7 @@ const gcAutoSyncedAt = new Map<string, number>();
 const GC_AUTOSYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 export const ScheduleTab = memo(() => {
+  const fieldId = useId();
   const {
     team,
     activeTeamId,
@@ -556,7 +565,9 @@ export const ScheduleTab = memo(() => {
           <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 border-b border-line">
             <div className="flex items-center gap-4">
               <button
+                type="button"
                 onClick={() => setSelectedGameId(null)}
+                aria-label="Back to schedule"
                 className="p-2 hover:bg-surface text-ink-3 hover:text-ink rounded-full transition-colors"
               >
                 <Icons.ChevronUp className="w-6 h-6 -rotate-90" />
@@ -727,6 +738,7 @@ export const ScheduleTab = memo(() => {
                           </span>
                           <div className="h-6 w-px bg-line shrink-0" />
                           <select
+                            aria-label={`${pos} in the first inning`}
                             value={firstInningLineup[pos] || ""}
                             onChange={(e) => {
                               const val = e.target.value;
@@ -788,10 +800,14 @@ export const ScheduleTab = memo(() => {
           <GameDetailsDisclosure summary={detailsSummary}>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 p-6 bg-transparent">
               <div className="w-full col-span-2 md:col-span-1">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-date`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Date
                 </label>
                 <input
+                  id={`${fieldId}-date`}
                   type="date"
                   value={normalizeDateToIso(currentGame.date) || ""}
                   onChange={(e) => {
@@ -811,10 +827,14 @@ export const ScheduleTab = memo(() => {
                 />
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-time`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Time
                 </label>
                 <input
+                  id={`${fieldId}-time`}
                   type="time"
                   value={isoInstantToLocalTimeInput(currentGame.startUtc)}
                   onChange={(e) =>
@@ -830,10 +850,14 @@ export const ScheduleTab = memo(() => {
                 />
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-home-away`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Home / Away
                 </label>
                 <select
+                  id={`${fieldId}-home-away`}
                   value={currentGame.isHome === false ? "away" : "home"}
                   onChange={(e) =>
                     updateGame(selectedGameId, {
@@ -847,10 +871,14 @@ export const ScheduleTab = memo(() => {
                 </select>
               </div>
               <div className="w-full col-span-2">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-location`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Location
                 </label>
                 <input
+                  id={`${fieldId}-location`}
                   type="text"
                   value={currentGame.location || ""}
                   onChange={(e) =>
@@ -861,10 +889,14 @@ export const ScheduleTab = memo(() => {
                 />
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-game-rules`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Game Rules
                 </label>
                 <select
+                  id={`${fieldId}-game-rules`}
                   value={gameLeague}
                   onChange={(e) => {
                     const newLeague = e.target.value;
@@ -895,10 +927,14 @@ export const ScheduleTab = memo(() => {
                     regular-season default. Also the classification chip in the
                     week planner. */}
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-game-type`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Game Type
                 </label>
                 <select
+                  id={`${fieldId}-game-type`}
                   value={gameType}
                   aria-label="Game type"
                   onChange={(e) =>
@@ -912,7 +948,16 @@ export const ScheduleTab = memo(() => {
                 </select>
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  // Only a label while there is a dropdown to label: with one
+                  // legal format the value below is plain text.
+                  htmlFor={
+                    allowedPitchingFormats(gameLeague, teamAge).length > 1
+                      ? `${fieldId}-pitching`
+                      : undefined
+                  }
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Pitching
                 </label>
                 {(() => {
@@ -931,6 +976,7 @@ export const ScheduleTab = memo(() => {
                   }
                   return (
                     <select
+                      id={`${fieldId}-pitching`}
                       value={gamePitching}
                       onChange={(e) =>
                         updateGame(selectedGameId, {
@@ -949,10 +995,14 @@ export const ScheduleTab = memo(() => {
                 })()}
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-fielders`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Fielders
                 </label>
                 <select
+                  id={`${fieldId}-fielders`}
                   value={gameDefenseSize}
                   onChange={(e) =>
                     updateGame(selectedGameId, { defenseSize: e.target.value })
@@ -964,10 +1014,14 @@ export const ScheduleTab = memo(() => {
                 </select>
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-position-rotation`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Position Rotation
                 </label>
                 <select
+                  id={`${fieldId}-position-rotation`}
                   value={gamePositionLock}
                   onChange={(e) =>
                     updateGame(selectedGameId, { positionLock: e.target.value })
@@ -981,10 +1035,14 @@ export const ScheduleTab = memo(() => {
                 </select>
               </div>
               <div className="w-full col-span-2 md:col-span-1">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`${fieldId}-batters`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Batters
                 </label>
                 <select
+                  id={`${fieldId}-batters`}
                   value={gameBattingSize}
                   onChange={(e) =>
                     updateGame(selectedGameId, { battingSize: e.target.value })
@@ -1624,7 +1682,7 @@ export const ScheduleTab = memo(() => {
   return (
     <div>
       <div className="pb-4 mb-1 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-line">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 shrink-0">
           <div
             className="p-2.5 rounded-full"
             style={{ backgroundColor: `${primaryColor}15` }}
@@ -1638,7 +1696,9 @@ export const ScheduleTab = memo(() => {
             Schedule <HelpTip topicId="add-games" label="About the schedule" />
           </h2>
         </div>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+        {/* Wraps from sm up: the record and four actions on one unbreakable
+            row ran ~280px past the edge of a portrait tablet. */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-end gap-3 w-full sm:w-auto sm:flex-1 sm:min-w-0">
           {(record.wins > 0 || record.losses > 0 || record.ties > 0) && (
             <RecordBadge record={record} variant="full" />
           )}
@@ -1679,6 +1739,7 @@ export const ScheduleTab = memo(() => {
       {isAddingGame && (
         <div className="p-5 bg-surface border-b border-white/30 flex flex-col sm:flex-row gap-3">
           <input
+            aria-label="Game date"
             type="date"
             value={newGameForm.date}
             onChange={(e) =>
@@ -1696,6 +1757,7 @@ export const ScheduleTab = memo(() => {
             className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
           />
           <input
+            aria-label="Opponent name"
             type="text"
             value={newGameForm.opponent}
             onChange={(e) =>
@@ -1705,6 +1767,7 @@ export const ScheduleTab = memo(() => {
             className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 uppercase shadow-inner"
           />
           <input
+            aria-label="Field or location"
             type="text"
             value={newGameForm.location}
             onChange={(e) =>
@@ -1714,6 +1777,7 @@ export const ScheduleTab = memo(() => {
             className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 shadow-inner"
           />
           <select
+            aria-label="Game rules"
             value={newGameForm.leagueRuleSet}
             onChange={(e) => {
               const newLeague = e.target.value;
@@ -1747,6 +1811,7 @@ export const ScheduleTab = memo(() => {
             }
             return (
               <select
+                aria-label="Pitching format"
                 value={newGameForm.pitchingFormat}
                 onChange={(e) =>
                   setNewGameForm({
@@ -1963,20 +2028,21 @@ export const ScheduleTab = memo(() => {
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <Icons.Clock className="w-3.5 h-3.5 shrink-0" />{" "}
-                            <span className="whitespace-nowrap">
-                              {formatGameDateDisplay(game.date)}
-                            </span>{" "}
-                            {isoInstantToLocalTime(game.startUtc) && (
-                              <>
-                                <span className="text-ink-3">·</span>{" "}
-                                <span className="whitespace-nowrap">
-                                  {isoInstantToLocalTime(game.startUtc)}
-                                </span>{" "}
-                              </>
-                            )}
-                            <span className="text-ink-3">|</span>{" "}
+                          <MetaRow className="text-[11px] font-bold text-ink-3 uppercase tracking-widest">
+                            <>
+                              <Icons.Clock className="w-3.5 h-3.5 shrink-0" />
+                              <span className="whitespace-nowrap">
+                                {formatGameDateDisplay(game.date)}
+                              </span>
+                              {isoInstantToLocalTime(game.startUtc) && (
+                                <>
+                                  <span>·</span>
+                                  <span className="whitespace-nowrap">
+                                    {isoInstantToLocalTime(game.startUtc)}
+                                  </span>
+                                </>
+                              )}
+                            </>
                             <span className="whitespace-nowrap">
                               {leagueRuleSetLabel(
                                 game.leagueRuleSet || leagueRuleSet,
@@ -1984,12 +2050,9 @@ export const ScheduleTab = memo(() => {
                               {game.pitchingFormat || pitchingFormat}
                             </span>
                             {game.location && (
-                              <>
-                                <span className="text-ink-3">|</span>{" "}
-                                <span className="normal-case tracking-normal">
-                                  {String(game.location).split("\n")[0]}
-                                </span>
-                              </>
+                              <span className="normal-case tracking-normal">
+                                {String(game.location).split("\n")[0]}
+                              </span>
                             )}
                             {tournamentByGameId.has(game.id) && (
                               <span
@@ -2004,7 +2067,7 @@ export const ScheduleTab = memo(() => {
                                 {tournamentByGameId.get(game.id)}
                               </span>
                             )}
-                          </p>
+                          </MetaRow>
 
                           <div className="mt-2 flex flex-wrap items-center gap-3">
                             <label className="inline-flex items-center gap-2 cursor-pointer select-none">
@@ -2180,6 +2243,43 @@ export const ScheduleTab = memo(() => {
                   </div>
                 );
               })}
+            </div>
+          )}
+          {/* The schedule on the coach's own calendar. In-app reminders only
+              fire while the app is open; a calendar entry alerts on its own.
+              At the foot of the list rather than in the header, which is
+              already four buttons deep on a phone. */}
+          {sortedGames.some(
+            (g: any) =>
+              !isGameFinalized(g) && (g.status || "scheduled") !== "postponed",
+          ) && (
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border border-line rounded-xl bg-surface p-4 print:hidden">
+              <div className="min-w-0 flex-1 basis-64">
+                <p className="text-xs font-black uppercase tracking-widest text-ink">
+                  Add games to your calendar
+                </p>
+                <p className="text-[11px] font-medium text-ink-3 mt-1">
+                  Downloads every upcoming game as a calendar file, so your
+                  phone can remind you even when this app is closed. A game with
+                  a start time gets a two-hour slot; one without is an all-day
+                  entry.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  downloadScheduleIcs(sortedGames, team?.name);
+                  toast.push({
+                    kind: "success",
+                    title: "Calendar file downloaded",
+                    message:
+                      "Open it to add the games. Download again after the schedule changes.",
+                  });
+                }}
+                className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2 transition-colors"
+              >
+                <Icons.Calendar className="w-4 h-4" /> Download calendar
+              </button>
             </div>
           )}
         </div>

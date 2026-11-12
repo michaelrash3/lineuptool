@@ -34,13 +34,23 @@ const TAB_TITLE_LABELS: Record<string, string> = {
   roster: "Roster",
   schedule: "Schedule",
   practices: "Practices",
+  depthChart: "Depth Chart",
   evaluation: "Evaluation",
   tryouts: "Tryouts",
+  families: "Families",
   interest: "Interest",
   playerInfo: "Player Info",
   availability: "Availability",
   finances: "Finances",
   settings: "Settings",
+  // Standalone pages have no tab; activeTab carries their first URL segment
+  // (useMainShellRouting's phantom ids). Without an entry the browser tab,
+  // history and task switcher show only the team name for them.
+  help: "Help",
+  awards: "Awards",
+  lineup: "What-If Lineup",
+  "season-report": "Season Report",
+  "playing-time": "Playing Time",
 };
 
 export const UIProvider = ({ children }: { children: React.ReactNode }) => {
@@ -394,12 +404,32 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   // Clear any selected/scoring/in-game id whose underlying game has been
   // deleted (locally or via a remote snapshot). Without this, the UI would
   // try to render against a non-existent game until the next interaction.
+  //
+  // "Not in the list" only means "deleted" once the list can be trusted. On a
+  // refresh or deep link the id arrives from the URL (/schedule/game/:id,
+  // /in-game/:id) before the games do, and clearing it then threw the coach
+  // out of the game they had open — mid-game, back to the schedule. So an id
+  // is cleared when it WAS in the list and has left it (a delete, local or
+  // remote — works offline too), or when the team has finished loading and
+  // the server has confirmed the games it holds (a stale or mistyped link).
+  const seenGameIdsRef = useRef<Set<string>>(new Set());
+  const gamesListSettled = !team.loading && team.gamesServerConfirmed === true;
   useEffect(() => {
-    const ids = new Set(team.team.games.map((g: Game) => g.id));
-    if (selectedGameId && !ids.has(selectedGameId)) setSelectedGameId(null);
-    if (scoringGameId && !ids.has(scoringGameId)) setScoringGameId(null);
-    if (inGameId && !ids.has(inGameId)) setInGameId(null);
-  }, [team.team.games, selectedGameId, scoringGameId, inGameId]);
+    const ids = new Set<string>(team.team.games.map((g: Game) => g.id));
+    const seen = seenGameIdsRef.current;
+    const gone = (id: string | null) =>
+      !!id && !ids.has(id) && (gamesListSettled || seen.has(id));
+    if (gone(selectedGameId)) setSelectedGameId(null);
+    if (gone(scoringGameId)) setScoringGameId(null);
+    if (gone(inGameId)) setInGameId(null);
+    ids.forEach((id) => seen.add(id));
+  }, [
+    team.team.games,
+    selectedGameId,
+    scoringGameId,
+    inGameId,
+    gamesListSettled,
+  ]);
   // When players list changes, fill in attendance defaults. A kid defaults
   // absent when inactive on the roster, scheduled out on the game's date
   // (absences entered ahead of time on the player profile), OR injured-out

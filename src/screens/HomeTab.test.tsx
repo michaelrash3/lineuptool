@@ -155,6 +155,64 @@ describe("HomeTab", () => {
     expect(screen.getByText("vs Bears")).toBeInTheDocument();
   });
 
+  it("This Week shows each game's start time and orders a day by the clock", () => {
+    // Games store first pitch as a startUtc instant (no `time` field), and a
+    // "10:00 AM" label sorts ahead of "9:00 AM" as text.
+    const at = (h: number) => new Date(2026, 5, 19, h, 0).toISOString();
+    const label = (iso: string) =>
+      new Date(iso).toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    renderWithProviders(
+      <MemoryRouter>
+        <HomeTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...emptyTeam,
+            players: [{ id: "p1", name: "Ava Rivera" }],
+            games: [
+              {
+                id: "late",
+                date: "2026-06-19",
+                status: "draft",
+                opponent: "Bears",
+                startUtc: at(10),
+              },
+              {
+                id: "early",
+                date: "2026-06-19",
+                status: "draft",
+                opponent: "Cubs",
+                startUtc: at(9),
+              },
+            ],
+          },
+          teams: [{ id: "t1", name: "Hawks" }],
+          activeTeamId: "t1",
+          record: { wins: 0, losses: 0, ties: 0 },
+          user: { uid: "u1" },
+          currentRole: "head",
+        },
+        ui: {
+          setIsAddingGame: jest.fn(),
+          openAddPlayer: jest.fn(),
+          openPlayerProfile: jest.fn(),
+          setActiveTab: jest.fn(),
+        },
+      },
+    );
+    const early = screen.getByText("vs Cubs").closest("button")!;
+    const late = screen.getByText("vs Bears").closest("button")!;
+    expect(early).toHaveTextContent(label(at(9)));
+    expect(late).toHaveTextContent(label(at(10)));
+    expect(
+      early.compareDocumentPosition(late) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("suppresses dashboard surfaces that deep-link into disabled features", () => {
     // A team with an in-window practice AND pressing unpaid team fees. With
     // Practices/Finances switched off in Settings, the "This Week" practice

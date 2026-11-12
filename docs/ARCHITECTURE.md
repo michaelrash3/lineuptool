@@ -140,11 +140,11 @@ The top level is deliberately concentrated rather than scattered: `src/App.tsx` 
    - `useTeamMembership.ts` — head/assistant role plumbing, view-as toggle
    - `useInviteFlows.ts` — `regenerateJoinCode`, `joinTeamByCode`
    - `useImportExportFlows.ts` — CSV import/export, backup JSON
-   - `useMainShellRouting.ts` — keeps the active tab in sync with the URL
+   - `useMainShellRouting.ts` — keeps the active tab, the game editor and the live game in sync with the URL. The URL wins on mount (a refresh or deep link stays where it is); after that a state change navigates, and a value adopted from the URL is never pushed back to it
 
 4. **Reusable components under `src/components/`:**
    - `Chrome.tsx` — `LoginScreen`, `AppHeader`, `NavDrawer` (the hamburger drawer; its rows are `<Link>`s, see the URL-state rule below)
-   - `shared.tsx` — `Button`, `Chip`, `Eyebrow`, `PlayerAvatar`, `RecordBadge`, `Modal`, `A11yDialog`, plus the image helpers (`downscaleImageToDataURL`, `extractLogoPalette`)
+   - `shared.tsx` — `Button`, `Chip`, `Eyebrow`, `MetaRow` (a wrapping row of facts whose dividers never dangle at a line end), `PlayerAvatar`, `RecordBadge`, `Modal`, `A11yDialog`, plus the image helpers (`downscaleImageToDataURL`, `extractLogoPalette`)
    - `PlayerProfilePage.tsx` — the routed player profile (`/roster/:playerId`); every former modal is a routed page under `src/screens/` per the app-wide modals→pages rule
    - `OnboardingTutorial.tsx` — 7-step CTA tour, gated by `lineuptool.onboardingComplete.v2` in localStorage
    - `EvalGradeCard.tsx` — eval grading card
