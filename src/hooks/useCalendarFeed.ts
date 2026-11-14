@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { deleteDoc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, writeBatch } from "firebase/firestore";
 import { db, appId } from "../firebase";
 import type { Team, ToastContextValue } from "../types";
 import {
@@ -81,18 +81,31 @@ export const useCalendarFeed = ({
   }, [activeTeamId, user, gamesReady, token, games, teamName, retry]);
 
   const enableCalendarFeed = useCallback(() => {
-    if (!isHead || !activeTeamId) return;
+    // Never over an existing link: replacing a token means retiring it, and
+    // that goes through disableCalendarFeed (the rules insist on it too).
+    if (!isHead || !activeTeamId || token) return;
     // The effect above publishes the feed once the token is on the team.
     updateTeam({ calendarFeedToken: newCalendarFeedToken() });
-  }, [isHead, activeTeamId, updateTeam]);
+  }, [isHead, activeTeamId, token, updateTeam]);
 
-  // Take the published doc down FIRST, and only then forget its token: the
-  // other order could strand a readable feed nobody can find to delete.
+  // Take the published doc down and forget its token in ONE commit. As two
+  // writes — delete, then clear — another coach's open app could republish in
+  // between, while the token was still current, leaving a public feed under a
+  // token nobody remembers. The rules refuse to retire a token whose feed
+  // still stands (retiredFeedGone in firestore.rules), so a client that tried
+  // the two-step way fails instead of stranding one. The cleared token reaches
+  // local state through the team doc's own snapshot.
   const disableCalendarFeed = useCallback(async () => {
     if (!isHead || !activeTeamId) return false;
     try {
+      const batch = writeBatch(db);
       if (CALENDAR_FEED_TOKEN_RE.test(token))
-        await deleteDoc(calendarFeedRef(db, appId, activeTeamId, token));
+        batch.delete(calendarFeedRef(db, appId, activeTeamId, token));
+      batch.update(
+        doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId),
+        { calendarFeedToken: null },
+      );
+      await batch.commit();
     } catch {
       toast.push({
         kind: "error",
@@ -101,9 +114,8 @@ export const useCalendarFeed = ({
       });
       return false;
     }
-    updateTeam({ calendarFeedToken: null });
     return true;
-  }, [isHead, activeTeamId, token, updateTeam, toast]);
+  }, [isHead, activeTeamId, token, toast]);
 
   return { enableCalendarFeed, disableCalendarFeed };
 };

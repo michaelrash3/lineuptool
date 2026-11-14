@@ -107,9 +107,13 @@ edge for five minutes. It holds no credentials: this doc is the **one read in
 the rules that needs no sign-in**, because a calendar app polling a link can't
 sign in. The token stands in for it — `get` only (ids can't be listed), visible
 only to the team's members, and the team id in the doc id means no other team
-can publish under it. Turning the link off deletes the doc first and then
-clears the token; a link created later is a different one. Deleting the team
-deletes the doc in the same sweep as its subcollections. Rollout notes in
+can publish under it. A token is only ever retired together with its feed:
+turning the link off deletes the doc and clears the token in **one commit**,
+deleting the team deletes the doc and the team doc in one commit, and the
+rules refuse either write while the feed still stands (`retiredFeedGone`). As
+two writes, another coach's open app could republish in between and strand a
+public doc under a token nobody remembers. A link created later is a
+different one. Rollout notes in
 `docs/firebase-rules-rollout.md` §11.
 
 The mirror is upserted by an effect in `TeamProvider`

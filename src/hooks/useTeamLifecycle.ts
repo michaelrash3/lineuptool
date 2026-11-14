@@ -9,7 +9,7 @@ import {
   doc,
   setDoc,
   getDoc,
-  deleteDoc,
+  writeBatch,
   updateDoc,
   arrayRemove,
 } from "firebase/firestore";
@@ -887,7 +887,6 @@ export const useTeamLifecycle = ({
       // up the ordering guarantee the sweep is built on. advanceSeason keeps
       // the window: it never deletes the team doc, so abandoning there is
       // harmless.
-      const feedToken = String(teamDataRef.current?.calendarFeedToken || "");
       const sweepResults = await Promise.allSettled([
         deleteAllSignupDocs(db, appId, activeTeamId!, "tryoutSignups"),
         deleteAllSignupDocs(db, appId, activeTeamId!, "interestSignups"),
@@ -900,19 +899,26 @@ export const useTeamLifecycle = ({
         ),
         deleteAllSignupDocs(db, appId, activeTeamId!, "games"),
         deleteAllSignupDocs(db, appId, activeTeamId!, "players"),
-        // The published calendar feed is readable by anyone holding the
-        // link, and its delete rule resolves membership through the team doc
-        // too — left behind, it would keep serving the old schedule forever.
-        CALENDAR_FEED_TOKEN_RE.test(feedToken)
-          ? deleteDoc(calendarFeedRef(db, appId, activeTeamId!, feedToken))
-          : Promise.resolve(),
       ]);
       const sweepFailures = sweepResults.filter(
         (r) => r.status === "rejected",
       ).length;
-      await deleteDoc(
+      // The published calendar feed goes in the SAME commit as the team doc.
+      // It is readable by anyone holding the link, and its delete rule
+      // resolves membership through the team doc — deleted earlier, another
+      // coach's open app could republish it before the team doc went; left
+      // for later, it could never be removed. The rules refuse to delete a
+      // team out from under its feed (retiredFeedGone in firestore.rules).
+      const feedToken = String(teamDataRef.current?.calendarFeedToken || "");
+      const teamAndFeed = writeBatch(db);
+      if (CALENDAR_FEED_TOKEN_RE.test(feedToken))
+        teamAndFeed.delete(
+          calendarFeedRef(db, appId, activeTeamId!, feedToken),
+        );
+      teamAndFeed.delete(
         doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId!),
       );
+      await teamAndFeed.commit();
       const userRef = doc(
         db,
         "artifacts",
@@ -940,7 +946,7 @@ export const useTeamLifecycle = ({
           kind: "warn",
           title: "Some team records couldn't be deleted",
           message:
-            "The team is gone, but some of its records (signups, submissions, games, or the calendar link) stayed behind and can no longer be reached from the app. Contact support if you need them purged.",
+            "The team is gone, but some of its records (signups, submissions, or games) stayed behind and can no longer be reached from the app. Contact support if you need them purged.",
         });
       }
       toast.push({ kind: "success", title: "Team deleted" });

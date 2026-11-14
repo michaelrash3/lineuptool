@@ -21,15 +21,36 @@ import { makeToast, makeConfirm } from "../test-utils";
 // the advance-season assertions exercise the actual archive math.
 
 vi.mock("../firebase", () => ({ auth: {}, db: {}, appId: "test-app" }));
-vi.mock("firebase/firestore", () => ({
-  // Encode the path so assertions can tell the team doc from the settings doc.
-  doc: vi.fn((_db: unknown, ...path: string[]) => ({ path: path.join("/") })),
-  setDoc: vi.fn(() => Promise.resolve()),
-  getDoc: vi.fn(() => Promise.resolve({ exists: () => false })),
-  updateDoc: vi.fn(() => Promise.resolve()),
-  deleteDoc: vi.fn(() => Promise.resolve()),
-  arrayRemove: vi.fn((v) => ({ __arrayRemove: v })),
-}));
+// Every writeBatch commit, as the list of doc paths it deleted — so a test can
+// assert two deletes went out as ONE commit rather than two.
+const batchCommits = vi.hoisted(() => [] as string[][]);
+vi.mock("firebase/firestore", () => {
+  const deleteDoc = vi.fn((_ref: { path: string }) => Promise.resolve());
+  return {
+    // Encode the path so assertions can tell the team doc from the settings doc.
+    doc: vi.fn((_db: unknown, ...path: string[]) => ({ path: path.join("/") })),
+    setDoc: vi.fn(() => Promise.resolve()),
+    getDoc: vi.fn(() => Promise.resolve({ exists: () => false })),
+    updateDoc: vi.fn(() => Promise.resolve()),
+    // The team doc is deleted through a batch now. Its deletes are replayed
+    // through this mock at commit time, so the assertions below still read
+    // "which docs were deleted, and when".
+    deleteDoc,
+    writeBatch: vi.fn(() => {
+      const refs: { path: string }[] = [];
+      return {
+        delete: (ref: { path: string }) => {
+          refs.push(ref);
+        },
+        commit: async () => {
+          batchCommits.push(refs.map((r) => r.path));
+          for (const ref of refs) await deleteDoc(ref);
+        },
+      };
+    }),
+    arrayRemove: vi.fn((v) => ({ __arrayRemove: v })),
+  };
+});
 vi.mock("../utils/teamBackup", () => ({ downloadTeamBackup: vi.fn() }));
 vi.mock("../utils/evalRounds", () => ({
   saveEvalRound: vi.fn(() => Promise.resolve()),
@@ -165,6 +186,7 @@ const setup = (over: Partial<Args> = {}) => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  batchCommits.length = 0;
 });
 
 describe("switchTeam", () => {
@@ -288,10 +310,11 @@ describe("deleteTeamCmd", () => {
     );
   });
 
-  it("takes the published calendar feed down before the team doc is deleted", async () => {
+  it("deletes the published calendar feed in the SAME commit as the team doc", async () => {
     // The feed is readable by anyone holding the link, and its delete rule
-    // reads membership off the team doc too — left behind, it would keep
-    // serving the old schedule forever with no way to remove it.
+    // reads membership off the team doc. Deleted in an earlier write, another
+    // coach's open app could republish it before the team doc went; left for
+    // later, it could never be removed. One commit closes both.
     const token = "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4";
     const { result } = setup({
       teamDataRef: {
@@ -301,12 +324,20 @@ describe("deleteTeamCmd", () => {
     await act(async () => {
       await result.current.deleteTeamCmd();
     });
-    expect(
-      mockDeleteDoc.mock.calls.map((c: unknown[]) => (c[0] as any).path),
-    ).toEqual([
-      `artifacts/test-app/public/data/calendarFeeds/t1.${token}`,
-      "artifacts/test-app/public/data/teams/t1",
+    expect(batchCommits).toEqual([
+      [
+        `artifacts/test-app/public/data/calendarFeeds/t1.${token}`,
+        "artifacts/test-app/public/data/teams/t1",
+      ],
     ]);
+  });
+
+  it("deletes just the team doc when the team has no calendar link", async () => {
+    const { result } = setup();
+    await act(async () => {
+      await result.current.deleteTeamCmd();
+    });
+    expect(batchCommits).toEqual([["artifacts/test-app/public/data/teams/t1"]]);
   });
 
   it("AWAITS every sweep to completion before deleting the parent doc", async () => {

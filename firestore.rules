@@ -124,6 +124,20 @@ service cloud.firestore {
           || (v is string && v.matches('[A-Za-z0-9_-]{32,64}'));
       }
 
+      // A token may only be retired — cleared, replaced, or lost with the
+      // team doc — once the feed published under it is gone, in the SAME
+      // commit or an earlier one (existsAfter sees a batched delete). The
+      // feed is readable without sign-in and can only be found through its
+      // token, so a retired token with a feed still standing is a public
+      // document nobody can find to remove. Deleting the feed first and
+      // clearing the token second is not enough: another coach's open app
+      // can republish in between, while the token is still current. Enforced
+      // here, not just in the client, so no client can strand one.
+      function retiredFeedGone() {
+        return !(resource.data.get('calendarFeedToken', null) is string)
+          || !existsAfter(/databases/$(database)/documents/artifacts/$(appId)/public/data/calendarFeeds/$(teamId + '.' + resource.data.calendarFeedToken));
+      }
+
       function isLegitimateAutoClaim() {
         // Team is genuinely unowned AND caller becomes the new owner AND no
         // other members exist on the previous doc. Mirrors the client-side
@@ -177,10 +191,12 @@ service cloud.firestore {
                     // times and fields to whoever holds it, so creating or
                     // retiring it is the head coach's call — and it must be
                     // long enough to be unguessable, since the feed doc it
-                    // names is readable without sign-in.
+                    // names is readable without sign-in. Retiring one takes
+                    // its feed down in the same commit (retiredFeedGone).
                     && (untouched('calendarFeedToken')
                         || (isHeadCoach()
-                            && calendarFeedTokenOk(request.resource.data.get('calendarFeedToken', null))))
+                            && calendarFeedTokenOk(request.resource.data.get('calendarFeedToken', null))
+                            && retiredFeedGone()))
                     // evaluationEvents is a DROPPED legacy field (finding 3.1
                     // — rounds live in the evalRounds subcollection below).
                     // Ratchet: a doc still carrying the array may rewrite or
@@ -237,8 +253,11 @@ service cloud.firestore {
                     && (!('players' in request.resource.data)
                         || ('players' in resource.data));
 
-      // Only the current owner can delete the team document.
-      allow delete: if isCurrentOwner();
+      // Only the current owner can delete the team document — and never
+      // out from under a published calendar feed, whose delete rule resolves
+      // membership through this doc: after the team is gone the feed could
+      // never be removed. The client deletes both in one batch.
+      allow delete: if isCurrentOwner() && retiredFeedGone();
 
       // Team bootstrap: signed-in creator can create a new team doc when
       // ownerId is set to their UID. A new doc can never be born with a

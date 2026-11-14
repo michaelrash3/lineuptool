@@ -33,10 +33,27 @@ vi.mock("firebase/firestore", () => {
       store.docs.set(ref.path, data);
       store.writes.push(`set ${ref.path}`);
     },
-    deleteDoc: async (ref: { path: string }) => {
-      if (fail("delete")) throw new Error("offline");
-      store.docs.delete(ref.path);
-      store.writes.push(`delete ${ref.path}`);
+    // All-or-nothing, like the real thing: a failed commit applies none of it.
+    writeBatch: () => {
+      const ops: Array<() => void> = [];
+      const labels: string[] = [];
+      return {
+        delete: (ref: { path: string }) => {
+          ops.push(() => store.docs.delete(ref.path));
+          labels.push(`delete ${ref.path}`);
+        },
+        update: (ref: { path: string }, data: any) => {
+          ops.push(() =>
+            store.docs.set(ref.path, { ...store.docs.get(ref.path), ...data }),
+          );
+          labels.push(`update ${ref.path}`);
+        },
+        commit: async () => {
+          if (fail("delete")) throw new Error("offline");
+          ops.forEach((op) => op());
+          store.writes.push(`batch[${labels.join(", ")}]`);
+        },
+      };
     },
   };
 });
@@ -46,6 +63,7 @@ import { CALENDAR_FEED_TOKEN_RE } from "../utils/calendarFeed";
 
 const TOKEN = "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4";
 const FEED_PATH = `artifacts/test-app/public/data/calendarFeeds/team-1.${TOKEN}`;
+const TEAM_PATH = "artifacts/test-app/public/data/teams/team-1";
 const game = (over: Record<string, unknown> = {}) => ({
   id: "g1",
   date: "2026-05-16",
@@ -167,21 +185,32 @@ describe("useCalendarFeed — turning the link on and off", () => {
     expect(calendarFeedToken).not.toBe(TOKEN);
   });
 
-  it("turning it off takes the published feed down, then forgets the token", async () => {
+  it("never replaces a link that already exists", () => {
+    // Replacing a token retires it, and that has to take its feed down.
+    const view = mount();
+    act(() => view.result.current.enableCalendarFeed());
+    expect(view.updateTeam).not.toHaveBeenCalled();
+  });
+
+  it("turning it off takes the feed down and clears the token in ONE commit", async () => {
+    // As two writes, another coach's open app could republish in between —
+    // the token still current — and strand a public feed nobody can find.
     const view = mount();
     await waitFor(() => expect(published()).toBeDefined());
+    store.writes.length = 0;
     let done: boolean | undefined;
     await act(async () => {
       done = await view.result.current.disableCalendarFeed();
     });
     expect(done).toBe(true);
+    expect(store.writes).toEqual([
+      `batch[delete ${FEED_PATH}, update ${TEAM_PATH}]`,
+    ]);
     expect(published()).toBeUndefined();
-    expect(view.updateTeam).toHaveBeenCalledWith({ calendarFeedToken: null });
+    expect(store.docs.get(TEAM_PATH)).toEqual({ calendarFeedToken: null });
   });
 
-  it("keeps the token when the feed couldn't be taken down", async () => {
-    // Forgetting the token first would strand a readable feed nobody could
-    // find to delete.
+  it("changes nothing when the commit fails, and says the link still works", async () => {
     const view = mount();
     await waitFor(() => expect(published()).toBeDefined());
     store.failNext = "delete";
@@ -191,7 +220,7 @@ describe("useCalendarFeed — turning the link on and off", () => {
     });
     expect(done).toBe(false);
     expect(published()).toBeDefined();
-    expect(view.updateTeam).not.toHaveBeenCalled();
+    expect(store.docs.get(TEAM_PATH)).toBeUndefined();
     expect(view.toast.push).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "error" }),
     );
@@ -206,5 +235,6 @@ describe("useCalendarFeed — turning the link on and off", () => {
     });
     expect(view.updateTeam).not.toHaveBeenCalled();
     expect(published()).toBeDefined();
+    expect(store.docs.get(TEAM_PATH)).toBeUndefined();
   });
 });

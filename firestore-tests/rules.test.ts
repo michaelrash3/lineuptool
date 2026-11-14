@@ -21,6 +21,7 @@ import {
   query,
   setDoc,
   updateDoc,
+  writeBatch,
   where,
 } from "firebase/firestore";
 // The REAL payload createTeam writes (minus name/owner/members) — imported so
@@ -2677,6 +2678,65 @@ describe("calendar subscription feed (calendarFeeds)", () => {
       await assertFails(updateDoc(team, { calendarFeedToken: null }));
       // ...while the assistant's ordinary saves on a team with a link pass.
       await assertSucceeds(updateDoc(team, { name: "Hawks 10U" }));
+    });
+
+    it("can only be retired together with the feed published under it", async () => {
+      // The feed is public and findable only through its token: a token
+      // cleared, replaced or deleted with the team while its feed still
+      // stands leaves a readable calendar nobody can find to remove.
+      await giveTeamToken();
+      await seedFeed();
+      const db = dbFor(OWNER);
+      const team = doc(db, ...teamPath("team-1"));
+      const feedRef = doc(db, ...calendarFeedPath(feedId("team-1", TOKEN)));
+      await assertFails(updateDoc(team, { calendarFeedToken: null }));
+      await assertFails(updateDoc(team, { calendarFeedToken: OTHER_TOKEN }));
+      await assertFails(deleteDoc(team));
+      // ...while the head's other saves on a team with a live feed pass.
+      await assertSucceeds(updateDoc(team, { name: "Hawks 10U" }));
+      // One commit that takes the feed down and clears the token is fine.
+      const off = writeBatch(db);
+      off.delete(feedRef);
+      off.update(team, { calendarFeedToken: null });
+      await assertSucceeds(off.commit());
+    });
+
+    it("a republish that slips in before the token is cleared can't be stranded", async () => {
+      // The race: the head deletes the feed, an assistant's open app
+      // republishes it (the token is still current), then the head clears
+      // the token. That last step must fail rather than orphan the feed.
+      await giveTeamToken();
+      await seedFeed();
+      const head = dbFor(OWNER);
+      const path = calendarFeedPath(feedId("team-1", TOKEN));
+      await assertSucceeds(deleteDoc(doc(head, ...path)));
+      await assertSucceeds(setDoc(doc(dbFor(ASSISTANT), ...path), feed()));
+      await assertFails(
+        updateDoc(doc(head, ...teamPath("team-1")), {
+          calendarFeedToken: null,
+        }),
+      );
+      // Once the token is gone, nothing can be published under it again.
+      const off = writeBatch(head);
+      off.delete(doc(head, ...path));
+      off.update(doc(head, ...teamPath("team-1")), { calendarFeedToken: null });
+      await assertSucceeds(off.commit());
+      await assertFails(setDoc(doc(dbFor(ASSISTANT), ...path), feed()));
+    });
+
+    it("lets the owner delete the team and its feed in one commit", async () => {
+      await giveTeamToken();
+      await seedFeed();
+      const db = dbFor(OWNER);
+      const gone = writeBatch(db);
+      gone.delete(doc(db, ...calendarFeedPath(feedId("team-1", TOKEN))));
+      gone.delete(doc(db, ...teamPath("team-1")));
+      await assertSucceeds(gone.commit());
+    });
+
+    it("lets the owner delete a team whose link has no feed published yet", async () => {
+      await giveTeamToken();
+      await assertSucceeds(deleteDoc(doc(dbFor(OWNER), ...teamPath("team-1"))));
     });
 
     it("denies a token short or odd enough to guess", async () => {
