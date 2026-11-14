@@ -745,6 +745,9 @@ export interface Team {
   availabilityShowsSchedule?: boolean;
   // Tryouts (PR M)
   tryoutShareId?: string;
+  // The secret in the team's calendar subscription link; null/absent = no
+  // link. Head-coach-only in the rules. See src/utils/calendarFeed.ts.
+  calendarFeedToken?: string | null;
   // Which season the public signup page recruits for — "current" shows the
   // team's own season + age group, "next" (absent = next) the next spring
   // tryout cycle. See tryoutSignupLabels in utils/tryouts.ts.

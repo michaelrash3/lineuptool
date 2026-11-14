@@ -87,6 +87,35 @@ member under the team's current share id **and** its owned `portalLinks` doc
 (so a team that copies another's share id can't squat it), and is deleted when
 the coach turns the option off, turns Availability off, or rotates the link.
 
+#### Calendar subscription feed
+
+When the head coach creates a **calendar link** (Schedule tab), the team doc
+gets a `calendarFeedToken` (24 random bytes, head-coach-only in the rules) and
+the coach client publishes
+`artifacts/{appId}/public/data/calendarFeeds/{teamId}.{token}`:
+`{ teamId, ics, updatedAt }`, where `ics` is the finished calendar text for the
+whole season — opponents, dates, times and fields, nothing about players
+(`buildCalendarFeedIcs` in `src/utils/calendarFeed.ts`). `useCalendarFeed`
+republishes it from any coach's open app when the schedule changes, and only
+once the games on screen are server-confirmed, so a stale local cache can't
+roll subscribers back.
+
+Calendar apps subscribe to `/api/calendar?feed={teamId}.{token}`
+(`api/calendar.js`, a Vercel function), which fetches that one doc over
+Firestore's REST API and returns the text as `text/calendar`, cached at the
+edge for five minutes. It holds no credentials: this doc is the **one read in
+the rules that needs no sign-in**, because a calendar app polling a link can't
+sign in. The token stands in for it — `get` only (ids can't be listed), visible
+only to the team's members, and the team id in the doc id means no other team
+can publish under it. A token is only ever retired together with its feed:
+turning the link off deletes the doc and clears the token in **one commit**,
+deleting the team deletes the doc and the team doc in one commit, and the
+rules refuse either write while the feed still stands (`retiredFeedGone`). As
+two writes, another coach's open app could republish in between and strand a
+public doc under a token nobody remembers. A link created later is a
+different one. Rollout notes in
+`docs/firebase-rules-rollout.md` §11.
+
 The mirror is upserted by an effect in `TeamProvider`
 (`src/providers/TeamProvider.tsx`) whenever a
 member's active team changes a mirrored field; a JSON guard skips no-op writes,
@@ -269,6 +298,6 @@ A brand-new signed-in user has no team yet. Instead of auto-creating "My Team" (
 
 - **One subcollection: `evalRounds`.** Roster and schedule live on the single team document, but eval rounds live per-author at `teams/{teamId}/evalRounds/{roundId}` — authorization-scoped in `firestore.rules` (an assistant reads/edits only their own rounds; a head manages all) and assembled client-side into `teamData.evaluationEvents` by a role-scoped subscription in `TeamProvider` (see `docs/eval-authz-design.md`). Adding a subcollection has been considered for `tryoutSignups` (write-heavy on portal opens) but isn't done.
 - **Service worker / PWA.** One worker, one registration. `vite-plugin-pwa` runs in `injectManifest` mode: it builds `src/service-worker.js` into `dist/service-worker.js` and bakes in the precache manifest (every hashed JS/CSS/HTML/PNG/SVG/woff2 the build emitted), but `injectRegister: null` stops it from also injecting a `registerSW.js` — registration happens only in `src/utils/serviceWorker.ts`, called from `src/index.tsx`. The worker serves navigations **network first** (a coach with signal always gets the newest deploy; the precached `index.html` is the offline fallback), precached assets cache-first, and other same-origin GETs stale-while-revalidate; cross-origin, `/api/*` and `/__/*` bypass it. It also owns the `notificationclick` handler behind game-day reminders. Firestore still needs network for live data — the SW covers the app shell only, not data offline. `manifest.json` also enables Add to Home Screen.
-- **No Cloud Functions.** Everything is client + rules.
+- **No Cloud Functions.** Everything is client + rules. The two files under `api/` are Vercel functions, and neither holds a credential: `gc-schedule.js` proxies GameChanger's calendar feed past CORS, and `calendar.js` serves the team's published calendar feed (see Calendar subscription feed above).
 - **No state management library.** Two React contexts and `useReducer`-free `useState`/`useCallback` patterns carry it.
 - **No CSS-in-JS.** Tokens in `src/styles.css`, components style with Tailwind + the `t-*` semantic classes.

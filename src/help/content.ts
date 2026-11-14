@@ -378,8 +378,32 @@ export const HELP_TOPICS: HelpTopic[] = [
         body: "Already keeping the schedule in GameChanger? Paste the team's calendar feed URL to sync games in — re-syncing updates dates and opponents in place and never touches scores or lineups on games already played.",
       },
     ],
-    related: ["game-types-and-flags", "scores-postponements"],
+    related: ["game-types-and-flags", "scores-postponements", "calendar-link"],
     cta: { label: "Add a game", tab: "schedule", uiAction: "addGame" },
+  },
+  {
+    id: "calendar-link",
+    category: "schedule-games",
+    title: "Games on your phone's calendar",
+    summary:
+      "Download the upcoming games once, or share a link calendars keep following.",
+    keywords:
+      "calendar ics subscribe subscription link webcal phone reminder alert apple google outlook export feed",
+    sections: [
+      {
+        body: "At the bottom of the Schedule tab. Download calendar saves every upcoming game as a file your calendar app opens — a one-time copy, so download again after the schedule changes.",
+      },
+      {
+        heading: "A link that stays current",
+        body: "The head coach can create a calendar link. A calendar that subscribes to it follows the schedule on its own: move or add a game and it shows up there, usually within a few hours (each calendar app decides how often it checks). Any coach can copy the link to send to families.",
+      },
+      {
+        heading: "Who can see it",
+        body: "Anyone who has the link can see opponents, dates, times and fields — nothing about players. The head coach can turn the link off at any time; it stops working for everyone within a few minutes, and a link created later is a different one.",
+      },
+    ],
+    related: ["add-games"],
+    cta: { label: "Open the schedule", tab: "schedule" },
   },
   {
     id: "game-types-and-flags",

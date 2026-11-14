@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
+import { createRequire } from "module";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   assertFails,
   assertSucceeds,
@@ -20,6 +21,7 @@ import {
   query,
   setDoc,
   updateDoc,
+  writeBatch,
   where,
 } from "firebase/firestore";
 // The REAL payload createTeam writes (minus name/owner/members) — imported so
@@ -138,6 +140,8 @@ const portalLinkPath = (slug: string) =>
   ["artifacts", APP_ID, "public", "data", "portalLinks", slug] as const;
 const portalSchedulePath = (slug: string) =>
   ["artifacts", APP_ID, "public", "data", "portalSchedules", slug] as const;
+const calendarFeedPath = (feedId: string) =>
+  ["artifacts", APP_ID, "public", "data", "calendarFeeds", feedId] as const;
 const invitePath = (code: string) =>
   ["artifacts", APP_ID, "public", "data", "teamInvites", code] as const;
 const settingsPath = (uid: string, docId = "teams") =>
@@ -2630,5 +2634,282 @@ describe("availability-form schedule days (portalSchedules)", () => {
     await assertFails(
       deleteDoc(doc(dbFor(OUTSIDER), ...portalSchedulePath("share-1"))),
     );
+  });
+});
+
+describe("calendar subscription feed (calendarFeeds)", () => {
+  const TOKEN = "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4"; // 32 url-safe chars
+  const OTHER_TOKEN = "cXV4YmF6YmFyZm9vcXV4YmF6YmFyZm9v";
+  const ICS = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n";
+  const feedId = (teamId: string, token: string) => `${teamId}.${token}`;
+  const feed = (teamId = "team-1") => ({ teamId, ics: ICS, updatedAt: 1 });
+  const giveTeamToken = (teamId = "team-1", token: string | null = TOKEN) =>
+    testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ...teamPath(teamId)), {
+        calendarFeedToken: token,
+      });
+    });
+  const seedFeed = (teamId = "team-1", token = TOKEN) =>
+    testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), ...calendarFeedPath(feedId(teamId, token))),
+        feed(teamId),
+      );
+    });
+
+  describe("the token on the team doc", () => {
+    it("lets a head coach create, replace and retire it", async () => {
+      const team = (uid: string) => doc(dbFor(uid), ...teamPath("team-1"));
+      await assertSucceeds(
+        updateDoc(team(OWNER), { calendarFeedToken: TOKEN }),
+      );
+      // A promoted co-head is a head too.
+      await assertSucceeds(
+        updateDoc(team(COHEAD), { calendarFeedToken: OTHER_TOKEN }),
+      );
+      await assertSucceeds(updateDoc(team(OWNER), { calendarFeedToken: null }));
+    });
+
+    it("denies an assistant creating, changing or retiring it", async () => {
+      const team = doc(dbFor(ASSISTANT), ...teamPath("team-1"));
+      await assertFails(updateDoc(team, { calendarFeedToken: TOKEN }));
+      await giveTeamToken();
+      await assertFails(updateDoc(team, { calendarFeedToken: OTHER_TOKEN }));
+      await assertFails(updateDoc(team, { calendarFeedToken: null }));
+      // ...while the assistant's ordinary saves on a team with a link pass.
+      await assertSucceeds(updateDoc(team, { name: "Hawks 10U" }));
+    });
+
+    it("can only be retired together with the feed published under it", async () => {
+      // The feed is public and findable only through its token: a token
+      // cleared, replaced or deleted with the team while its feed still
+      // stands leaves a readable calendar nobody can find to remove.
+      await giveTeamToken();
+      await seedFeed();
+      const db = dbFor(OWNER);
+      const team = doc(db, ...teamPath("team-1"));
+      const feedRef = doc(db, ...calendarFeedPath(feedId("team-1", TOKEN)));
+      await assertFails(updateDoc(team, { calendarFeedToken: null }));
+      await assertFails(updateDoc(team, { calendarFeedToken: OTHER_TOKEN }));
+      await assertFails(deleteDoc(team));
+      // ...while the head's other saves on a team with a live feed pass.
+      await assertSucceeds(updateDoc(team, { name: "Hawks 10U" }));
+      // One commit that takes the feed down and clears the token is fine.
+      const off = writeBatch(db);
+      off.delete(feedRef);
+      off.update(team, { calendarFeedToken: null });
+      await assertSucceeds(off.commit());
+    });
+
+    it("a republish that slips in before the token is cleared can't be stranded", async () => {
+      // The race: the head deletes the feed, an assistant's open app
+      // republishes it (the token is still current), then the head clears
+      // the token. That last step must fail rather than orphan the feed.
+      await giveTeamToken();
+      await seedFeed();
+      const head = dbFor(OWNER);
+      const path = calendarFeedPath(feedId("team-1", TOKEN));
+      await assertSucceeds(deleteDoc(doc(head, ...path)));
+      await assertSucceeds(setDoc(doc(dbFor(ASSISTANT), ...path), feed()));
+      await assertFails(
+        updateDoc(doc(head, ...teamPath("team-1")), {
+          calendarFeedToken: null,
+        }),
+      );
+      // Once the token is gone, nothing can be published under it again.
+      const off = writeBatch(head);
+      off.delete(doc(head, ...path));
+      off.update(doc(head, ...teamPath("team-1")), { calendarFeedToken: null });
+      await assertSucceeds(off.commit());
+      await assertFails(setDoc(doc(dbFor(ASSISTANT), ...path), feed()));
+    });
+
+    it("lets the owner delete the team and its feed in one commit", async () => {
+      await giveTeamToken();
+      await seedFeed();
+      const db = dbFor(OWNER);
+      const gone = writeBatch(db);
+      gone.delete(doc(db, ...calendarFeedPath(feedId("team-1", TOKEN))));
+      gone.delete(doc(db, ...teamPath("team-1")));
+      await assertSucceeds(gone.commit());
+    });
+
+    it("lets the owner delete a team whose link has no feed published yet", async () => {
+      await giveTeamToken();
+      await assertSucceeds(deleteDoc(doc(dbFor(OWNER), ...teamPath("team-1"))));
+    });
+
+    it("denies a token short or odd enough to guess", async () => {
+      const team = doc(dbFor(OWNER), ...teamPath("team-1"));
+      await assertFails(updateDoc(team, { calendarFeedToken: "hawks" }));
+      await assertFails(updateDoc(team, { calendarFeedToken: "a".repeat(31) }));
+      await assertFails(
+        updateDoc(team, { calendarFeedToken: `${"a".repeat(31)}/` }),
+      );
+      await assertFails(updateDoc(team, { calendarFeedToken: 12345 }));
+    });
+  });
+
+  describe("the published feed", () => {
+    it("lets any coach on the team publish under its current token, and take it down", async () => {
+      await giveTeamToken();
+      const ref = (uid: string) =>
+        doc(dbFor(uid), ...calendarFeedPath(feedId("team-1", TOKEN)));
+      await assertSucceeds(setDoc(ref(OWNER), feed()));
+      // An assistant's open app republishes after a schedule change.
+      await assertSucceeds(setDoc(ref(ASSISTANT), { ...feed(), updatedAt: 2 }));
+      await assertSucceeds(deleteDoc(ref(OWNER)));
+    });
+
+    it("accepts the feed write issued right behind the token write, from one client", async () => {
+      // What creating a link does: the token lands on the team, and the app
+      // publishes the feed without waiting for that save to be acknowledged.
+      const db = dbFor(OWNER);
+      const tokenWrite = updateDoc(doc(db, ...teamPath("team-1")), {
+        calendarFeedToken: TOKEN,
+      });
+      const feedWrite = setDoc(
+        doc(db, ...calendarFeedPath(feedId("team-1", TOKEN))),
+        feed(),
+      );
+      await assertSucceeds(tokenWrite);
+      await assertSucceeds(feedWrite);
+    });
+
+    it("is readable by its id with no sign-in at all — but never listable", async () => {
+      await giveTeamToken();
+      await seedFeed();
+      // A calendar app polling the link has no session of any kind.
+      await assertSucceeds(
+        getDoc(doc(dbFor(), ...calendarFeedPath(feedId("team-1", TOKEN)))),
+      );
+      for (const db of [dbFor(), anonFor("parent-uid"), dbFor(OUTSIDER)]) {
+        await assertFails(
+          getDocs(
+            collection(
+              db,
+              "artifacts",
+              APP_ID,
+              "public",
+              "data",
+              "calendarFeeds",
+            ),
+          ),
+        );
+      }
+    });
+
+    it("is what api/calendar.js serves, with no credentials, until it's taken down", async () => {
+      // The real endpoint against the real rules: it reads the doc over
+      // Firestore's REST API with no sign-in, exactly as it does in production.
+      await giveTeamToken();
+      await seedFeed();
+      const { host, port } = testEnv.emulators.firestore!;
+      const env = {
+        FIRESTORE_EMULATOR_HOST: `${host}:${port}`,
+        CALENDAR_FEED_PROJECT_ID: PROJECT_ID,
+        CALENDAR_FEED_APP_ID: APP_ID,
+      };
+      const before = { ...process.env };
+      Object.assign(process.env, env);
+      try {
+        const handler = createRequire(import.meta.url)("../api/calendar.js");
+        const serve = async (feed: string) => {
+          const res = await handler({ query: { feed } });
+          return { status: res.status, body: await res.text() };
+        };
+        expect(await serve(feedId("team-1", TOKEN))).toEqual({
+          status: 200,
+          body: ICS,
+        });
+        // A wrong token for the right team is just "no calendar here".
+        expect((await serve(feedId("team-1", OTHER_TOKEN))).status).toBe(404);
+        // The head coach turns the link off.
+        await deleteDoc(
+          doc(dbFor(OWNER), ...calendarFeedPath(feedId("team-1", TOKEN))),
+        );
+        expect((await serve(feedId("team-1", TOKEN))).status).toBe(404);
+      } finally {
+        for (const key of Object.keys(env)) {
+          if (before[key] === undefined) delete process.env[key];
+          else process.env[key] = before[key];
+        }
+      }
+    });
+
+    it("opens nothing else to a session with no sign-in", async () => {
+      // The one unauthenticated read must stay the only one.
+      await giveTeamToken();
+      await assertFails(getDoc(doc(dbFor(), ...teamPath("team-1"))));
+      await assertFails(getDoc(doc(dbFor(), ...mirrorPath("team-1"))));
+      await assertFails(getDoc(doc(dbFor(), ...gameDocPath("team-1", "g1"))));
+      await assertFails(
+        setDoc(
+          doc(dbFor(), ...calendarFeedPath(feedId("team-1", TOKEN))),
+          feed(),
+        ),
+      );
+    });
+
+    it("denies publishing with no token, a retired token or a made-up one", async () => {
+      const publish = (token: string) =>
+        setDoc(
+          doc(dbFor(OWNER), ...calendarFeedPath(feedId("team-1", token))),
+          feed(),
+        );
+      // No link has been created.
+      await assertFails(publish(TOKEN));
+      await giveTeamToken("team-1", null);
+      await assertFails(publish(TOKEN));
+      // The team's token is OTHER_TOKEN now; TOKEN was retired.
+      await giveTeamToken("team-1", OTHER_TOKEN);
+      await assertFails(publish(TOKEN));
+      await assertSucceeds(publish(OTHER_TOKEN));
+    });
+
+    it("denies a parent, an outsider, extra fields and an oversized body", async () => {
+      await giveTeamToken();
+      const ref = (db: any) =>
+        doc(db, ...calendarFeedPath(feedId("team-1", TOKEN)));
+      await assertFails(setDoc(ref(anonFor("parent-uid")), feed()));
+      await assertFails(setDoc(ref(dbFor(OUTSIDER)), feed()));
+      // The schedule text and nothing else: a roster never rides along.
+      await assertFails(
+        setDoc(ref(dbFor(OWNER)), { ...feed(), players: [{ name: "Ada" }] }),
+      );
+      await assertFails(
+        setDoc(ref(dbFor(OWNER)), { ...feed(), ics: "x".repeat(200001) }),
+      );
+      await assertFails(setDoc(ref(dbFor(OWNER)), { ...feed(), ics: 7 }));
+    });
+
+    it("can't be published or taken over by another team, even one that learned the token", async () => {
+      await giveTeamToken();
+      await seedFeed();
+      // The outsider's own team adopts team-1's token as its own.
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), ...teamPath("team-evil")), {
+          name: "Hawks",
+          ownerId: OUTSIDER,
+          members: [OUTSIDER],
+          calendarFeedToken: TOKEN,
+        });
+      });
+      const hawksFeed = doc(
+        dbFor(OUTSIDER),
+        ...calendarFeedPath(feedId("team-1", TOKEN)),
+      );
+      // Not as team-1 (not a member), not as its own team (wrong id half).
+      await assertFails(setDoc(hawksFeed, feed("team-1")));
+      await assertFails(setDoc(hawksFeed, feed("team-evil")));
+      await assertFails(deleteDoc(hawksFeed));
+      // Its own feed lives under its own id and is its own business.
+      await assertSucceeds(
+        setDoc(
+          doc(dbFor(OUTSIDER), ...calendarFeedPath(feedId("team-evil", TOKEN))),
+          feed("team-evil"),
+        ),
+      );
+    });
   });
 });

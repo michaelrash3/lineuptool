@@ -9,7 +9,7 @@ import {
   doc,
   setDoc,
   getDoc,
-  deleteDoc,
+  writeBatch,
   updateDoc,
   arrayRemove,
 } from "firebase/firestore";
@@ -35,6 +35,7 @@ import {
   appendOpponentArchive,
 } from "../utils/opponentHistory";
 import { saveEvalRound, deleteEvalRound } from "../utils/evalRounds";
+import { CALENDAR_FEED_TOKEN_RE, calendarFeedRef } from "../utils/calendarFeed";
 import {
   deleteAllSignupDocs,
   dropLegacySignupArray,
@@ -902,9 +903,22 @@ export const useTeamLifecycle = ({
       const sweepFailures = sweepResults.filter(
         (r) => r.status === "rejected",
       ).length;
-      await deleteDoc(
+      // The published calendar feed goes in the SAME commit as the team doc.
+      // It is readable by anyone holding the link, and its delete rule
+      // resolves membership through the team doc — deleted earlier, another
+      // coach's open app could republish it before the team doc went; left
+      // for later, it could never be removed. The rules refuse to delete a
+      // team out from under its feed (retiredFeedGone in firestore.rules).
+      const feedToken = String(teamDataRef.current?.calendarFeedToken || "");
+      const teamAndFeed = writeBatch(db);
+      if (CALENDAR_FEED_TOKEN_RE.test(feedToken))
+        teamAndFeed.delete(
+          calendarFeedRef(db, appId, activeTeamId!, feedToken),
+        );
+      teamAndFeed.delete(
         doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId!),
       );
+      await teamAndFeed.commit();
       const userRef = doc(
         db,
         "artifacts",

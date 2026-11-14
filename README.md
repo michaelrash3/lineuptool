@@ -24,7 +24,7 @@ The whole signed-in app is **coach-facing**, split into two roles — **head** a
 
 **Schedule & stats**
 
-- Games and events with date/time/location/home-away; ICS and GameChanger schedule import, calendar-feed sync, a calendar-file export of upcoming games (timed events, so the phone's own calendar can remind you), game-day weather, and reminder drafts
+- Games and events with date/time/location/home-away; ICS and GameChanger schedule import, calendar-feed sync, games on the phone's own calendar (a one-time file, or a subscription link that follows reschedules), game-day weather, and reminder drafts
 - Depth chart; season stats (GameChanger CSV import), leaders, trends, a season report, and auto-generated awards
 - Tournaments: weekend grouping, format/tiebreaker tracking, cross-game pitching plans, and guest subs picked up for one weekend without joining the roster
 
@@ -57,6 +57,7 @@ The whole signed-in app is **coach-facing**, split into two roles — **head** a
 - **Tailwind CSS 3** for styling, with the design tokens centralized in `src/styles.css`
 - **lucide-react** for iconography (see `src/icons.tsx`)
 - **jspdf** for PDF export (lineup cards, fee sheets, treasurer/roster/eval reports); **recharts** + custom SVG charts for analytics; **qrcode** for portal share links
+- **Vercel functions** (`api/`) — two small credential-free endpoints: a proxy for GameChanger's calendar feed, and the team's own calendar subscription feed
 - **vite-plugin-pwa** (`injectManifest`) — builds `src/service-worker.js` with a generated precache manifest; installable app shell (data still needs the network)
 - **Vitest** (jsdom) test runner; **@firebase/rules-unit-testing** for the Firestore rules suite (`firestore-tests/`)
 

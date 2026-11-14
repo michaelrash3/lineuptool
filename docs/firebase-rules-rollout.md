@@ -335,6 +335,58 @@ app (that creates the missing doc), or run the backfill workflow again.
 - As a parent's anonymous session, `get` a team's mirror — succeeds; list the
   mirrors, or query them by `tryoutShareId` — denied.
 
+### 11) Calendar subscription feed (`calendarFeeds`)
+
+Expected: the head coach's calendar link is `/api/calendar?feed=<teamId>.<token>`.
+The token lives on the team doc as `calendarFeedToken` and only a head coach
+may set, change or clear it (32–64 URL-safe characters, or null). The feed doc
+`calendarFeeds/<teamId>.<token>` holds `{ teamId, ics, updatedAt }` and nothing
+else; any coach on the team may write it, but only under the team's own id and
+CURRENT token; any member may delete it.
+
+**This is the one read in the rules with no sign-in requirement** (`allow get:
+if true`). A calendar app polling a link cannot sign in, even anonymously. It
+is `get` only, so feed ids cannot be listed, and nothing else in the rules is
+opened to an unauthenticated session — the automated suite asserts both.
+
+- As the owner, set `calendarFeedToken` to a 32-character token — succeeds; as
+  a promoted co-head — succeeds; as an assistant — denied. A short or
+  non-URL-safe value — denied even for the owner.
+- As an assistant, save something else on a team that has a token — succeeds
+  (the gate only fires when the token itself changes).
+- As any coach on the team, write `calendarFeeds/<teamId>.<current token>` —
+  succeeds. With a retired or invented token, with extra fields, or with a body
+  over 200,000 characters — denied.
+- As a coach on ANOTHER team that has set the same token as its own, write or
+  delete this team's feed doc — denied.
+- As the owner, with a feed doc published: clear the token, replace it, or
+  delete the team — each denied on its own; each succeeds in ONE batch that
+  also deletes the feed doc. (A token is never retired while its feed stands:
+  the feed is public and can only be found through its token.)
+- Delete the feed, republish it as an assistant, then clear the token as the
+  owner — the clear is denied. That is the race the one-batch rule exists for.
+- With no sign-in at all, `get` the feed doc by id — succeeds; `list` the
+  collection — denied; read the team doc, the mirror or a game — denied.
+- `api/calendar.js` against the emulator returns the stored text for the right
+  id, and 404 for a wrong token or after the doc is deleted (this runs as part
+  of `npm run test:rules`).
+
+**Deploy order does not matter.** Client ahead of rules: a head coach can
+create the link (the old rules allow the extra team field), the feed write is
+denied, and the client retries every 30 seconds until the rules land; the link
+answers 404 until then. Rules ahead of client: nothing publishes, nothing is
+readable.
+
+**Rollback.** Re-publishing the previous rules removes the unauthenticated
+read, so every calendar link answers 404 within the endpoint's five-minute edge
+cache. Stored feed docs and tokens are left in place and start working again
+when these rules are re-deployed. To take one team's link down without a
+rollback, the head coach uses **Turn off link** on the Schedule tab.
+
+**A stale client.** A tab still running a build that deletes the team doc on
+its own will be refused when the team has a published feed ("Delete failed");
+reloading picks up the build that deletes both together.
+
 ## Sequencing the tryout-portal privacy fix
 
 The portal now reads a sanitized `teamPublic` mirror instead of the full team
