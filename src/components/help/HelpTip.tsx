@@ -16,7 +16,7 @@ export const HelpTip = ({
     <button
       type="button"
       onClick={() => navigate(`/help/${topicId}`)}
-      className="text-ink-3 hover:text-ink transition-colors"
+      className="tap text-ink-3 hover:text-ink transition-colors"
       aria-label={label || "Help"}
     >
       <Icons.Help className="w-4 h-4" />

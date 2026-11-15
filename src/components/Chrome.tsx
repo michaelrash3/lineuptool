@@ -26,7 +26,7 @@ const ThemeToggle = () => {
       aria-checked={isDark}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       title={isDark ? "Light mode" : "Dark mode"}
-      className="shrink-0 p-3 text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line rounded-xl shadow-sm transition-colors"
+      className="tap-h shrink-0 p-3 text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line rounded-xl shadow-sm transition-colors"
     >
       {isDark ? (
         <Icons.Sun className="w-4 h-4" />
@@ -154,7 +154,7 @@ export const LoginScreen = ({
         {onEmailSignIn && (
           <button
             onClick={onEmailSignIn}
-            className="w-full mt-3 py-3 px-4 font-black uppercase tracking-widest text-xs rounded-sm border border-line-strong bg-transparent text-ink-2 hover:text-ink hover:border-ink-3 transition-colors"
+            className="tap-h w-full mt-3 py-3 px-4 font-black uppercase tracking-widest text-xs rounded-sm border border-line-strong bg-transparent text-ink-2 hover:text-ink hover:border-ink-3 transition-colors"
             type="button"
           >
             Sign In with Email Link
@@ -435,7 +435,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                 />
                 <button
                   type="submit"
-                  className="inline-flex items-center justify-center min-h-[40px] min-w-[40px] text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity"
+                  className="tap inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity"
                   style={{
                     backgroundColor: "var(--team-primary)",
                     color: "var(--team-on-primary)",
@@ -450,7 +450,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                     setIsJoiningTeam(false);
                     setJoinCodeInput("");
                   }}
-                  className="inline-flex items-center justify-center min-h-[40px] min-w-[40px] bg-surface border border-line text-ink-2 hover:text-ink rounded-lg"
+                  className="tap inline-flex items-center justify-center min-h-[44px] min-w-[44px] bg-surface border border-line text-ink-2 hover:text-ink rounded-lg"
                 >
                   <Icons.X className="w-4 h-4" />
                 </button>
@@ -509,7 +509,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                 <button
                   type="submit"
                   disabled={!newTeamType || !newTeamAge}
-                  className="inline-flex items-center justify-center min-h-[40px] min-w-[40px] text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-40"
+                  className="tap inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-40"
                   style={{
                     backgroundColor: "var(--team-primary)",
                     color: "var(--team-on-primary)",
@@ -520,7 +520,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                 <button
                   type="button"
                   onClick={() => setIsAddingTeam(false)}
-                  className="inline-flex items-center justify-center min-h-[40px] min-w-[40px] bg-surface border border-line text-ink-2 hover:text-ink rounded-lg"
+                  className="tap inline-flex items-center justify-center min-h-[44px] min-w-[44px] bg-surface border border-line text-ink-2 hover:text-ink rounded-lg"
                 >
                   <Icons.X className="w-4 h-4" />
                 </button>
@@ -644,7 +644,7 @@ export const NavDrawer = memo(
           aria-expanded={open}
           aria-haspopup="menu"
           title="Menu"
-          className="shrink-0 p-3 text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line rounded-xl shadow-sm transition-colors"
+          className="tap shrink-0 p-3 text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line rounded-xl shadow-sm transition-colors"
         >
           <Icons.Menu className="w-5 h-5" />
         </button>
@@ -691,7 +691,7 @@ export const NavDrawer = memo(
                     type="button"
                     onClick={() => setOpen(false)}
                     aria-label="Close navigation menu"
-                    className="ml-auto inline-flex items-center justify-center min-h-[40px] min-w-[40px] text-ink-3 hover:text-ink rounded-lg hover:bg-surface-2 transition-colors"
+                    className="tap ml-auto inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-ink-3 hover:text-ink rounded-lg hover:bg-surface-2 transition-colors"
                   >
                     <Icons.X className="w-5 h-5" />
                   </button>
@@ -741,7 +741,7 @@ export const NavDrawer = memo(
                         setOpen(false);
                         onSignOut?.();
                       }}
-                      className="flex-1 flex items-center gap-3 px-3 py-3 rounded-xl font-extrabold text-sm tracking-wide text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line transition-colors"
+                      className="tap-h flex-1 flex items-center gap-3 px-3 py-3 rounded-xl font-extrabold text-sm tracking-wide text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line transition-colors"
                     >
                       <Icons.LogOut className="w-5 h-5 shrink-0" /> Sign Out
                     </button>

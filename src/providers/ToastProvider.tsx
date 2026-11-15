@@ -143,7 +143,7 @@ const ToastContainer = memo(
                       t.action?.onClick();
                       dismiss(t.id);
                     }}
-                    className="shrink-0 t-button px-2.5 py-1.5 rounded-lg border bg-transparent hover:bg-surface-2"
+                    className="tap-h shrink-0 t-button px-2.5 py-1.5 rounded-lg border bg-transparent hover:bg-surface-2"
                     style={{
                       color: tone.actionColor,
                       borderColor: tone.actionBorder,
@@ -156,7 +156,7 @@ const ToastContainer = memo(
                   type="button"
                   onClick={() => dismiss(t.id)}
                   aria-label="Dismiss"
-                  className="shrink-0 w-[22px] h-[22px] grid place-items-center text-ink-3 hover:text-ink rounded-md"
+                  className="tap shrink-0 w-[22px] h-[22px] grid place-items-center text-ink-3 hover:text-ink rounded-md"
                 >
                   <Icons.X className="w-3 h-3" />
                 </button>

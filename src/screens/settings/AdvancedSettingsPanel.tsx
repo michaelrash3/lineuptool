@@ -57,14 +57,14 @@ export const TeamManagementPanel = ({
       <button
         onClick={leaveTeamCmd}
         disabled={teams.length <= 1}
-        className="px-6 py-3 bg-surface border border-line hover:bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed text-ink text-xs font-black uppercase tracking-widest rounded-xl transition-colors shadow-sm whitespace-nowrap"
+        className="tap-h px-6 py-3 bg-surface border border-line hover:bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed text-ink text-xs font-black uppercase tracking-widest rounded-xl transition-colors shadow-sm whitespace-nowrap"
       >
         Leave Team
       </button>
       <button
         onClick={deleteTeamCmd}
         disabled={teams.length <= 1}
-        className="px-6 py-3 bg-loss-bg text-loss hover:bg-loss-bg disabled:opacity-50 disabled:cursor-not-allowed text-xs font-black uppercase tracking-widest rounded-xl transition-colors shadow-sm whitespace-nowrap"
+        className="tap-h px-6 py-3 bg-loss-bg text-loss hover:bg-loss-bg disabled:opacity-50 disabled:cursor-not-allowed text-xs font-black uppercase tracking-widest rounded-xl transition-colors shadow-sm whitespace-nowrap"
       >
         Delete Team
       </button>

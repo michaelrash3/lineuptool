@@ -263,7 +263,7 @@ export const BudgetItemsCard = ({
                         type="button"
                         aria-label={`Fewer ${item.label}${labelSuffix}`}
                         onClick={() => stepBudgetQty(item.id, -1)}
-                        className="p-1 rounded-lg bg-surface-2 hover:bg-line text-ink transition-colors"
+                        className="tap p-1 rounded-lg bg-surface-2 hover:bg-line text-ink transition-colors"
                       >
                         <Icons.Minus className="w-3.5 h-3.5" />
                       </button>
@@ -274,7 +274,7 @@ export const BudgetItemsCard = ({
                         type="button"
                         aria-label={`More ${item.label}${labelSuffix}`}
                         onClick={() => stepBudgetQty(item.id, 1)}
-                        className="p-1 rounded-lg bg-surface-2 hover:bg-line text-ink transition-colors"
+                        className="tap p-1 rounded-lg bg-surface-2 hover:bg-line text-ink transition-colors"
                       >
                         <Icons.Plus className="w-3.5 h-3.5" />
                       </button>
@@ -316,7 +316,7 @@ export const BudgetItemsCard = ({
                     type="button"
                     aria-label={`Edit ${item.label}${labelSuffix}`}
                     onClick={() => startItemEdit(item)}
-                    className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-ink transition-colors"
+                    className="tap inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-ink transition-colors"
                   >
                     <Icons.Edit className="w-4 h-4" />
                   </button>
@@ -324,7 +324,7 @@ export const BudgetItemsCard = ({
                     type="button"
                     aria-label={`Remove ${item.label}${labelSuffix}`}
                     onClick={() => removeBudgetItem(item.id)}
-                    className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-loss transition-colors"
+                    className="tap inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-loss transition-colors"
                   >
                     <Icons.X className="w-4 h-4" />
                   </button>

@@ -247,7 +247,7 @@ export const GameChangerImportPage = memo(() => {
         <button
           onClick={preview}
           disabled={loading || !url.trim()}
-          className="w-full py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl bg-surface border border-line-strong text-ink hover:bg-surface-2 disabled:opacity-50"
+          className="tap-h w-full py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl bg-surface border border-line-strong text-ink hover:bg-surface-2 disabled:opacity-50"
         >
           {loading ? "Loading…" : "Preview games"}
         </button>
@@ -426,13 +426,13 @@ export const GameChangerImportPage = memo(() => {
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={back}
-                className="py-2.5 px-5 text-xs font-black uppercase tracking-wider rounded-xl border border-line text-ink hover:bg-surface"
+                className="tap-h py-2.5 px-5 text-xs font-black uppercase tracking-wider rounded-xl border border-line text-ink hover:bg-surface"
               >
                 Cancel
               </button>
               <button
                 onClick={doImport}
-                className="py-2.5 px-5 text-xs font-black uppercase tracking-wider rounded-xl bg-[var(--team-primary)] text-white hover:-translate-y-0.5 transition-transform"
+                className="tap-h py-2.5 px-5 text-xs font-black uppercase tracking-wider rounded-xl bg-[var(--team-primary)] text-white hover:-translate-y-0.5 transition-transform"
               >
                 {gameCandidates.length > 0
                   ? `Import ${gameCandidates.length} game${gameCandidates.length === 1 ? "" : "s"}`

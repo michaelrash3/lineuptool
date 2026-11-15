@@ -154,7 +154,7 @@ export const OfferLetterView = memo(
                 <button
                   type="button"
                   onClick={saveNextSeasonMoney}
-                  className="px-3 py-2 rounded-lg text-white bg-ink font-black uppercase tracking-widest text-[10px]"
+                  className="tap-h px-3 py-2 rounded-lg text-white bg-ink font-black uppercase tracking-widest text-[10px]"
                 >
                   Save
                 </button>
@@ -239,7 +239,7 @@ export const OfferLetterView = memo(
             <button
               type="button"
               onClick={openEmail}
-              className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-line rounded-lg text-ink hover:bg-surface-2 transition-colors inline-flex items-center gap-1.5"
+              className="tap-h px-4 py-2 text-xs font-black uppercase tracking-widest border border-line rounded-lg text-ink hover:bg-surface-2 transition-colors inline-flex items-center gap-1.5"
             >
               <Icons.Forward className="w-4 h-4" /> Open in email
             </button>
@@ -247,7 +247,7 @@ export const OfferLetterView = memo(
           <button
             type="button"
             onClick={copy}
-            className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md inline-flex items-center gap-1.5"
+            className="tap-h px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md inline-flex items-center gap-1.5"
             style={{ backgroundColor: "var(--team-primary)" }}
           >
             <Icons.Clipboard className="w-4 h-4" /> Copy draft

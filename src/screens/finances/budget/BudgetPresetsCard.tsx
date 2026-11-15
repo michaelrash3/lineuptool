@@ -88,7 +88,7 @@ export const BudgetPresetsCard = ({
         aria-label={`Toggle count mode${labelSuffix}`}
         aria-pressed={qtyMode}
         onClick={() => setQtyMode((v) => !v)}
-        className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest transition-colors ${
+        className={`tap-h px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest transition-colors ${
           qtyMode
             ? "bg-team-primary/15 text-team-primary"
             : "bg-surface-2 hover:bg-line text-ink-3"
@@ -110,7 +110,7 @@ export const BudgetPresetsCard = ({
         aria-pressed={budgetTaxable}
         title="Add this item's cost pre-tax; sales tax is applied in the planner totals."
         onClick={() => setBudgetTaxable((v) => !v)}
-        className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest transition-colors ${
+        className={`tap-h px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest transition-colors ${
           budgetTaxable
             ? "bg-win/10 text-win-ink"
             : "bg-surface-2 hover:bg-line text-ink-3"

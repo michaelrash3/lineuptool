@@ -107,7 +107,7 @@ export const ReimbursementQueueSection = ({
                   type="button"
                   aria-label={`Remove reimbursement for ${r.to}`}
                   onClick={() => removeReimbursement(r.id)}
-                  className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-loss transition-colors"
+                  className="tap inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-loss transition-colors"
                 >
                   <Icons.X className="w-4 h-4" />
                 </button>

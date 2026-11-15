@@ -314,7 +314,7 @@ export const AvailabilityTab = memo(() => {
                 <button
                   type="button"
                   onClick={() => setSelectedDate(null)}
-                  className="p-1 text-ink-3 hover:text-ink"
+                  className="tap p-1 text-ink-3 hover:text-ink"
                   aria-label="Close"
                 >
                   <Icons.X className="w-4 h-4" />

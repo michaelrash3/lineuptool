@@ -78,7 +78,7 @@ export const GameLineupViewPage = memo(() => {
         canEdit ? (
           <Link
             to={`/schedule/game/${game.id}`}
-            className="text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm whitespace-nowrap"
+            className="tap-h text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm whitespace-nowrap"
           >
             <Icons.Edit className="w-4 h-4" /> Edit
           </Link>
@@ -136,14 +136,14 @@ export const GameLineupViewPage = memo(() => {
                 })
               }
               title="Download lineup as a PDF for emailing or texting"
-              className="text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+              className="tap-h text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
             >
               <Icons.FileText className="w-4 h-4" /> PDF
             </button>
             <button
               type="button"
               onClick={() => window.print()}
-              className="text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+              className="tap-h text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
             >
               <Icons.Printer className="w-4 h-4" /> Print
             </button>

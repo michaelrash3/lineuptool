@@ -379,7 +379,7 @@ const ScenarioColumn = memo(
               <button
                 type="button"
                 onClick={onApply}
-                className="mt-3 w-full py-2 rounded-lg text-xs font-black uppercase tracking-widest shadow-md hover:-translate-y-0.5 transition-transform"
+                className="tap-h mt-3 w-full py-2 rounded-lg text-xs font-black uppercase tracking-widest shadow-md hover:-translate-y-0.5 transition-transform"
                 style={{
                   backgroundColor: "var(--team-primary)",
                   color: "var(--team-on-primary)",

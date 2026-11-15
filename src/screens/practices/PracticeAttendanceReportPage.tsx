@@ -132,7 +132,7 @@ export const PracticeAttendanceReportPage = memo(() => {
               <button
                 type="button"
                 onClick={downloadAttendanceCsv}
-                className="px-4 py-2 inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line-strong rounded-xl hover:bg-surface-2 transition-colors"
+                className="tap-h px-4 py-2 inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line-strong rounded-xl hover:bg-surface-2 transition-colors"
               >
                 <Icons.Download className="w-4 h-4" /> Download CSV
               </button>

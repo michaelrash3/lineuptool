@@ -138,7 +138,7 @@ export const TournamentCreatePage = memo(() => {
         <button
           type="button"
           onClick={back}
-          className="bg-surface hover:bg-surface-2 text-ink font-bold uppercase tracking-widest text-xs px-5 py-2.5 rounded-lg shadow-sm border border-line transition-colors"
+          className="tap-h bg-surface hover:bg-surface-2 text-ink font-bold uppercase tracking-widest text-xs px-5 py-2.5 rounded-lg shadow-sm border border-line transition-colors"
         >
           Cancel
         </button>
@@ -146,7 +146,7 @@ export const TournamentCreatePage = memo(() => {
           type="button"
           disabled={!valid}
           onClick={save}
-          className="font-black uppercase tracking-widest text-xs px-6 py-2.5 rounded-lg shadow-md transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="tap-h font-black uppercase tracking-widest text-xs px-6 py-2.5 rounded-lg shadow-md transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
           style={{
             backgroundColor: "var(--team-primary)",
             color: "var(--team-on-primary)",

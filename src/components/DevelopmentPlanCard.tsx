@@ -269,7 +269,7 @@ export const DevelopmentPlanCard = memo(
                           focusAreas: focus.filter((f) => f !== id),
                         })
                       }
-                      className="text-ink-3 hover:text-loss leading-none"
+                      className="tap text-ink-3 hover:text-loss leading-none"
                     >
                       ×
                     </button>
@@ -344,7 +344,7 @@ export const DevelopmentPlanCard = memo(
                       type="button"
                       aria-label={`Remove goal ${g.text}`}
                       onClick={() => removeGoal(player.id, g.id)}
-                      className="p-1 text-ink-3 hover:text-loss rounded"
+                      className="tap p-1 text-ink-3 hover:text-loss rounded"
                     >
                       <Icons.X className="w-3 h-3" />
                     </button>
@@ -382,7 +382,7 @@ export const DevelopmentPlanCard = memo(
                     setGoalText("");
                     setGoalDate("");
                   }}
-                  className="px-4 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest disabled:opacity-50 transition-opacity"
+                  className="tap-h px-4 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest disabled:opacity-50 transition-opacity"
                   style={{
                     backgroundColor: "var(--team-primary)",
                     color: "var(--team-on-primary)",
@@ -412,7 +412,7 @@ export const DevelopmentPlanCard = memo(
                     type="button"
                     aria-label={`Unassign drill ${drillById.get(id)?.name || id}`}
                     onClick={() => toggleAssignedDrill(player.id, id)}
-                    className="text-ink-3 hover:text-loss leading-none"
+                    className="tap text-ink-3 hover:text-loss leading-none"
                   >
                     ×
                   </button>
@@ -464,7 +464,7 @@ export const DevelopmentPlanCard = memo(
                   addCheckIn(player.id, checkInText);
                   setCheckInText("");
                 }}
-                className="px-4 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest disabled:opacity-50 transition-opacity"
+                className="tap-h px-4 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest disabled:opacity-50 transition-opacity"
                 style={{
                   backgroundColor: "var(--team-primary)",
                   color: "var(--team-on-primary)",

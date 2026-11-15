@@ -98,7 +98,7 @@ export const TournamentDetailPage = memo(() => {
             <button
               type="button"
               onClick={rename}
-              className="p-2 text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg transition-colors"
+              className="tap p-2 text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg transition-colors"
               aria-label={`Rename ${tournament.name}`}
               title="Rename tournament"
             >
@@ -107,7 +107,7 @@ export const TournamentDetailPage = memo(() => {
             <button
               type="button"
               onClick={remove}
-              className="p-2 text-ink-3 hover:text-loss hover:bg-loss-bg rounded-lg transition-colors"
+              className="tap p-2 text-ink-3 hover:text-loss hover:bg-loss-bg rounded-lg transition-colors"
               aria-label={`Delete ${tournament.name}`}
               title="Delete tournament (games stay on the schedule)"
             >

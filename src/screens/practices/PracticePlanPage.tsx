@@ -135,7 +135,7 @@ export const PracticePlanPage = memo(() => {
                 key={m}
                 type="button"
                 onClick={() => setMinutes(m)}
-                className={`px-3 py-2 text-xs font-black uppercase tracking-widest rounded-sm border transition-colors ${
+                className={`tap-h px-3 py-2 text-xs font-black uppercase tracking-widest rounded-sm border transition-colors ${
                   active
                     ? "border-transparent text-white"
                     : "bg-surface border-line text-ink-2 hover:text-ink"
@@ -215,7 +215,7 @@ export const PracticePlanPage = memo(() => {
               type="button"
               onClick={exportPdf}
               aria-label="Download practice plan PDF"
-              className="px-5 py-2.5 bg-surface border border-line text-ink font-black text-xs uppercase tracking-widest rounded-sm hover:bg-surface-2 transition-colors inline-flex items-center gap-1.5"
+              className="tap-h px-5 py-2.5 bg-surface border border-line text-ink font-black text-xs uppercase tracking-widest rounded-sm hover:bg-surface-2 transition-colors inline-flex items-center gap-1.5"
             >
               <Icons.Download className="w-4 h-4" aria-hidden /> Export PDF
             </button>
@@ -223,7 +223,7 @@ export const PracticePlanPage = memo(() => {
           <button
             type="button"
             onClick={back}
-            className="px-5 py-2.5 bg-surface border border-line text-ink font-black text-xs uppercase tracking-widest rounded-sm hover:bg-surface-2 transition-colors"
+            className="tap-h px-5 py-2.5 bg-surface border border-line text-ink font-black text-xs uppercase tracking-widest rounded-sm hover:bg-surface-2 transition-colors"
           >
             Cancel
           </button>
@@ -231,7 +231,7 @@ export const PracticePlanPage = memo(() => {
             type="button"
             disabled={plan.length === 0}
             onClick={apply}
-            className="btn-premium px-5 py-2.5 rounded-sm text-xs font-black uppercase tracking-widest disabled:opacity-50"
+            className="tap-h btn-premium px-5 py-2.5 rounded-sm text-xs font-black uppercase tracking-widest disabled:opacity-50"
             style={{ color: "var(--team-on-primary)" }}
           >
             {existingCount > 0

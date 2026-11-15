@@ -92,7 +92,7 @@ export const TournamentSubsPanel = memo(
                   addSubToTournament(p.id, tournament.id);
                   setAdding(false);
                 }}
-                className="w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-surface transition-colors"
+                className="tap-h w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-surface transition-colors"
               >
                 <Icons.Plus className="w-4 h-4 shrink-0 text-ink-3" />
                 <span className="text-[11px] font-black uppercase tracking-widest text-ink-3 tabular-nums w-8 shrink-0">
@@ -154,7 +154,7 @@ export const TournamentSubsPanel = memo(
                       onClick={() =>
                         removeSubFromTournament(p.id, tournament.id)
                       }
-                      className="p-1.5 text-ink-3 hover:text-loss hover:bg-loss-bg rounded-lg transition-colors shrink-0"
+                      className="tap p-1.5 text-ink-3 hover:text-loss hover:bg-loss-bg rounded-lg transition-colors shrink-0"
                       aria-label={`Remove ${p.name}`}
                       title="Remove sub"
                     >

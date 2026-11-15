@@ -607,3 +607,59 @@ body::before {
     font-size: 16px !important;
   }
 }
+
+/* Touch targets. A finger needs more room than a cursor, so on a touch screen
+   (the primary pointer is coarse — phones, tablets) controls get a minimum
+   size they don't have under a mouse, where the tighter layout is the point.
+   Everything here is zero-specificity (:where), so any sizing or display class
+   on the element itself still wins.
+
+   1. The floor: nothing tappable is smaller than 24px either way (WCAG 2.2
+      "Target Size (Minimum)"). An inline link inside a sentence is untouched
+      — min-height doesn't apply to inline boxes, and the guideline exempts it.
+   2. Form fields are 44px tall.
+   3. Opt-in, for a control that stands on its own. Real size, not an
+      invisible hit area: two small neighbours with overlapping hit areas
+      steal each other's taps.
+        .tap    an icon-only control — 44px both ways, icon centred.
+        .tap-h  a control with a text label (a tab, a page action, a menu
+                row) — 44px tall; its width and alignment are left alone.
+      Dense in-content items (a name in a table, a chip in a row of chips)
+      stay at the floor on purpose.
+
+   e2e/screens.e2e.ts enforces the floor on every screen. */
+@media (pointer: coarse) {
+  :where(button, [role="button"], [role="tab"], summary, select, a[href]) {
+    min-height: 24px;
+    min-width: 24px;
+  }
+  /* A checkbox or radio is tapped through its label, so the label is the
+     target that has to clear the floor. */
+  :where(label:has(input[type="checkbox"], input[type="radio"])) {
+    min-height: 24px;
+  }
+  :where(
+    input:not(
+      [type="checkbox"],
+      [type="radio"],
+      [type="range"],
+      [type="color"],
+      [type="file"],
+      [type="hidden"]
+    ),
+    select,
+    textarea
+  ) {
+    min-height: 44px;
+  }
+  :where(.tap) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
+  }
+  :where(.tap-h) {
+    min-height: 44px;
+  }
+}

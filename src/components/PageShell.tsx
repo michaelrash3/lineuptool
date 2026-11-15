@@ -27,7 +27,7 @@ export const PageShell = ({
       <button
         type="button"
         onClick={onBack}
-        className="mb-3 -ml-2 p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors flex items-center gap-1"
+        className="tap-h mb-3 -ml-2 p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors flex items-center gap-1"
       >
         <Icons.ChevronLeft className="w-5 h-5" />
         <span className="text-[10px] font-black uppercase tracking-widest">

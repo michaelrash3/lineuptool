@@ -128,7 +128,7 @@ export const SponsorshipSection = ({
                 type="button"
                 aria-label={`Remove this-season sponsor ${sp.label}`}
                 onClick={() => removeCurrentSponsor(sp.id)}
-                className="text-ink-3 hover:text-loss transition-colors"
+                className="tap text-ink-3 hover:text-loss transition-colors"
               >
                 <Icons.X className="w-4 h-4" />
               </button>
@@ -176,7 +176,7 @@ export const SponsorshipSection = ({
                 type="button"
                 aria-label={`Remove sponsorship from ${sp.sponsor}`}
                 onClick={() => removeSponsorship(sp.id)}
-                className="text-ink-3 hover:text-loss transition-colors"
+                className="tap text-ink-3 hover:text-loss transition-colors"
               >
                 <Icons.X className="w-4 h-4" />
               </button>

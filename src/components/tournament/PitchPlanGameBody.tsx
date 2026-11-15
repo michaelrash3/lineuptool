@@ -117,7 +117,7 @@ const AddArmRow = ({
           if (Number.isFinite(n) && n > 0) entry.plannedPitches = n;
           onAdd(entry);
         }}
-        className="t-chip px-3 py-1.5 rounded-lg font-black uppercase tracking-widest"
+        className="tap-h t-chip px-3 py-1.5 rounded-lg font-black uppercase tracking-widest"
         style={{
           backgroundColor: "var(--team-primary)",
           color: "var(--team-on-primary)",
@@ -128,7 +128,7 @@ const AddArmRow = ({
       <button
         type="button"
         onClick={onCancel}
-        className="t-chip px-3 py-1.5 rounded-lg font-black uppercase tracking-widest bg-surface border border-line text-ink-2 hover:bg-surface-2"
+        className="tap-h t-chip px-3 py-1.5 rounded-lg font-black uppercase tracking-widest bg-surface border border-line text-ink-2 hover:bg-surface-2"
       >
         Cancel
       </button>
@@ -245,7 +245,7 @@ export const PitchPlanGameBody = ({
                     )
                   }
                   aria-label={`Remove ${p.name} from this game's plan`}
-                  className="ml-0.5 text-ink-3 hover:text-loss leading-none"
+                  className="tap ml-0.5 text-ink-3 hover:text-loss leading-none"
                 >
                   ×
                 </button>

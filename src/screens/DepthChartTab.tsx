@@ -274,7 +274,7 @@ const PositionCard = memo(
                       onClick={() => onMove(pos, ids, idx, -1)}
                       disabled={idx === 0}
                       aria-label={`Move ${p.name} up`}
-                      className="p-1 rounded-sm border border-line text-ink-2 hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="tap p-1 rounded-sm border border-line text-ink-2 hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       <Icons.ChevronUp className="w-4 h-4" />
                     </button>
@@ -283,7 +283,7 @@ const PositionCard = memo(
                       onClick={() => onMove(pos, ids, idx, 1)}
                       disabled={idx === ranked.length - 1}
                       aria-label={`Move ${p.name} down`}
-                      className="p-1 rounded-sm border border-line text-ink-2 hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="tap p-1 rounded-sm border border-line text-ink-2 hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       <Icons.ChevronDown className="w-4 h-4" />
                     </button>
@@ -455,7 +455,7 @@ export const DepthChartTab = memo(() => {
               type="button"
               onClick={() => void downloadDepthChartPdf({ team, board, toast })}
               aria-label="Download depth chart PDF"
-              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:text-ink transition-colors inline-flex items-center gap-1.5"
+              className="tap-h shrink-0 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:text-ink transition-colors inline-flex items-center gap-1.5"
             >
               <Icons.Download className="w-4 h-4" aria-hidden />
               Export PDF

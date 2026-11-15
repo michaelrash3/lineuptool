@@ -291,14 +291,14 @@ export const AdvanceSeasonPage = memo(() => {
           <button
             type="button"
             onClick={() => setAll(STATUS_RETURNING)}
-            className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line bg-win-bg text-win hover:bg-win-bg"
+            className="tap-h text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line bg-win-bg text-win hover:bg-win-bg"
           >
             All Yes
           </button>
           <button
             type="button"
             onClick={() => setAll(STATUS_RELEASED)}
-            className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong bg-surface text-ink hover:bg-surface-2"
+            className="tap-h text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong bg-surface text-ink hover:bg-surface-2"
           >
             All No
           </button>

@@ -76,7 +76,7 @@ export const AvailabilityCalendar = ({
         <button
           type="button"
           onClick={() => step(-1)}
-          className="shrink-0 p-2 rounded-full text-ink-2 bg-surface-2 border border-line hover:text-ink hover:shadow-sm transition"
+          className="tap shrink-0 p-2 rounded-full text-ink-2 bg-surface-2 border border-line hover:text-ink hover:shadow-sm transition"
           aria-label="Previous month"
         >
           <Icons.ChevronDown className="w-4 h-4 rotate-90" />
@@ -90,7 +90,7 @@ export const AvailabilityCalendar = ({
         <button
           type="button"
           onClick={() => step(1)}
-          className="shrink-0 p-2 rounded-full text-ink-2 bg-surface-2 border border-line hover:text-ink hover:shadow-sm transition"
+          className="tap shrink-0 p-2 rounded-full text-ink-2 bg-surface-2 border border-line hover:text-ink hover:shadow-sm transition"
           aria-label="Next month"
         >
           <Icons.ChevronDown className="w-4 h-4 -rotate-90" />

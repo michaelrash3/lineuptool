@@ -59,7 +59,7 @@ export const GameLogPanel = memo(() => {
             <button
               type="button"
               onClick={() => openGame(r.id)}
-              className="w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-surface-2 transition-colors"
+              className="tap-h w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-surface-2 transition-colors"
             >
               <span
                 className={`shrink-0 w-7 h-7 grid place-items-center rounded-md border text-[11px] font-black ${resultCls[r.result]}`}

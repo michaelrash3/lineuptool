@@ -141,7 +141,7 @@ const DialogShell = ({
             <button
               type="button"
               onClick={cancel}
-              className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
+              className="tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
             >
               {opts.cancelLabel || "Cancel"}
             </button>
@@ -149,7 +149,7 @@ const DialogShell = ({
                 Enter can't fire a destructive action. */}
             <button
               type="submit"
-              className={`px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-colors ${
+              className={`tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-colors ${
                 danger
                   ? "text-white bg-[var(--danger-600)] hover:bg-[var(--danger-700)]"
                   : "btn-premium"

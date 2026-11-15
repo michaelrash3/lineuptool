@@ -771,7 +771,7 @@ const ReturningIntentPanel = memo(
                           value === "unknown" ? null : value === "yes",
                         )
                       }
-                      className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md border ${
+                      className={`tap-h px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md border ${
                         decision === value
                           ? "bg-team-primary text-team-tertiary border-team-primary"
                           : "bg-surface border-line text-ink-2 hover:bg-surface-2"
@@ -870,7 +870,7 @@ const TeamImpactPanel = memo(({ roster, team }: TeamImpactPanelProps) => {
               })
             }
             aria-label="Download tryout ranking sheet PDF"
-            className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 inline-flex items-center gap-1.5"
+            className="tap-h px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 inline-flex items-center gap-1.5"
             title="Print the whole ranked board — the post-tryout staff sheet"
           >
             <Icons.Download className="w-3.5 h-3.5" aria-hidden /> Ranking Sheet
@@ -1307,7 +1307,7 @@ export const TryoutsTab = memo(() => {
             <button
               type="button"
               onClick={endTryout}
-              className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-loss hover:opacity-90 rounded-lg transition-opacity"
+              className="tap-h shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-loss hover:opacity-90 rounded-lg transition-opacity"
               title={`Bulk-delete the ${noShowCount} no-show signup${noShowCount === 1 ? "" : "s"}`}
             >
               End Tryout · Clear No-Shows
@@ -1342,7 +1342,7 @@ export const TryoutsTab = memo(() => {
                 key={s}
                 type="button"
                 onClick={() => setStatusFilter(s)}
-                className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md border ${
+                className={`tap-h px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md border ${
                   statusFilter === s
                     ? "bg-team-primary text-team-tertiary border-team-primary"
                     : "bg-surface border-line text-ink-2 hover:bg-surface-2"
@@ -1373,7 +1373,7 @@ export const TryoutsTab = memo(() => {
                         ? "All tryout dates (the unified board)"
                         : `Only the ${d} tryout`
                     }
-                    className={`px-2 py-1.5 text-[10px] font-black tabular-nums rounded-md border ${
+                    className={`tap-h px-2 py-1.5 text-[10px] font-black tabular-nums rounded-md border ${
                       dateFilter === d
                         ? "bg-surface-2 border-line-strong text-ink"
                         : "bg-surface border-line text-ink-3 hover:bg-surface-2"
@@ -1388,7 +1388,7 @@ export const TryoutsTab = memo(() => {
               <button
                 type="button"
                 onClick={() => navigate("/tryouts/add")}
-                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg shadow-sm"
+                className="tap-h px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg shadow-sm"
                 style={{
                   backgroundColor: "var(--team-primary)",
                   color: "var(--team-on-primary)",
@@ -1409,7 +1409,7 @@ export const TryoutsTab = memo(() => {
                     message: `${unnumberedCount} player${unnumberedCount === 1 ? "" : "s"} numbered`,
                   });
                 }}
-                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2"
+                className="tap-h px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2"
                 title="Give every un-numbered signup the next free number for their tryout date"
               >
                 Assign #s ({unnumberedCount})
@@ -1419,7 +1419,7 @@ export const TryoutsTab = memo(() => {
               <button
                 type="button"
                 onClick={saveVisibleTryoutEvals}
-                className="ml-auto px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white rounded-lg shadow-sm"
+                className="tap-h ml-auto px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white rounded-lg shadow-sm"
                 style={{ backgroundColor: "var(--team-primary)" }}
               >
                 Save Visible Evals
@@ -1505,7 +1505,7 @@ export const TryoutsTab = memo(() => {
                             }
                             title="Mark present"
                             aria-pressed={presence === true}
-                            className={`p-1.5 rounded-md border transition-colors ${
+                            className={`tap p-1.5 rounded-md border transition-colors ${
                               presence === true
                                 ? "bg-win-bg border-line text-win"
                                 : "bg-surface border-line text-ink-3 hover:text-win"
@@ -1522,7 +1522,7 @@ export const TryoutsTab = memo(() => {
                             }
                             title="Mark no-show"
                             aria-pressed={presence === false}
-                            className={`p-1.5 rounded-md border transition-colors ${
+                            className={`tap p-1.5 rounded-md border transition-colors ${
                               presence === false
                                 ? "bg-loss-bg border-line text-loss"
                                 : "bg-surface border-line text-ink-3 hover:text-loss"
@@ -1543,7 +1543,7 @@ export const TryoutsTab = memo(() => {
                             return next;
                           })
                         }
-                        className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
+                        className="tap-h px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
                       >
                         {expanded ? "Close" : "Open"}
                       </button>
@@ -1689,7 +1689,7 @@ export const TryoutsTab = memo(() => {
                             <button
                               type="button"
                               onClick={() => saveTryoutEval(s)}
-                              className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
+                              className="tap-h px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
                               style={{ backgroundColor: "var(--team-primary)" }}
                             >
                               Save Eval
@@ -1700,7 +1700,7 @@ export const TryoutsTab = memo(() => {
                                 onClick={() =>
                                   navigate(`/tryouts/letter/${s.id}/new-player`)
                                 }
-                                className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-warn-bg text-warnfg border border-line rounded-lg hover:opacity-90 transition-opacity"
+                                className="tap-h px-4 py-2 text-xs font-black uppercase tracking-widest bg-warn-bg text-warnfg border border-line rounded-lg hover:opacity-90 transition-opacity"
                               >
                                 Make an Offer
                               </button>
@@ -1715,7 +1715,7 @@ export const TryoutsTab = memo(() => {
                                       `/tryouts/letter/${s.id}/rejection`,
                                     )
                                   }
-                                  className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-surface-2 text-ink border border-line rounded-lg hover:opacity-90 transition-opacity"
+                                  className="tap-h px-4 py-2 text-xs font-black uppercase tracking-widest bg-surface-2 text-ink border border-line rounded-lg hover:opacity-90 transition-opacity"
                                 >
                                   Decline
                                 </button>
@@ -1724,7 +1724,7 @@ export const TryoutsTab = memo(() => {
                               <button
                                 type="button"
                                 onClick={() => setAcceptChoice(s)}
-                                className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white bg-emerald-600 rounded-lg hover:bg-emerald-700"
+                                className="tap-h px-4 py-2 text-xs font-black uppercase tracking-widest text-white bg-emerald-600 rounded-lg hover:bg-emerald-700"
                               >
                                 Mark Accepted
                               </button>
@@ -1798,7 +1798,7 @@ export const TryoutsTab = memo(() => {
                       acceptTryout?.(acceptChoice.id, o.id);
                       setAcceptChoice(null);
                     }}
-                    className="w-full text-left p-3 rounded-xl border border-line bg-surface hover:bg-surface-2 transition-colors"
+                    className="tap-h w-full text-left p-3 rounded-xl border border-line bg-surface hover:bg-surface-2 transition-colors"
                   >
                     <div className="text-sm font-black text-ink">
                       {o.title}
@@ -1822,7 +1822,7 @@ export const TryoutsTab = memo(() => {
               <button
                 type="button"
                 onClick={() => setAcceptChoice(null)}
-                className="w-full px-4 py-2 text-xs font-black uppercase tracking-widest text-ink-3 hover:text-ink transition-colors"
+                className="tap-h w-full px-4 py-2 text-xs font-black uppercase tracking-widest text-ink-3 hover:text-ink transition-colors"
               >
                 Cancel
               </button>

@@ -66,7 +66,7 @@ const SignupsBlocked = ({ onBack }: { onBack: () => void }) => (
     <button
       type="button"
       onClick={onBack}
-      className="mt-4 inline-flex items-center rounded-lg border px-4 py-2 text-sm font-semibold"
+      className="tap-h mt-4 inline-flex items-center rounded-lg border px-4 py-2 text-sm font-semibold"
     >
       Go back
     </button>

@@ -251,7 +251,7 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
               disabled={!r.eligible}
               onClick={() => pick(r.p.id)}
               aria-pressed={isSel}
-              className={`flex items-center gap-3 px-2 py-2.5 border-b border-line text-left transition-colors ${
+              className={`tap-h flex items-center gap-3 px-2 py-2.5 border-b border-line text-left transition-colors ${
                 r.eligible
                   ? "hover:bg-surface-2 cursor-pointer"
                   : "opacity-50 cursor-not-allowed"

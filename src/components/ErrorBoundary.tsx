@@ -93,7 +93,7 @@ export class ErrorBoundary extends React.Component<
             <button
               type="button"
               onClick={this.handleRetry}
-              className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-xl hover:bg-surface-2 transition-colors"
+              className="tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-xl hover:bg-surface-2 transition-colors"
             >
               Try Again
             </button>
@@ -102,7 +102,7 @@ export class ErrorBoundary extends React.Component<
               onClick={() => {
                 if (typeof window !== "undefined") window.location.reload();
               }}
-              className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white bg-slate-900 rounded-xl shadow-sm hover:bg-slate-800 transition-colors"
+              className="tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white bg-slate-900 rounded-xl shadow-sm hover:bg-slate-800 transition-colors"
             >
               Reload Page
             </button>

@@ -225,7 +225,7 @@ export const WeekPlannerPage = memo(() => {
             <button
               type="button"
               onClick={() => setShowPast((v) => !v)}
-              className="t-chip px-3 py-1.5 rounded-lg border border-line bg-surface text-ink-2 hover:bg-surface-2 font-black uppercase tracking-widest"
+              className="tap-h t-chip px-3 py-1.5 rounded-lg border border-line bg-surface text-ink-2 hover:bg-surface-2 font-black uppercase tracking-widest"
             >
               {showPast
                 ? "Hide past weeks"

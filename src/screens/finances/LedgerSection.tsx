@@ -190,7 +190,7 @@ export const LedgerSection = ({
               type="button"
               onClick={() => setTxnDir(opt.v)}
               aria-pressed={txnDir === opt.v}
-              className={`px-3 py-2 text-xs font-black uppercase tracking-widest transition-colors ${
+              className={`tap-h px-3 py-2 text-xs font-black uppercase tracking-widest transition-colors ${
                 txnDir === opt.v
                   ? opt.v === "in"
                     ? "bg-win/15 text-win-ink"
@@ -770,7 +770,7 @@ export const LedgerSection = ({
                               type="button"
                               aria-label={`Edit entry ${row.label}`}
                               onClick={() => startLedgerEdit(row)}
-                              className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-ink transition-colors mr-1"
+                              className="tap inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-ink transition-colors mr-1"
                             >
                               <Icons.Edit className="w-4 h-4" />
                             </button>
@@ -791,7 +791,7 @@ export const LedgerSection = ({
                           type="button"
                           aria-label={`Delete entry ${row.label}`}
                           onClick={() => removeLedgerRow(row.source, row.id)}
-                          className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-loss transition-colors"
+                          className="tap inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-loss transition-colors"
                         >
                           <Icons.X className="w-4 h-4" />
                         </button>

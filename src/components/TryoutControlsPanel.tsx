@@ -79,7 +79,7 @@ const TryoutDatesPanel = memo(({ team, updateTeam, toast }: any) => {
             setDate("");
             toast.push({ kind: "success", title: "Tryout date added" });
           }}
-          className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-md"
+          className="tap-h px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-md"
           style={{
             backgroundColor: "var(--team-primary)",
             color: "var(--team-on-primary)",
@@ -169,7 +169,7 @@ const TryoutTargetPicker = memo(({ team, updateTeam }: any) => {
               onClick={() => {
                 if (!on) updateTeam?.({ tryoutTarget: o.id });
               }}
-              className={`text-left p-3 rounded-xl border transition-colors ${
+              className={`tap-h text-left p-3 rounded-xl border transition-colors ${
                 on ? "" : "border-line bg-surface hover:bg-surface-2"
               }`}
               style={
@@ -270,7 +270,7 @@ export const TryoutControlsPanel = memo(() => {
                   <button
                     type="button"
                     onClick={() => generateTryoutShareId?.()}
-                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
+                    className="tap-h px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
                   >
                     Regenerate
                   </button>
@@ -281,7 +281,7 @@ export const TryoutControlsPanel = memo(() => {
             <button
               type="button"
               onClick={() => generateTryoutShareId?.()}
-              className="px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-lg shadow-md"
+              className="tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-lg shadow-md"
               style={{
                 backgroundColor: "var(--team-primary)",
                 color: "var(--team-on-primary)",
@@ -322,7 +322,7 @@ export const TryoutControlsPanel = memo(() => {
             <button
               type="button"
               onClick={() => resyncPublicMirror?.()}
-              className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 shrink-0"
+              className="tap-h px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 shrink-0"
             >
               Resync
             </button>
@@ -366,14 +366,14 @@ export const TryoutControlsPanel = memo(() => {
               <button
                 type="button"
                 onClick={() => setTryoutsOpen?.(false)}
-                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
+                className="tap-h px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
               >
                 Close Signups
               </button>
               <button
                 type="button"
                 onClick={() => completeTryouts?.()}
-                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md"
+                className="tap-h px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md"
                 style={{
                   backgroundColor: "var(--team-primary)",
                   color: "var(--team-on-primary)",

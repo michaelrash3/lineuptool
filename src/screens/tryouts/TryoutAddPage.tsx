@@ -157,14 +157,14 @@ export const TryoutAddPage = memo(() => {
           <button
             type="button"
             onClick={back}
-            className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
+            className="tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={submit}
-            className="px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-sm"
+            className="tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-sm"
             style={{
               backgroundColor: "var(--team-primary)",
               color: "var(--team-on-primary)",

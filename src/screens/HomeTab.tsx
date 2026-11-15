@@ -170,7 +170,7 @@ const UpcomingGameCard = memo(
           setActiveTab("schedule");
           setIsAddingGame(true);
         }}
-        className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+        className="tap-h flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
         style={{ backgroundColor: primaryColor, color: tertiaryColor }}
       >
         <Icons.Plus className="w-4 h-4" /> Add Game
@@ -225,7 +225,7 @@ const UpcomingGameCard = memo(
           !isAssistant || game.lineup ? (
             <button
               onClick={() => goToGame(game)}
-              className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+              className="tap-h flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
               style={{ backgroundColor: primaryColor, color: tertiaryColor }}
             >
               <Icons.Clipboard className="w-4 h-4" /> View
@@ -456,7 +456,7 @@ const UpcomingGameCard = memo(
               game.lineup && (
                 <button
                   onClick={openInSchedule}
-                  className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+                  className="tap-h flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
                   style={{
                     backgroundColor: primaryColor,
                     color: tertiaryColor,
@@ -497,14 +497,14 @@ const UpcomingGameCard = memo(
                 {game.lineup && (
                   <button
                     onClick={openInSchedule}
-                    className="flex-1 sm:flex-none text-xs px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                    className="tap-h flex-1 sm:flex-none text-xs px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
                   >
                     <Icons.Edit className="w-4 h-4" /> Edit Lineup
                   </button>
                 )}
                 <button
                   onClick={openScoreEditor}
-                  className="flex-1 sm:flex-none text-xs px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                  className="tap-h flex-1 sm:flex-none text-xs px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
                 >
                   <Icons.FileText className="w-4 h-4" /> Final Score
                 </button>
@@ -514,7 +514,7 @@ const UpcomingGameCard = memo(
               // primary action.
               <button
                 onClick={openInSchedule}
-                className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+                className="tap-h flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
                 style={{ backgroundColor: primaryColor, color: tertiaryColor }}
               >
                 {game.lineup ? (
@@ -582,7 +582,7 @@ const InsightTile = memo(
             <button
               type="button"
               onClick={onClick}
-              className="t-button text-ink-3 hover:text-ink flex items-center gap-0.5 shrink-0"
+              className="tap-h t-button text-ink-3 hover:text-ink flex items-center gap-0.5 shrink-0"
             >
               {ctaLabel}
               <Icons.ChevronRight className="w-3.5 h-3.5" />
@@ -786,7 +786,7 @@ const RecentMovementTile = memo(
               key={player.id}
               type="button"
               onClick={() => onPlayerClick?.(player.id)}
-              className={`w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border border-line/80 transition-colors shadow-sm ${
+              className={`tap-h w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border border-line/80 transition-colors shadow-sm ${
                 delta > 0
                   ? "bg-win-bg/40 hover:bg-win-bg"
                   : "bg-loss-bg/40 hover:bg-loss-bg"
@@ -1469,7 +1469,7 @@ const UpcomingWeekSection = memo(
               onClick={() =>
                 it.kind === "game" ? onOpenGame?.(it.id) : onOpenPractices?.()
               }
-              className="text-left bg-surface border border-line rounded-xl p-3 hover:bg-surface-2 transition-colors"
+              className="tap-h text-left bg-surface border border-line rounded-xl p-3 hover:bg-surface-2 transition-colors"
             >
               <span
                 className={`inline-block text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded mb-1 ${
@@ -1927,7 +1927,7 @@ export const UpNextPanel = memo(
                 }
                 aria-label={`Snooze: ${item.title}`}
                 title="Snooze"
-                className="shrink-0 px-3 text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
+                className="tap shrink-0 px-3 text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
               >
                 <Icons.X className="w-4 h-4" />
               </button>
@@ -2164,14 +2164,14 @@ export const HomeTab = memo(() => {
                   <button
                     type="button"
                     onClick={() => navigate("/season-report")}
-                    className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
+                    className="tap-h inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
                   >
                     <Icons.FileText className="w-3.5 h-3.5" /> Season Report
                   </button>
                   <button
                     type="button"
                     onClick={() => navigate("/awards")}
-                    className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
+                    className="tap-h inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
                   >
                     <Icons.Sparkles className="w-3.5 h-3.5" /> Awards
                   </button>
@@ -2435,7 +2435,7 @@ const LeaderboardsSection = memo(
                   type="button"
                   onClick={() => setActiveTab(t.id)}
                   aria-pressed={isActive}
-                  className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md transition-colors ${
+                  className={`tap-h text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md transition-colors ${
                     isActive ? "shadow-sm" : "text-ink-3 hover:bg-surface"
                   }`}
                   style={
