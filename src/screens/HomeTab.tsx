@@ -1386,7 +1386,7 @@ interface UpcomingWeekSectionProps {
   games: Game[];
   practices: Practice[];
   todayStr: string;
-  onOpenGame?: () => void;
+  onOpenGame?: (gameId: string) => void;
   onOpenPractices?: () => void;
 }
 const UpcomingWeekSection = memo(
@@ -1444,7 +1444,7 @@ const UpcomingWeekSection = memo(
               key={`${it.kind}-${it.id}`}
               type="button"
               onClick={() =>
-                it.kind === "game" ? onOpenGame?.() : onOpenPractices?.()
+                it.kind === "game" ? onOpenGame?.(it.id) : onOpenPractices?.()
               }
               className="text-left bg-surface border border-line rounded-xl p-3 hover:bg-surface-2 transition-colors"
             >
@@ -1918,8 +1918,13 @@ export const UpNextPanel = memo(
 
 export const HomeTab = memo(() => {
   const { team, teams, activeTeamId, record, user, currentRole } = useTeam();
-  const { openPlayerProfile, setActiveTab, setIsAddingGame, openAddPlayer } =
-    useUI();
+  const {
+    openPlayerProfile,
+    setActiveTab,
+    setSelectedGameId,
+    setIsAddingGame,
+    openAddPlayer,
+  } = useUI();
   const isHead = currentRole !== "assistant";
   const navigate = useNavigate();
   const promptStatus = useMemo(
@@ -2250,7 +2255,9 @@ export const HomeTab = memo(() => {
         // (a practice card would deep-link into a tab that no longer exists).
         practices={featureEnabled(team, "practices") ? practices : []}
         todayStr={todayStr}
-        onOpenGame={() => setActiveTab("schedule")}
+        // Straight to the game that was tapped, not the schedule it's in.
+        // Selecting a game routes to its editor and loads it (UIProvider).
+        onOpenGame={(gameId) => setSelectedGameId(gameId)}
         onOpenPractices={() => setActiveTab("practices")}
       />
 

@@ -164,6 +164,8 @@ describe("HomeTab", () => {
         hour: "numeric",
         minute: "2-digit",
       });
+    const setActiveTab = jest.fn();
+    const setSelectedGameId = jest.fn();
     renderWithProviders(
       <MemoryRouter>
         <HomeTab />
@@ -200,7 +202,8 @@ describe("HomeTab", () => {
           setIsAddingGame: jest.fn(),
           openAddPlayer: jest.fn(),
           openPlayerProfile: jest.fn(),
-          setActiveTab: jest.fn(),
+          setActiveTab,
+          setSelectedGameId,
         },
       },
     );
@@ -211,6 +214,11 @@ describe("HomeTab", () => {
     expect(
       early.compareDocumentPosition(late) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+
+    // Tapping a card opens THAT game, not the schedule it sits in.
+    fireEvent.click(late);
+    expect(setSelectedGameId).toHaveBeenCalledWith("late");
+    expect(setActiveTab).not.toHaveBeenCalledWith("schedule");
   });
 
   it("suppresses dashboard surfaces that deep-link into disabled features", () => {
