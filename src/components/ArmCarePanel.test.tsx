@@ -64,6 +64,20 @@ describe("ArmCarePanel same-day availability", () => {
     expect(screen.getByText("Ready · 35 left")).toBeInTheDocument();
   });
 
+  it("says a rested pitcher is out when he is injured or away today", () => {
+    // Rest standing alone called a kid on crutches "Ready".
+    const hurt = renderPanel({
+      players: [{ ...ace(), health: { status: "out" } }],
+    });
+    expect(screen.getByText("Out · injured")).toBeInTheDocument();
+    expect(screen.queryByText(/^Ready/)).not.toBeInTheDocument();
+    hurt.unmount();
+
+    renderPanel({ players: [{ ...ace(), absences: [today] }] });
+    expect(screen.getByText("Away today")).toBeInTheDocument();
+    expect(screen.queryByText(/^Ready/)).not.toBeInTheDocument();
+  });
+
   it("reads as day-maxed once today's pitches are gone", () => {
     renderPanel({ players: [threwToday(75)] });
     expect(screen.getByText("Day maxed")).toBeInTheDocument();

@@ -81,7 +81,7 @@ export const PlayerPager = memo(
           aria-label={
             prev ? `Previous player: ${label(prev)}` : "Previous player"
           }
-          className="flex items-center gap-1.5 min-w-0 flex-1 justify-start px-2 py-1.5 rounded-lg text-ink-2 hover:bg-surface-2 hover:text-ink transition-colors disabled:opacity-30 disabled:pointer-events-none"
+          className="tap-h flex items-center gap-1.5 min-w-0 flex-1 justify-start px-2 py-1.5 rounded-lg text-ink-2 hover:bg-surface-2 hover:text-ink transition-colors disabled:opacity-30 disabled:pointer-events-none"
         >
           <Icons.ChevronLeft className="w-4 h-4 shrink-0" />
           <span className="text-[11px] font-bold truncate">
@@ -98,7 +98,7 @@ export const PlayerPager = memo(
           onClick={() => step(next)}
           disabled={!next}
           aria-label={next ? `Next player: ${label(next)}` : "Next player"}
-          className="flex items-center gap-1.5 min-w-0 flex-1 justify-end px-2 py-1.5 rounded-lg text-ink-2 hover:bg-surface-2 hover:text-ink transition-colors disabled:opacity-30 disabled:pointer-events-none"
+          className="tap-h flex items-center gap-1.5 min-w-0 flex-1 justify-end px-2 py-1.5 rounded-lg text-ink-2 hover:bg-surface-2 hover:text-ink transition-colors disabled:opacity-30 disabled:pointer-events-none"
         >
           <span className="text-[11px] font-bold truncate">
             {next ? label(next) : "End of roster"}

@@ -291,14 +291,14 @@ export const AdvanceSeasonPage = memo(() => {
           <button
             type="button"
             onClick={() => setAll(STATUS_RETURNING)}
-            className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line bg-win-bg text-win hover:bg-win-bg"
+            className="tap-h text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line bg-win-bg text-win hover:bg-win-bg"
           >
             All Yes
           </button>
           <button
             type="button"
             onClick={() => setAll(STATUS_RELEASED)}
-            className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong bg-surface text-ink hover:bg-surface-2"
+            className="tap-h text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong bg-surface text-ink hover:bg-surface-2"
           >
             All No
           </button>
@@ -375,7 +375,7 @@ export const AdvanceSeasonPage = memo(() => {
                             aria-pressed={returning}
                             className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border transition-colors ${
                               returning
-                                ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                                ? "bg-win-bg border-line-strong text-win"
                                 : "bg-surface border-line text-ink-3 hover:bg-surface-2"
                             }`}
                           >
@@ -440,7 +440,7 @@ export const AdvanceSeasonPage = memo(() => {
                       key={s.id}
                       className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 shadow-sm transition-colors ${
                         checked
-                          ? "bg-emerald-50/40 border-emerald-300"
+                          ? "bg-win-bg border-line-strong"
                           : "bg-surface border-line"
                       }`}
                     >

@@ -128,7 +128,7 @@ export const AddPlayerPage = memo(() => {
               <button
                 type="button"
                 onClick={back}
-                className="px-5 py-2.5 bg-surface border border-line text-ink-2 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
+                className="tap-h px-5 py-2.5 bg-surface border border-line text-ink-2 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
               >
                 Cancel
               </button>
@@ -136,7 +136,7 @@ export const AddPlayerPage = memo(() => {
                 type="button"
                 onClick={addPasted}
                 disabled={locked || parsed.length === 0}
-                className="px-5 py-2.5 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-md disabled:opacity-40 disabled:pointer-events-none"
+                className="tap-h px-5 py-2.5 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-md disabled:opacity-40 disabled:pointer-events-none"
                 style={{ backgroundColor: primaryColor, color: tertiaryColor }}
               >
                 Add {parsed.length || ""} player{parsed.length === 1 ? "" : "s"}
@@ -265,7 +265,7 @@ export const AddPlayerPage = memo(() => {
               <button
                 type="button"
                 onClick={back}
-                className="px-5 py-2.5 bg-surface border border-line text-ink-2 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
+                className="tap-h px-5 py-2.5 bg-surface border border-line text-ink-2 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
               >
                 Cancel
               </button>
@@ -273,14 +273,14 @@ export const AddPlayerPage = memo(() => {
                 type="button"
                 onClick={saveAndNext}
                 disabled={locked || !form.name.trim()}
-                className="px-5 py-2.5 bg-surface border border-line text-ink font-black text-xs uppercase tracking-widest rounded-xl hover:bg-surface-2 transition-colors shadow-sm disabled:opacity-40 disabled:pointer-events-none"
+                className="tap-h px-5 py-2.5 bg-surface border border-line text-ink font-black text-xs uppercase tracking-widest rounded-xl hover:bg-surface-2 transition-colors shadow-sm disabled:opacity-40 disabled:pointer-events-none"
               >
                 Save &amp; add another
               </button>
               <button
                 type="submit"
                 disabled={locked}
-                className="px-5 py-2.5 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:-translate-y-0.5 transition-transform shadow-md disabled:opacity-40 disabled:pointer-events-none"
+                className="tap-h px-5 py-2.5 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:-translate-y-0.5 transition-transform shadow-md disabled:opacity-40 disabled:pointer-events-none"
                 style={{ backgroundColor: primaryColor, color: tertiaryColor }}
               >
                 Add Player

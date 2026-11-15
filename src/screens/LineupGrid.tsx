@@ -69,7 +69,7 @@ export const LineupGrid = memo(
                     aria-controls="inning-panel"
                     aria-label={`Inning ${idx + 1}`}
                     onClick={() => setMobileInning(idx)}
-                    className="px-3.5 py-2 t-button rounded-lg transition-all shrink-0 border"
+                    className="tap-h px-3.5 py-2 t-button rounded-lg transition-all shrink-0 border"
                     style={
                       isActive
                         ? {
@@ -113,7 +113,7 @@ export const LineupGrid = memo(
                     aria-label={`Inning ${safeMobileInning + 1}, ${pos}: ${
                       pAtPos ? pAtPos.name : "unassigned"
                     }`}
-                    className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl border text-left transition-all min-h-[56px] ${
+                    className={`tap-h w-full flex items-center gap-3 px-3 py-3 rounded-xl border text-left transition-all min-h-[56px] ${
                       readOnly ? "cursor-default" : ""
                     } ${
                       sel
@@ -232,7 +232,7 @@ export const LineupGrid = memo(
                           aria-label={`Inning ${idx + 1}, ${pos}: ${
                             pAtPos ? pAtPos.name : "unassigned"
                           }`}
-                          className={`w-full p-3 text-xs font-bold text-center rounded-lg transition-all border ${
+                          className={`tap-h w-full p-3 text-xs font-bold text-center rounded-lg transition-all border ${
                             readOnly ? "cursor-default" : "cursor-pointer"
                           } ${
                             isSelected
@@ -274,7 +274,7 @@ export const LineupGrid = memo(
                             onClick={() => safeCellClick(idx, "BENCH", p)}
                             disabled={readOnly}
                             aria-pressed={readOnly ? undefined : isSelected}
-                            className={`text-[11px] print:p-0 px-3 py-2 border font-bold w-full text-center truncate rounded-lg shadow-sm transition-all ${
+                            className={`tap-h text-[11px] print:p-0 px-3 py-2 border font-bold w-full text-center truncate rounded-lg shadow-sm transition-all ${
                               readOnly ? "cursor-default" : "cursor-pointer"
                             } ${
                               isSelected

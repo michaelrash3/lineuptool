@@ -24,7 +24,7 @@ const CopyLinkButton = ({ text }: { text: string }) => {
               },
         );
       }}
-      className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
+      className="tap-h px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
     >
       Copy
     </button>
@@ -111,7 +111,7 @@ export const PortalShareCard = memo(
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="w-full sm:w-auto py-2.5 px-5 inline-flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
+          className="tap-h w-full sm:w-auto py-2.5 px-5 inline-flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
         >
           <Icon className="w-4 h-4" /> {buttonLabel}
         </button>

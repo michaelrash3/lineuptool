@@ -643,7 +643,7 @@ export const StatsTab = memo(() => {
               key={id}
               to={id === "overview" ? "/stats" : `/stats/${id}`}
               aria-current={on ? "page" : undefined}
-              className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-colors"
+              className="tap-h inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-colors"
               style={
                 on
                   ? {
@@ -699,7 +699,7 @@ export const StatsTab = memo(() => {
                   type="button"
                   onClick={handleExportCsv}
                   aria-label="Export stats CSV"
-                  className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:text-ink transition-colors inline-flex items-center gap-1.5"
+                  className="tap-h px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:text-ink transition-colors inline-flex items-center gap-1.5"
                 >
                   <Icons.FileText className="w-4 h-4" aria-hidden />
                   Export CSV
@@ -708,7 +708,7 @@ export const StatsTab = memo(() => {
                   type="button"
                   onClick={handleExportPdf}
                   aria-label="Download stats report PDF"
-                  className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:text-ink transition-colors inline-flex items-center gap-1.5"
+                  className="tap-h px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:text-ink transition-colors inline-flex items-center gap-1.5"
                 >
                   <Icons.Download className="w-4 h-4" aria-hidden />
                   Export PDF
@@ -718,7 +718,7 @@ export const StatsTab = memo(() => {
                     <button
                       type="button"
                       onClick={clearAllStats}
-                      className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:border-loss hover:text-loss transition-colors"
+                      className="tap-h px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:border-loss hover:text-loss transition-colors"
                     >
                       Delete All Stats
                     </button>
@@ -747,7 +747,7 @@ export const StatsTab = memo(() => {
                       type="button"
                       onClick={() => setCategory(c.id)}
                       aria-pressed={on}
-                      className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-colors"
+                      className="tap-h px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-colors"
                       style={
                         on
                           ? {
@@ -783,7 +783,7 @@ export const StatsTab = memo(() => {
                           setStatFormat(id as "all" | "machine" | "kid")
                         }
                         aria-pressed={on}
-                        className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border transition-colors ${
+                        className={`tap-h px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border transition-colors ${
                           on
                             ? "border-team-primary text-team-primary"
                             : "border-line text-ink-2"

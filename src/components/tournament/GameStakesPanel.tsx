@@ -107,7 +107,7 @@ export const GameStakesPanel = memo(({ game }: { game: Game }) => {
                 disabled={!canEdit}
                 onClick={() => setStrength(id)}
                 aria-pressed={active}
-                className={`t-chip px-3 py-1.5 rounded-lg border transition-colors disabled:cursor-not-allowed ${
+                className={`tap-h t-chip px-3 py-1.5 rounded-lg border transition-colors disabled:cursor-not-allowed ${
                   active
                     ? "border-transparent"
                     : "border-line text-ink-2 hover:bg-surface-2"

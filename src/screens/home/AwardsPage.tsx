@@ -247,14 +247,14 @@ export const AwardsPage = memo(() => {
               <button
                 type="button"
                 onClick={() => setShowCerts(false)}
-                className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-line rounded-lg text-ink hover:bg-surface-2 transition-colors"
+                className="tap-h px-4 py-2 text-xs font-black uppercase tracking-widest border border-line rounded-lg text-ink hover:bg-surface-2 transition-colors"
               >
                 Award List
               </button>
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md inline-flex items-center gap-1.5"
+                className="tap-h px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md inline-flex items-center gap-1.5"
                 style={{ backgroundColor: "var(--team-primary)" }}
               >
                 <Icons.Printer className="w-4 h-4" /> Print
@@ -265,7 +265,7 @@ export const AwardsPage = memo(() => {
               type="button"
               onClick={() => setShowCerts(true)}
               disabled={winners.length === 0}
-              className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md inline-flex items-center gap-1.5 disabled:opacity-50"
+              className="tap-h px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md inline-flex items-center gap-1.5 disabled:opacity-50"
               style={{ backgroundColor: "var(--team-primary)" }}
             >
               <Icons.FileText className="w-4 h-4" /> Certificates

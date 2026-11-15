@@ -212,7 +212,7 @@ export const InGameView = memo(() => {
           </p>
           <button
             onClick={() => setInGameId(null)}
-            className="text-xs font-black uppercase tracking-widest px-5 py-3 bg-surface-2 text-ink border border-line rounded-xl hover:bg-line transition-colors"
+            className="tap-h text-xs font-black uppercase tracking-widest px-5 py-3 bg-surface-2 text-ink border border-line rounded-xl hover:bg-line transition-colors"
           >
             Close
           </button>
@@ -786,7 +786,9 @@ export const InGameView = memo(() => {
   const benchKids = inn.BENCH || [];
 
   return (
-    <div className="fixed inset-0 z-[85] bg-slate-900 overflow-y-auto">
+    // bg-app, not a fixed dark slate: everything inside is themed (surface
+    // cards, ink text), so in light mode the section headings sat dark-on-dark.
+    <div className="fixed inset-0 z-[85] bg-app overflow-y-auto">
       {/* Top bar */}
       <div className="bg-surface border-b border-line">
         <div className="h-1.5" style={{ backgroundColor: primaryColor }} />
@@ -916,7 +918,7 @@ export const InGameView = memo(() => {
                     type="button"
                     onClick={() => adjustScore(which, -1)}
                     disabled={value <= 0}
-                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-2 text-ink font-black text-lg hover:bg-line disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="tap w-9 h-9 flex items-center justify-center rounded-lg bg-surface-2 text-ink font-black text-lg hover:bg-line disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     aria-label={`Decrease ${label} score`}
                   >
                     −
@@ -927,7 +929,7 @@ export const InGameView = memo(() => {
                   <button
                     type="button"
                     onClick={() => adjustScore(which, +1)}
-                    className="w-9 h-9 flex items-center justify-center rounded-lg text-white font-black text-lg hover:opacity-90 transition-opacity"
+                    className="tap w-9 h-9 flex items-center justify-center rounded-lg text-white font-black text-lg hover:opacity-90 transition-opacity"
                     style={{ backgroundColor: primaryColor }}
                     aria-label={`Increase ${label} score`}
                   >
@@ -939,7 +941,7 @@ export const InGameView = memo(() => {
             <button
               type="button"
               onClick={() => setShowScoreEditor(false)}
-              className="text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink px-2 py-2"
+              className="tap-h text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink px-2 py-2"
             >
               Done
             </button>
@@ -969,7 +971,7 @@ export const InGameView = memo(() => {
           <button
             onClick={() => goToInning(currentInning - 1)}
             disabled={currentInning === 0}
-            className="p-3 bg-surface-2 hover:bg-line rounded-xl text-ink font-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="tap p-3 bg-surface-2 hover:bg-line rounded-xl text-ink font-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             aria-label="Previous inning"
           >
             <Icons.ChevronLeft className="w-5 h-5" />
@@ -987,7 +989,7 @@ export const InGameView = memo(() => {
           <button
             onClick={() => goToInning(currentInning + 1)}
             disabled={currentInning >= totalInnings - 1}
-            className="p-3 bg-surface-2 hover:bg-line rounded-xl text-ink font-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="tap p-3 bg-surface-2 hover:bg-line rounded-xl text-ink font-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             aria-label="Next inning"
           >
             <Icons.ChevronRight className="w-5 h-5" />
@@ -1136,7 +1138,7 @@ export const InGameView = memo(() => {
                                 type="button"
                                 onClick={() => adjustPitches(player.id, -1)}
                                 disabled={count <= 0}
-                                className="w-10 h-10 rounded-lg bg-surface-2 text-ink font-black text-lg disabled:opacity-30"
+                                className="tap w-10 h-10 rounded-lg bg-surface-2 text-ink font-black text-lg disabled:opacity-30"
                                 aria-label={`One fewer pitch for ${player.name}`}
                               >
                                 −
@@ -1150,7 +1152,7 @@ export const InGameView = memo(() => {
                               <button
                                 type="button"
                                 onClick={() => adjustPitches(player.id, 1)}
-                                className="w-10 h-10 rounded-lg text-white font-black text-base"
+                                className="tap w-10 h-10 rounded-lg text-white font-black text-base"
                                 style={{ backgroundColor: primaryColor }}
                                 aria-label={`One more pitch for ${player.name}`}
                               >
@@ -1159,7 +1161,7 @@ export const InGameView = memo(() => {
                               <button
                                 type="button"
                                 onClick={() => adjustPitches(player.id, 5)}
-                                className="w-10 h-10 rounded-lg text-white font-black text-base"
+                                className="tap w-10 h-10 rounded-lg text-white font-black text-base"
                                 style={{ backgroundColor: primaryColor }}
                                 aria-label={`Five more pitches for ${player.name}`}
                               >
@@ -1250,14 +1252,14 @@ export const InGameView = memo(() => {
               })
             }
             title="Share this lineup as a PNG image"
-            className="shrink-0 py-3 px-4 text-xs font-black uppercase tracking-widest rounded-xl transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2 bg-surface text-ink border border-line"
+            className="tap-h shrink-0 py-3 px-4 text-xs font-black uppercase tracking-widest rounded-xl transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2 bg-surface text-ink border border-line"
           >
             <Icons.Link className="w-4 h-4" /> Share
           </button>
           {canEdit && (
             <button
               onClick={() => navigate(`/schedule/game/${game.id}/final`)}
-              className="flex-1 py-3 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+              className="tap-h flex-1 py-3 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
               style={{ backgroundColor: primaryColor, color: tertiaryColor }}
             >
               <Icons.FileText className="w-4 h-4" /> End Game / Enter Final
@@ -1306,7 +1308,7 @@ export const InGameView = memo(() => {
               <button
                 key={pos}
                 onClick={() => handleTap(sel)}
-                className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                className={`tap-h flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                   selected
                     ? "bg-surface ring-4 shadow-lg"
                     : `bg-surface border-line hover:border-line-strong active:scale-[0.97] ${
@@ -1368,7 +1370,7 @@ export const InGameView = memo(() => {
                 <button
                   key={player.id}
                   onClick={() => handleTap(sel)}
-                  className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                  className={`tap-h flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                     selected
                       ? "bg-surface ring-4 shadow-lg"
                       : `bg-surface-2 border-line hover:border-line-strong active:scale-[0.97] ${
@@ -1428,7 +1430,7 @@ export const InGameView = memo(() => {
                 </div>
                 <button
                   onClick={() => setShowRemoveModal(false)}
-                  className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mt-1 -mr-2"
+                  className="tap p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mt-1 -mr-2"
                   aria-label="Cancel"
                 >
                   <Icons.X className="w-5 h-5" />
@@ -1475,7 +1477,7 @@ export const InGameView = memo(() => {
                             setPendingRestorePlayerId(null);
                           }
                         }}
-                        className={`w-full text-left px-4 py-3 rounded-xl font-bold transition-colors flex items-center justify-between gap-3 ${
+                        className={`tap-h w-full text-left px-4 py-3 rounded-xl font-bold transition-colors flex items-center justify-between gap-3 ${
                           armed
                             ? "bg-loss-bg border-2 border-loss text-loss ring-2 ring-loss-bg"
                             : "bg-surface border border-line text-ink hover:bg-loss-bg hover:border-line-strong hover:text-loss"

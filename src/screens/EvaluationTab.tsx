@@ -610,7 +610,7 @@ export const EvaluationTab = memo(() => {
               <button
                 type="button"
                 onClick={handleExportCsv}
-                className="t-button px-4 py-3 rounded-xl border border-line bg-surface text-ink hover:bg-surface-2 flex items-center justify-center gap-2"
+                className="tap-h t-button px-4 py-3 rounded-xl border border-line bg-surface text-ink hover:bg-surface-2 flex items-center justify-center gap-2"
                 title={`Download “${activeRoundName}” as a CSV grade grid`}
               >
                 <Icons.FileText className="w-4 h-4" />
@@ -621,7 +621,7 @@ export const EvaluationTab = memo(() => {
               <button
                 type="button"
                 onClick={handleExportPdf}
-                className="t-button px-4 py-3 rounded-xl border border-line bg-surface text-ink hover:bg-surface-2 flex items-center justify-center gap-2"
+                className="tap-h t-button px-4 py-3 rounded-xl border border-line bg-surface text-ink hover:bg-surface-2 flex items-center justify-center gap-2"
                 title={`Download “${activeRoundName}” as a printable PDF grade grid`}
               >
                 <Icons.Download className="w-4 h-4" />
@@ -632,7 +632,7 @@ export const EvaluationTab = memo(() => {
               type="button"
               onClick={handleSaveClick}
               onBlur={() => setPendingUpdateConfirm(false)}
-              className={`btn-premium flex-1 sm:flex-none t-button px-6 py-3 rounded-xl flex items-center justify-center gap-2 ${
+              className={`tap-h btn-premium flex-1 sm:flex-none t-button px-6 py-3 rounded-xl flex items-center justify-center gap-2 ${
                 pendingUpdateConfirm ? "ring-2 ring-[var(--warn-fg)]" : ""
               }`}
               style={{
@@ -719,7 +719,7 @@ export const EvaluationTab = memo(() => {
                     }
                   }}
                   onBlur={() => setPendingRoundDelete(false)}
-                  className={`shrink-0 flex items-center gap-1.5 border rounded-lg transition-colors ${
+                  className={`tap shrink-0 flex items-center gap-1.5 border rounded-lg transition-colors ${
                     pendingRoundDelete
                       ? "px-2.5 py-2 bg-loss-bg text-loss border-line ring-2 ring-[var(--loss)]"
                       : "p-2 text-ink-3 hover:text-loss hover:bg-loss-bg border-line hover:border-line"
@@ -755,7 +755,7 @@ export const EvaluationTab = memo(() => {
                 <button
                   type="button"
                   onClick={startNewRound}
-                  className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-1.5"
+                  className="tap-h shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-1.5"
                   title="Start a brand-new eval round instead of overwriting this one"
                 >
                   <Icons.Plus className="w-3.5 h-3.5" />
@@ -766,7 +766,7 @@ export const EvaluationTab = memo(() => {
                 <button
                   type="button"
                   onClick={() => navigate("/evaluation/rounds")}
-                  className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-1.5"
+                  className="tap-h shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-1.5"
                   title="View, switch between, and delete saved rounds"
                   aria-label="Manage saved eval rounds"
                 >
@@ -778,7 +778,7 @@ export const EvaluationTab = memo(() => {
                 <button
                   type="button"
                   onClick={() => navigate("/evaluation/compare")}
-                  className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 flex items-center gap-1.5 shrink-0"
+                  className="tap-h t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 flex items-center gap-1.5 shrink-0"
                   title="Compare any two saved rounds side by side"
                 >
                   <Icons.Forward className="w-3.5 h-3.5" /> Compare Rounds
@@ -854,7 +854,7 @@ export const EvaluationTab = memo(() => {
                 type="button"
                 onClick={copyFromLastRound}
                 disabled={!hasLastRound}
-                className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                className="tap-h t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                 title={
                   hasLastRound
                     ? "Copy grades from your most recent saved eval"
@@ -866,7 +866,7 @@ export const EvaluationTab = memo(() => {
               <button
                 type="button"
                 onClick={applyAllAverage}
-                className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 flex items-center gap-1.5"
+                className="tap-h t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 flex items-center gap-1.5"
                 title="Set every category for every player to 3"
               >
                 <Icons.Refresh className="w-3.5 h-3.5" /> All Average (3)
@@ -874,7 +874,7 @@ export const EvaluationTab = memo(() => {
               <button
                 type="button"
                 onClick={() => setTeamEvalGrades({})}
-                className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-loss-bg hover:border-line hover:text-loss flex items-center gap-1.5"
+                className="tap-h t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-loss-bg hover:border-line hover:text-loss flex items-center gap-1.5"
                 title="Clear all in-progress grades"
               >
                 <Icons.X className="w-3.5 h-3.5" /> Clear
@@ -977,7 +977,7 @@ export const EvaluationTab = memo(() => {
                             type="button"
                             onClick={() => togglePlayerExpanded(player.id)}
                             aria-expanded={expanded}
-                            className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-surface transition-colors text-left"
+                            className="tap-h w-full px-3 py-2.5 flex items-center gap-3 hover:bg-surface transition-colors text-left"
                           >
                             <Icons.ChevronRight
                               className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${
@@ -1213,7 +1213,7 @@ export const EvaluationTab = memo(() => {
                           new Set(prev).add(row.player.id),
                         );
                       }}
-                      className="w-full grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-line bg-surface-1 px-2 py-1.5 text-left hover:bg-surface-2 transition-colors"
+                      className="tap-h w-full grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-line bg-surface-1 px-2 py-1.5 text-left hover:bg-surface-2 transition-colors"
                       title="Open this player's evaluation card"
                     >
                       <span className="text-xs font-black tabular-nums text-ink-2">

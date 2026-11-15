@@ -167,7 +167,7 @@ export const ScoreEditor = memo(
               <button
                 type="button"
                 onClick={onCancel}
-                className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 bg-surface border border-line text-ink rounded-lg hover:bg-surface-2 transition-colors shadow-sm"
+                className="tap-h text-[10px] font-black uppercase tracking-widest px-4 py-2.5 bg-surface border border-line text-ink rounded-lg hover:bg-surface-2 transition-colors shadow-sm"
               >
                 Cancel
               </button>
@@ -175,7 +175,7 @@ export const ScoreEditor = memo(
                 <button
                   type="button"
                   onClick={onClear}
-                  className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 bg-surface border border-line text-loss rounded-lg hover:bg-loss-bg transition-colors shadow-sm"
+                  className="tap-h text-[10px] font-black uppercase tracking-widest px-4 py-2.5 bg-surface border border-line text-loss rounded-lg hover:bg-loss-bg transition-colors shadow-sm"
                 >
                   Clear
                 </button>
@@ -184,7 +184,7 @@ export const ScoreEditor = memo(
                 type="button"
                 disabled={!valid}
                 onClick={() => valid && onSave(tsNum, osNum, inningsPlayed)}
-                className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-lg shadow-md transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none"
+                className="tap-h text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-lg shadow-md transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none"
                 style={{ backgroundColor: primaryColor, color: tertiaryColor }}
               >
                 Save Final
@@ -568,7 +568,7 @@ export const ScheduleTab = memo(() => {
                 type="button"
                 onClick={() => setSelectedGameId(null)}
                 aria-label="Back to schedule"
-                className="p-2 hover:bg-surface text-ink-3 hover:text-ink rounded-full transition-colors"
+                className="tap p-2 hover:bg-surface text-ink-3 hover:text-ink rounded-full transition-colors"
               >
                 <Icons.ChevronUp className="w-6 h-6 -rotate-90" />
               </button>
@@ -647,7 +647,7 @@ export const ScheduleTab = memo(() => {
                           if (canEdit) updateCurrentGameAttendance(next);
                           else setCurrentGameAttendance(next);
                         }}
-                        className={`text-left p-3 text-xs font-extrabold uppercase tracking-wider border rounded-xl transition-all flex justify-between items-center ${
+                        className={`tap-h text-left p-3 text-xs font-extrabold uppercase tracking-wider border rounded-xl transition-all flex justify-between items-center ${
                           currentGameAttendance[p.id] !== false
                             ? "bg-surface border-line text-ink shadow-sm hover:bg-surface-2"
                             : "bg-surface border-line/50 text-ink-3 grayscale opacity-60"
@@ -695,7 +695,7 @@ export const ScheduleTab = memo(() => {
               {canEdit && (
                 <button
                   onClick={saveAttendance}
-                  className="mt-4 w-full text-xs px-4 py-3 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                  className="tap-h mt-4 w-full text-xs px-4 py-3 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
                   title="Save who's present now — plan the lineup later"
                 >
                   <Icons.Check className="w-4 h-4" /> Save Attendance
@@ -715,7 +715,7 @@ export const ScheduleTab = memo(() => {
                   </div>
                   <button
                     onClick={() => setFirstInningLineup({})}
-                    className="text-[10px] font-black uppercase tracking-widest text-ink-2 hover:text-ink transition-colors bg-surface px-3 py-1.5 rounded-lg border border-line shadow-sm"
+                    className="tap-h text-[10px] font-black uppercase tracking-widest text-ink-2 hover:text-ink transition-colors bg-surface px-3 py-1.5 rounded-lg border border-line shadow-sm"
                   >
                     Clear All
                   </button>
@@ -1390,7 +1390,7 @@ export const ScheduleTab = memo(() => {
                     })
                   }
                   title="Download lineup as a PDF for emailing or texting"
-                  className="text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                  className="tap-h text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
                 >
                   <Icons.FileText className="w-4 h-4" /> PDF
                 </button>
@@ -1404,20 +1404,20 @@ export const ScheduleTab = memo(() => {
                     })
                   }
                   title="Share this lineup as a PNG image"
-                  className="text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                  className="tap-h text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
                 >
                   <Icons.Link className="w-4 h-4" /> Share
                 </button>
                 <button
                   onClick={() => window.print()}
-                  className="text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                  className="tap-h text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
                 >
                   <Icons.Printer className="w-4 h-4" /> Print
                 </button>
                 {canEdit && (
                   <button
                     onClick={saveCurrentGame}
-                    className="text-xs py-2.5 px-6 font-black uppercase tracking-wider flex items-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md text-white"
+                    className="tap-h text-xs py-2.5 px-6 font-black uppercase tracking-wider flex items-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md text-white"
                     style={{ backgroundColor: primaryColor }}
                   >
                     {gameSaved ? (
@@ -1587,7 +1587,7 @@ export const ScheduleTab = memo(() => {
                               disabled={idx === 0}
                               aria-label={`Move ${p?.name ?? "batter"} up in the order`}
                               title="Move up"
-                              className="p-1 hover:bg-surface-2 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
+                              className="tap p-1 hover:bg-surface-2 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
                             >
                               <Icons.ChevronUp className="w-4 h-4" />
                             </button>
@@ -1596,7 +1596,7 @@ export const ScheduleTab = memo(() => {
                               disabled={idx === battingLineup.length - 1}
                               aria-label={`Move ${p?.name ?? "batter"} down in the order`}
                               title="Move down"
-                              className="p-1 hover:bg-surface-2 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
+                              className="tap p-1 hover:bg-surface-2 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
                             >
                               <Icons.ChevronDown className="w-4 h-4" />
                             </button>
@@ -1705,14 +1705,14 @@ export const ScheduleTab = memo(() => {
           {canEdit && (
             <button
               onClick={() => navigate("/schedule/import")}
-              className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
+              className="tap-h w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
             >
               <Icons.Upload className="w-4 h-4" /> Import Schedule
             </button>
           )}
           <button
             onClick={() => navigate("/schedule/week")}
-            className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
+            className="tap-h w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
             title="Weekly rotation planner — every game grouped by week, with cross-game pitch planning"
           >
             <Icons.Calendar className="w-4 h-4" /> Week Planner
@@ -1720,7 +1720,7 @@ export const ScheduleTab = memo(() => {
           {canEdit && (
             <button
               onClick={() => navigate("/lineup/what-if")}
-              className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
+              className="tap-h w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
             >
               <Icons.Bat className="w-4 h-4" /> What-If
             </button>
@@ -1728,7 +1728,7 @@ export const ScheduleTab = memo(() => {
           {canEdit && (
             <button
               onClick={() => setIsAddingGame(true)}
-              className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-md whitespace-nowrap"
+              className="tap-h w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-md whitespace-nowrap"
               style={{ backgroundColor: primaryColor, color: tertiaryColor }}
             >
               <Icons.Plus className="w-4 h-4" /> Add Game
@@ -1859,7 +1859,7 @@ export const ScheduleTab = memo(() => {
           </label>
           <button
             onClick={() => addGame(newGameForm)}
-            className="font-black uppercase tracking-widest text-xs px-6 py-2.5 rounded-lg shadow-md transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
+            className="tap-h font-black uppercase tracking-widest text-xs px-6 py-2.5 rounded-lg shadow-md transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
             style={{
               backgroundColor: "var(--team-primary)",
               color: "var(--team-on-primary)",
@@ -1869,7 +1869,7 @@ export const ScheduleTab = memo(() => {
           </button>
           <button
             onClick={() => setIsAddingGame(false)}
-            className="bg-surface hover:bg-surface-2 text-ink font-bold uppercase tracking-widest text-xs px-6 py-2.5 rounded-lg shadow-sm border border-line transition-colors flex items-center justify-center"
+            className="tap-h bg-surface hover:bg-surface-2 text-ink font-bold uppercase tracking-widest text-xs px-6 py-2.5 rounded-lg shadow-sm border border-line transition-colors flex items-center justify-center"
           >
             Cancel
           </button>
@@ -2126,7 +2126,7 @@ export const ScheduleTab = memo(() => {
                               setBattingLineup(game.battingLineup || null);
                               setCurrentGameAttendance(game.attendance || {});
                             }}
-                            className="flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm whitespace-nowrap"
+                            className="tap-h flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm whitespace-nowrap"
                           >
                             {!canEdit ? (
                               <Icons.Clipboard className="w-4 h-4" />
@@ -2146,7 +2146,7 @@ export const ScheduleTab = memo(() => {
                           <Link
                             to={`/schedule/game/${game.id}/lineup`}
                             title="Open the saved lineup read-only — nothing here can change it"
-                            className="flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm whitespace-nowrap"
+                            className="tap-h flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm whitespace-nowrap"
                           >
                             <Icons.Eye className="w-4 h-4" />{" "}
                             {/* Three actions already compete for this row on
@@ -2164,7 +2164,7 @@ export const ScheduleTab = memo(() => {
                               setInGameSelection(null);
                               setInGameId(game.id);
                             }}
-                            className="flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md whitespace-nowrap"
+                            className="tap-h flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md whitespace-nowrap"
                           >
                             <Icons.Refresh className="w-4 h-4" /> In-Game
                           </button>
@@ -2174,7 +2174,7 @@ export const ScheduleTab = memo(() => {
                             onClick={() =>
                               setScoringGameId(isEnteringScore ? null : game.id)
                             }
-                            className={`flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-colors rounded-xl shadow-sm border whitespace-nowrap ${
+                            className={`tap-h flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-colors rounded-xl shadow-sm border whitespace-nowrap ${
                               isFinal
                                 ? "bg-surface text-ink border-line hover:bg-surface-2"
                                 : "text-white border-transparent hover:-translate-y-0.5"
@@ -2213,7 +2213,7 @@ export const ScheduleTab = memo(() => {
                           <button
                             onClick={() => deleteSavedGame(game.id)}
                             aria-label="Delete game"
-                            className="shrink-0 flex items-center justify-center text-ink-3 hover:text-loss bg-surface border border-line hover:border-line hover:bg-loss-bg p-3 transition-colors rounded-xl shadow-sm"
+                            className="tap shrink-0 flex items-center justify-center text-ink-3 hover:text-loss bg-surface border border-line hover:border-line hover:bg-loss-bg p-3 transition-colors rounded-xl shadow-sm"
                           >
                             <Icons.Trash className="w-4 h-4" />
                           </button>
@@ -2308,7 +2308,7 @@ export const ScheduleTab = memo(() => {
                           </div>
                           <button
                             onClick={() => setDesktopPreviewId(null)}
-                            className="shrink-0 p-1.5 rounded-lg hover:bg-surface-2 text-ink-3 hover:text-ink transition-colors"
+                            className="tap shrink-0 p-1.5 rounded-lg hover:bg-surface-2 text-ink-3 hover:text-ink transition-colors"
                             aria-label="Close preview"
                           >
                             <Icons.X className="w-4 h-4" />
@@ -2421,7 +2421,7 @@ export const ScheduleTab = memo(() => {
                               setBattingLineup(pg.battingLineup || null);
                               setCurrentGameAttendance(pg.attendance || {});
                             }}
-                            className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm border border-line bg-surface text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
+                            className="tap-h w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm border border-line bg-surface text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
                           >
                             {!canEdit ? (
                               <Icons.Clipboard className="w-4 h-4" />
@@ -2441,7 +2441,7 @@ export const ScheduleTab = memo(() => {
                           <Link
                             to={`/schedule/game/${pg.id}/lineup`}
                             title="Open the saved lineup read-only — nothing here can change it"
-                            className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm border border-line bg-surface text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
+                            className="tap-h w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm border border-line bg-surface text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
                           >
                             <Icons.Eye className="w-4 h-4" /> View Lineup
                           </Link>
@@ -2452,7 +2452,7 @@ export const ScheduleTab = memo(() => {
                               setInGameSelection(null);
                               setInGameId(pg.id);
                             }}
-                            className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-md bg-green-600 hover:bg-green-700 text-white transition-transform hover:-translate-y-0.5 whitespace-nowrap"
+                            className="tap-h w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-md bg-green-600 hover:bg-green-700 text-white transition-transform hover:-translate-y-0.5 whitespace-nowrap"
                           >
                             <Icons.Refresh className="w-4 h-4" /> In-Game
                           </button>
@@ -2464,7 +2464,7 @@ export const ScheduleTab = memo(() => {
                                 scoringGameId === pg.id ? null : pg.id,
                               )
                             }
-                            className={`w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm border transition-colors whitespace-nowrap ${
+                            className={`tap-h w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm border transition-colors whitespace-nowrap ${
                               pgFinal
                                 ? "bg-surface text-ink border-line hover:bg-surface-2"
                                 : "border-transparent text-white"

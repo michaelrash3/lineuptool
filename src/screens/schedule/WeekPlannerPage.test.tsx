@@ -194,6 +194,64 @@ describe("WeekPlannerPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("lists an injured pitcher as out instead of offering him as an arm", () => {
+    // Rest and pitch counts were the only gates: a rested kid on crutches
+    // showed up as a ready arm for every game.
+    renderPage({
+      players: [{ ...players[0], health: { status: "out" } }, players[1]],
+      games: [games[0], games[1]],
+    });
+    // On both game cards: out, with the reason, and not among the ready arms.
+    expect(screen.getAllByText(/#1 Ace · injured, until cleared/)).toHaveLength(
+      2,
+    );
+    expect(screen.queryByText("#1 Ace")).not.toBeInTheDocument();
+    expect(screen.getAllByText("#2 Lefty")).toHaveLength(2);
+  });
+
+  it("lists a pitcher as out only for the game on the day he is away", () => {
+    renderPage({
+      players: [{ ...players[0], absences: ["2099-06-06"] }, players[1]],
+      games: [games[0], games[1]],
+    });
+    // Ready on Wednesday, away on Saturday.
+    expect(screen.getAllByText("#1 Ace")).toHaveLength(1);
+    expect(screen.getAllByText(/#1 Ace · away/)).toHaveLength(1);
+  });
+
+  it("warns when a pitcher who is out is already in a game's plan", () => {
+    renderPage({
+      players: [{ ...players[0], health: { status: "out" } }, players[1]],
+      games: [
+        {
+          ...games[0],
+          pitchPlan: [{ playerId: "p1", role: "start", plannedPitches: 40 }],
+        },
+      ],
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /Ace is out injured .* not available for this game/,
+    );
+  });
+
+  it("offers a pitcher who is out last in the picker, labelled", async () => {
+    const user = userEvent.setup();
+    renderPage({
+      players: [
+        { ...players[0], health: { status: "out" } },
+        { ...players[1], health: { status: "limited", note: "No pitching" } },
+      ],
+      games: [games[0]],
+    });
+    await user.click(screen.getByRole("button", { name: /add arm/i }));
+    const options = Array.from(
+      screen.getByLabelText("Pitcher").querySelectorAll("option"),
+    ).map((o) => o.textContent);
+    expect(options).toEqual(["#2 Lefty — limited", "#1 Ace — out (injured)"]);
+    // ...and the one still shown as an arm carries the caution.
+    expect(screen.getByText(/· limited/)).toBeInTheDocument();
+  });
+
   it("excludes scrimmages from the planner", () => {
     renderPage({
       games: [games[0], { ...games[1], isScrimmage: true }],

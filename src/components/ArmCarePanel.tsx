@@ -16,6 +16,8 @@ import {
   removePitchingOutingEntry,
   updatePitchingOutingEntry,
   type PitchingOuting,
+  isPlayerHealthOut,
+  isPlayerScheduledOut,
 } from "../utils/helpers";
 
 // Dates whose log carries BOTH a hand-entered outing (no gameId) and a
@@ -301,7 +303,19 @@ export const ArmCarePanel = memo(() => {
                       </span>
                     )}
                   </PlayerNameLink>
-                  {avail && availabilityChip(avail)}
+                  {/* Rest standing is moot for an arm who isn't available
+                      today at all — say that instead of "Ready". */}
+                  {isPlayerHealthOut(p, today) ? (
+                    <span className="t-chip px-1.5 py-0.5 rounded-md border bg-surface-2 border-line text-ink-3 text-[10px] font-black">
+                      Out · injured
+                    </span>
+                  ) : isPlayerScheduledOut(p, today) ? (
+                    <span className="t-chip px-1.5 py-0.5 rounded-md border bg-surface-2 border-line text-ink-3 text-[10px] font-black">
+                      Away today
+                    </span>
+                  ) : (
+                    avail && availabilityChip(avail)
+                  )}
                 </div>
                 <div className="text-[11px] font-bold text-ink-2 mt-0.5 tabular-nums">
                   {w.totalPitches} pitches · {w.outings} outing

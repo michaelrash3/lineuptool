@@ -29,6 +29,16 @@ module.exports = {
         warnfg: "var(--warn-fg)",
         "warn-bg": "var(--warn-bg)",
       },
+      // As TEXT, the three status colors use their "ink" shade: in light mode
+      // the fills are too pale to read at small sizes (see --win-ink /
+      // --loss-ink / --warn-ink in src/styles.css). text-win, text-loss and
+      // text-warnfg — and every hover:/group-hover: variant — resolve here;
+      // bg-* and border-* still get the fills above.
+      textColor: {
+        win: "var(--win-ink)",
+        loss: "var(--loss-ink)",
+        warnfg: "var(--warn-ink)",
+      },
       fontFamily: {
         sans: [
           "Inter",

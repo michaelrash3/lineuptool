@@ -158,7 +158,7 @@ const MonthPicker = ({
         <button
           type="button"
           onClick={() => step(-1)}
-          className="p-2 rounded-md text-white hover:bg-white/15"
+          className="tap p-2 rounded-md text-white hover:bg-white/15"
           aria-label="Previous month"
         >
           <Icons.ChevronDown className="w-4 h-4 rotate-90" />
@@ -167,7 +167,7 @@ const MonthPicker = ({
         <button
           type="button"
           onClick={() => step(1)}
-          className="p-2 rounded-md text-white hover:bg-white/15"
+          className="tap p-2 rounded-md text-white hover:bg-white/15"
           aria-label="Next month"
         >
           <Icons.ChevronDown className="w-4 h-4 -rotate-90" />
@@ -681,7 +681,7 @@ export const AvailabilityPortal = () => {
                 <button
                   type="button"
                   onClick={addRange}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-xl shrink-0"
+                  className="tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-xl shrink-0"
                   style={{ backgroundColor: "var(--team-primary)" }}
                 >
                   Add

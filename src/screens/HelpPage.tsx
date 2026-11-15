@@ -245,7 +245,7 @@ export const HelpPage = ({
                   key={rt.id}
                   type="button"
                   onClick={() => openTopic(rt)}
-                  className="t-chip px-2.5 py-1.5 rounded-md transition-opacity hover:opacity-80"
+                  className="tap-h t-chip px-2.5 py-1.5 rounded-md transition-opacity hover:opacity-80"
                   style={{
                     backgroundColor: "var(--team-primary-15)",
                     color: "var(--team-ink)",
@@ -324,7 +324,7 @@ export const HelpPage = ({
             <button
               type="button"
               onClick={onOpenTutorial}
-              className="w-full text-left px-4 py-2 min-h-[40px] flex items-center gap-2.5 hover:bg-surface-2 transition-colors"
+              className="tap-h w-full text-left px-4 py-2 min-h-[44px] flex items-center gap-2.5 hover:bg-surface-2 transition-colors"
             >
               <Icons.HomePlate
                 className="w-4 h-4 shrink-0"
@@ -342,7 +342,7 @@ export const HelpPage = ({
                   key={tour.id}
                   type="button"
                   onClick={() => setActiveTour(tour)}
-                  className="w-full text-left px-4 py-2 min-h-[40px] flex items-center gap-2.5 hover:bg-surface-2 transition-colors"
+                  className="tap-h w-full text-left px-4 py-2 min-h-[44px] flex items-center gap-2.5 hover:bg-surface-2 transition-colors"
                 >
                   <TourIcon
                     className="w-4 h-4 shrink-0"
@@ -376,7 +376,7 @@ export const HelpPage = ({
                   type="button"
                   onClick={() => openCategory(c.id)}
                   aria-current={selected || undefined}
-                  className={`w-full text-left px-4 py-2 min-h-[40px] flex items-center gap-2.5 transition-colors ${
+                  className={`tap-h w-full text-left px-4 py-2 min-h-[44px] flex items-center gap-2.5 transition-colors ${
                     selected ? "" : "hover:bg-surface-2"
                   }`}
                   style={
@@ -408,7 +408,7 @@ export const HelpPage = ({
               type="button"
               onClick={goBack}
               aria-label="Back to browse"
-              className="sm:hidden shrink-0 w-full text-left px-4 py-2.5 flex items-center gap-1.5 t-eyebrow text-ink-3 hover:text-ink border-b border-line transition-colors"
+              className="tap-h sm:hidden shrink-0 w-full text-left px-4 py-2.5 flex items-center gap-1.5 t-eyebrow text-ink-3 hover:text-ink border-b border-line transition-colors"
             >
               <Icons.ChevronLeft className="w-4 h-4" /> Back
             </button>

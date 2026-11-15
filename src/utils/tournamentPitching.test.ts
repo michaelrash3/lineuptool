@@ -375,6 +375,116 @@ describe("assessTournamentPlan", () => {
   });
 });
 
+describe("assessTournamentPlan — pitchers who can't be there", () => {
+  // Pitch counts say who is rested. They know nothing about who is hurt or
+  // out of town, and the planner used to offer both as ready arms.
+  const assess = (players: Player[], pitchPlan: Tournament["pitchPlan"] = {}) =>
+    assessTournamentPlan({
+      tournament: tournament(pitchPlan),
+      games: GAMES,
+      players,
+      teamAge: AGE,
+      ruleSet: RULES,
+    });
+  const byGame = (players: Player[], pitchPlan?: Tournament["pitchPlan"]) =>
+    Object.fromEntries(assess(players, pitchPlan).map((a) => [a.gameId, a]));
+
+  it("leaves an injured pitcher out of the arms for every game he misses", () => {
+    const hurt = pitcher("p1", "Ace", {
+      health: { status: "out", expectedReturn: "2026-06-07" },
+    });
+    const games = byGame([hurt, pitcher("p2", "Bo")]);
+    // Out through Saturday (both games), back on the return day itself.
+    for (const id of ["g1", "g2"]) {
+      expect(games[id].arms.map((a) => a.id)).toEqual(["p2"]);
+      expect(games[id].unavailable).toEqual([
+        expect.objectContaining({ id: "p1", name: "Ace", reason: "injured" }),
+      ]);
+    }
+    expect(games.g1.unavailable[0].detail).toMatch(/^back /);
+    expect(games.g3.arms.map((a) => a.id).sort()).toEqual(["p1", "p2"]);
+    expect(games.g3.unavailable).toEqual([]);
+  });
+
+  it("treats an open-ended injury as out until cleared", () => {
+    const hurt = pitcher("p1", "Ace", { health: { status: "out" } });
+    const games = byGame([hurt]);
+    for (const id of ["g1", "g2", "g3"]) {
+      expect(games[id].arms).toEqual([]);
+      expect(games[id].unavailable[0]).toMatchObject({
+        reason: "injured",
+        detail: "until cleared",
+      });
+    }
+  });
+
+  it("leaves a pitcher out only on the day he is marked away", () => {
+    const away = pitcher("p1", "Ace", { absences: ["2026-06-07"] });
+    const games = byGame([away]);
+    expect(games.g1.arms.map((a) => a.id)).toEqual(["p1"]);
+    expect(games.g1.unavailable).toEqual([]);
+    expect(games.g3.arms).toEqual([]);
+    expect(games.g3.unavailable).toEqual([
+      expect.objectContaining({ id: "p1", reason: "away", detail: "" }),
+    ]);
+  });
+
+  it("keeps a 'limited' pitcher available — limited never rules a kid out", () => {
+    const sore = pitcher("p1", "Ace", {
+      health: { status: "limited", note: "No pitching" },
+    });
+    const games = byGame([sore]);
+    expect(games.g1.arms.map((a) => a.id)).toEqual(["p1"]);
+    expect(games.g1.unavailable).toEqual([]);
+  });
+
+  it("flags a planned outing for a pitcher who is out, and says why", () => {
+    const hurt = pitcher("p1", "Ace", { health: { status: "out" } });
+    const away = pitcher("p2", "Bo", { absences: ["2026-06-07"] });
+    const games = byGame([hurt, away], {
+      g1: [{ playerId: "p1", role: "start", plannedPitches: 30 }],
+      g3: [{ playerId: "p2", role: "start", plannedPitches: 30 }],
+    });
+    expect(games.g1.violations).toEqual([
+      expect.objectContaining({ playerId: "p1", kind: "unavailable" }),
+    ]);
+    expect(games.g1.violations[0].message).toMatch(/Ace is out injured/);
+    expect(games.g3.violations).toEqual([
+      expect.objectContaining({ playerId: "p2", kind: "unavailable" }),
+    ]);
+    expect(games.g3.violations[0].message).toMatch(/Bo is marked away/);
+  });
+
+  it("reports 'unavailable' rather than a pitch-count problem for the same entry", () => {
+    // 200 pitches would also blow the daily max, but a pitch count is moot
+    // for an arm that won't be there: one clear warning, not two.
+    const hurt = pitcher("p1", "Ace", { health: { status: "out" } });
+    const games = byGame([hurt], {
+      g1: [{ playerId: "p1", role: "start", plannedPitches: 200 }],
+    });
+    expect(games.g1.violations.map((v) => v.kind)).toEqual(["unavailable"]);
+  });
+
+  it("doesn't flag an outing that was already logged before the injury", () => {
+    const hurt = pitcher("p1", "Ace", {
+      health: { status: "out" },
+      pitching: { log: [{ date: "2026-06-06", pitches: 30, gameId: "g1" }] },
+    });
+    const games = byGame([hurt], {
+      g1: [{ playerId: "p1", role: "start", plannedPitches: 30 }],
+    });
+    expect(games.g1.violations).toEqual([]);
+  });
+
+  it("changes nothing for a roster with no health or absence data", () => {
+    const games = byGame([pitcher("p1", "Ace"), pitcher("p2", "Bo")]);
+    for (const id of ["g1", "g2", "g3"]) {
+      expect(games[id].unavailable).toEqual([]);
+      expect(games[id].arms).toHaveLength(2);
+    }
+  });
+});
+
 describe("priorPlannedOutingsForGame", () => {
   const players = [pitcher("p1", "Ace")];
 

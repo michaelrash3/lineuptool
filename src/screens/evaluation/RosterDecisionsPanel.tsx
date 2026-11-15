@@ -468,7 +468,7 @@ export const RosterDecisionsPanel = memo(() => {
       onClick={() =>
         navigate(`/evaluation/trend/${playerSlug(d.player, players)}`)
       }
-      className="w-full text-left border-b border-line px-1 py-2.5 hover:bg-surface transition-colors"
+      className="tap-h w-full text-left border-b border-line px-1 py-2.5 hover:bg-surface transition-colors"
     >
       <div className="flex items-baseline justify-between gap-2 mb-1">
         <div className="font-black text-sm uppercase tracking-tight text-ink truncate">

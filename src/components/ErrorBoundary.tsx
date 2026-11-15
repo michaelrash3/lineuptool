@@ -77,8 +77,8 @@ export class ErrorBoundary extends React.Component<
         <div className="p-1.5 bg-rose-500" />
         <div className="p-6 sm:p-8">
           <div className="flex items-center gap-3 mb-3">
-            <div className="p-2.5 rounded-full bg-rose-50">
-              <Icons.Alert className="w-6 h-6 text-rose-600" />
+            <div className="p-2.5 rounded-full bg-loss-bg">
+              <Icons.Alert className="w-6 h-6 text-loss" />
             </div>
             <h2 className="text-lg font-extrabold tracking-wide text-ink">
               Something went wrong
@@ -93,7 +93,7 @@ export class ErrorBoundary extends React.Component<
             <button
               type="button"
               onClick={this.handleRetry}
-              className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-xl hover:bg-surface-2 transition-colors"
+              className="tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-xl hover:bg-surface-2 transition-colors"
             >
               Try Again
             </button>
@@ -102,7 +102,7 @@ export class ErrorBoundary extends React.Component<
               onClick={() => {
                 if (typeof window !== "undefined") window.location.reload();
               }}
-              className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white bg-slate-900 rounded-xl shadow-sm hover:bg-slate-800 transition-colors"
+              className="tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest text-[var(--surface)] bg-ink rounded-xl shadow-sm hover:opacity-90 transition-opacity"
             >
               Reload Page
             </button>

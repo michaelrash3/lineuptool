@@ -239,7 +239,7 @@ export const PastSeasonImportPage = memo(() => {
           <button
             type="button"
             onClick={back}
-            className="text-[11px] font-black uppercase tracking-widest px-5 py-2.5 bg-surface border border-line text-ink rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
+            className="tap-h text-[11px] font-black uppercase tracking-widest px-5 py-2.5 bg-surface border border-line text-ink rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
           >
             Cancel
           </button>
@@ -247,7 +247,7 @@ export const PastSeasonImportPage = memo(() => {
             type="button"
             disabled={!canCommit}
             onClick={commit}
-            className="text-[11px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-md transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none"
+            className="tap-h text-[11px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-md transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none"
             style={{ backgroundColor: primaryColor, color: tertiaryColor }}
           >
             Import

@@ -170,7 +170,7 @@ export const EmptyState = memo(
             <button
               type="button"
               onClick={onAction}
-              className="inline-flex items-center gap-2 t-button px-5 py-2.5 text-white"
+              className="tap-h inline-flex items-center gap-2 t-button px-5 py-2.5 text-white"
               style={{ backgroundColor: "var(--team-primary)" }}
             >
               {action}
@@ -604,17 +604,17 @@ const CHIP_VARIANTS: Record<
   },
   success: {
     bg: "var(--win-bg)",
-    color: "var(--win)",
+    color: "var(--win-ink)",
     border: "color-mix(in srgb, var(--win) 30%, transparent)",
   },
   danger: {
     bg: "var(--loss-bg)",
-    color: "var(--loss)",
+    color: "var(--loss-ink)",
     border: "color-mix(in srgb, var(--loss) 30%, transparent)",
   },
   warn: {
     bg: "var(--warn-bg)",
-    color: "var(--warn-fg)",
+    color: "var(--warn-ink)",
     border: "color-mix(in srgb, var(--warn-fg) 30%, transparent)",
   },
   info: {
@@ -696,7 +696,7 @@ export const Button = ({
     <m.button
       type={type}
       whileTap={{ scale: 0.97 }}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl transition-all t-button ${BUTTON_SIZE[size] || BUTTON_SIZE.md} ${v.className} ${className}`}
+      className={`tap-h inline-flex items-center justify-center gap-2 rounded-xl transition-all t-button ${BUTTON_SIZE[size] || BUTTON_SIZE.md} ${v.className} ${className}`}
       style={{ ...v.style, ...styleOverride }}
       {...rest}
     >
@@ -818,7 +818,7 @@ export const Modal = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="shrink-0 -mr-2 -mt-1 inline-flex items-center justify-center min-h-[40px] min-w-[40px] text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg transition-colors"
+                  className="shrink-0 -mr-2 -mt-1 inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg transition-colors"
                   aria-label="Close"
                 >
                   <span className="block w-4 h-4 leading-none text-lg">×</span>

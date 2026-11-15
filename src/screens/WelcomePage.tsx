@@ -283,7 +283,7 @@ export const WelcomePage = ({ onCreate, onJoin }: WelcomePageProps) => {
                     setError("");
                     setTeamType(opt.v);
                   }}
-                  className={`text-left p-3 rounded-xl border transition-all ${
+                  className={`tap-h text-left p-3 rounded-xl border transition-all ${
                     teamType === opt.v
                       ? "border-[var(--team-primary)] bg-surface-2 ring-2 ring-[var(--team-primary)]"
                       : "border-line bg-surface hover:bg-surface-2"
@@ -348,7 +348,7 @@ export const WelcomePage = ({ onCreate, onJoin }: WelcomePageProps) => {
                           setError("");
                           setPickedFormat(f);
                         }}
-                        className={`min-h-[40px] px-3 rounded-lg border text-xs font-bold ${
+                        className={`min-h-[44px] px-3 rounded-lg border text-xs font-bold ${
                           pitchingFormat === f
                             ? "border-[var(--team-primary)] ring-2 ring-[var(--team-primary)] bg-surface-2"
                             : "border-line bg-surface"

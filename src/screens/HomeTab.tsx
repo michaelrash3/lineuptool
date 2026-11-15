@@ -17,6 +17,8 @@ import {
   recordWinningPercentage,
   latestGameLineMovement,
   teamFeesStatus,
+  isPlayerHealthOut,
+  isPlayerScheduledOut,
 } from "../utils/helpers";
 import {
   assessTournamentPlan,
@@ -168,7 +170,7 @@ const UpcomingGameCard = memo(
           setActiveTab("schedule");
           setIsAddingGame(true);
         }}
-        className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+        className="tap-h flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
         style={{ backgroundColor: primaryColor, color: tertiaryColor }}
       >
         <Icons.Plus className="w-4 h-4" /> Add Game
@@ -223,7 +225,7 @@ const UpcomingGameCard = memo(
           !isAssistant || game.lineup ? (
             <button
               onClick={() => goToGame(game)}
-              className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+              className="tap-h flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
               style={{ backgroundColor: primaryColor, color: tertiaryColor }}
             >
               <Icons.Clipboard className="w-4 h-4" /> View
@@ -454,7 +456,7 @@ const UpcomingGameCard = memo(
               game.lineup && (
                 <button
                   onClick={openInSchedule}
-                  className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+                  className="tap-h flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
                   style={{
                     backgroundColor: primaryColor,
                     color: tertiaryColor,
@@ -495,14 +497,14 @@ const UpcomingGameCard = memo(
                 {game.lineup && (
                   <button
                     onClick={openInSchedule}
-                    className="flex-1 sm:flex-none text-xs px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                    className="tap-h flex-1 sm:flex-none text-xs px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
                   >
                     <Icons.Edit className="w-4 h-4" /> Edit Lineup
                   </button>
                 )}
                 <button
                   onClick={openScoreEditor}
-                  className="flex-1 sm:flex-none text-xs px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                  className="tap-h flex-1 sm:flex-none text-xs px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
                 >
                   <Icons.FileText className="w-4 h-4" /> Final Score
                 </button>
@@ -512,7 +514,7 @@ const UpcomingGameCard = memo(
               // primary action.
               <button
                 onClick={openInSchedule}
-                className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+                className="tap-h flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
                 style={{ backgroundColor: primaryColor, color: tertiaryColor }}
               >
                 {game.lineup ? (
@@ -559,9 +561,9 @@ const InsightTile = memo(
     // in dark mode.
     const ACCENT_STYLES = {
       primary: { halo: "var(--team-primary-15)", text: "var(--team-primary)" },
-      success: { halo: "var(--win-bg)", text: "var(--win)" },
-      warn: { halo: "var(--warn-bg)", text: "var(--warn-fg)" },
-      danger: { halo: "var(--loss-bg)", text: "var(--loss)" },
+      success: { halo: "var(--win-bg)", text: "var(--win-ink)" },
+      warn: { halo: "var(--warn-bg)", text: "var(--warn-ink)" },
+      danger: { halo: "var(--loss-bg)", text: "var(--loss-ink)" },
       info: { halo: "var(--info-bg)", text: "var(--info-fg)" },
       slate: { halo: "var(--surface-2)", text: "var(--ink-2)" },
     };
@@ -580,7 +582,7 @@ const InsightTile = memo(
             <button
               type="button"
               onClick={onClick}
-              className="t-button text-ink-3 hover:text-ink flex items-center gap-0.5 shrink-0"
+              className="tap-h t-button text-ink-3 hover:text-ink flex items-center gap-0.5 shrink-0"
             >
               {ctaLabel}
               <Icons.ChevronRight className="w-3.5 h-3.5" />
@@ -598,7 +600,8 @@ const InsightTile = memo(
    pitchers can take the mound today under the engine's day-budget rules.
    A kid who already threw in an earlier game TODAY still counts as eligible
    while the daily max leaves him something — two games in one day share one
-   cumulative pitch count.
+   cumulative pitch count. A kid who is out injured or marked away today is
+   not counted, however rested: an arm that won't be there isn't available.
 =========================================================================== */
 interface PitcherAvailabilityTileProps {
   players: Player[];
@@ -624,6 +627,16 @@ const PitcherAvailabilityTile = memo(
         const restricted =
           Array.isArray(p.restrictions) && p.restrictions.includes("P");
         if (restricted) continue;
+        // The same gates game-day attendance applies. Checked before the
+        // pitch budget: rest is moot for a kid who isn't coming.
+        if (isPlayerHealthOut(p, todayStr)) {
+          resters.push({ name: p.name, recent: 0, label: "injured" });
+          continue;
+        }
+        if (isPlayerScheduledOut(p, todayStr)) {
+          resters.push({ name: p.name, recent: 0, label: "away" });
+          continue;
+        }
         const budget = pitchBudgetFor(p.pitching, todayStr, teamAge ?? "");
         const recent = p.pitching?.recentPitches || 0;
         if (budget.eligible) {
@@ -659,7 +672,7 @@ const PitcherAvailabilityTile = memo(
         </div>
         {stats.resters.length === 0 ? (
           <p className="text-[11px] text-ink-3 font-medium">
-            Full bullpen available — no rest or pitch-limit holds.
+            Full bullpen available — nobody resting, at the limit, or out.
           </p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
@@ -669,11 +682,21 @@ const PitcherAvailabilityTile = memo(
                 className={`inline-flex items-center gap-1 px-2 py-1 rounded-md t-chip border ${
                   r.label === "limit"
                     ? "bg-loss-bg border-line text-loss"
-                    : "bg-warn-bg border-line text-warnfg"
+                    : r.label === "rest"
+                      ? "bg-warn-bg border-line text-warnfg"
+                      : "bg-surface-2 border-line text-ink-3"
                 }`}
-                title={`${r.recent} recent pitches`}
+                title={
+                  r.label === "injured"
+                    ? "Out injured"
+                    : r.label === "away"
+                      ? "Marked away today"
+                      : `${r.recent} recent pitches`
+                }
               >
                 {r.name}
+                {(r.label === "injured" || r.label === "away") &&
+                  ` · ${r.label}`}
               </span>
             ))}
             {stats.resters.length > 4 && (
@@ -763,7 +786,7 @@ const RecentMovementTile = memo(
               key={player.id}
               type="button"
               onClick={() => onPlayerClick?.(player.id)}
-              className={`w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border border-line/80 transition-colors shadow-sm ${
+              className={`tap-h w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border border-line/80 transition-colors shadow-sm ${
                 delta > 0
                   ? "bg-win-bg/40 hover:bg-win-bg"
                   : "bg-loss-bg/40 hover:bg-loss-bg"
@@ -952,12 +975,16 @@ const TeamTrendTile = memo(({ games }: TeamTrendTileProps) => {
         {data.results.map((r, i) => (
           <span
             key={i}
-            className={`flex-1 h-7 rounded-md grid place-items-center t-button text-white ${
+            // Tinted chip + matching text, like the other result strips.
+            // (These were `bg-win-bg0` & co. with white text — class names
+            // that don't exist, so the letters sat on no background at all:
+            // white on white in light mode.)
+            className={`flex-1 h-7 rounded-md grid place-items-center t-button ${
               r === "W"
-                ? "bg-win-bg0"
+                ? "bg-win-bg text-win"
                 : r === "L"
-                  ? "bg-loss-bg0"
-                  : "bg-warn-bg0"
+                  ? "bg-loss-bg text-loss"
+                  : "bg-warn-bg text-warnfg"
             }`}
             title={`Game ${i + 1}: ${r}`}
           >
@@ -1386,7 +1413,7 @@ interface UpcomingWeekSectionProps {
   games: Game[];
   practices: Practice[];
   todayStr: string;
-  onOpenGame?: () => void;
+  onOpenGame?: (gameId: string) => void;
   onOpenPractices?: () => void;
 }
 const UpcomingWeekSection = memo(
@@ -1444,9 +1471,9 @@ const UpcomingWeekSection = memo(
               key={`${it.kind}-${it.id}`}
               type="button"
               onClick={() =>
-                it.kind === "game" ? onOpenGame?.() : onOpenPractices?.()
+                it.kind === "game" ? onOpenGame?.(it.id) : onOpenPractices?.()
               }
-              className="text-left bg-surface border border-line rounded-xl p-3 hover:bg-surface-2 transition-colors"
+              className="tap-h text-left bg-surface border border-line rounded-xl p-3 hover:bg-surface-2 transition-colors"
             >
               <span
                 className={`inline-block text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded mb-1 ${
@@ -1482,10 +1509,10 @@ const UpcomingWeekSection = memo(
    (they can't author lineups or see finances).
 =========================================================================== */
 const UP_NEXT_ACCENTS: Record<string, { bg: string; fg: string }> = {
-  danger: { bg: "var(--loss-bg)", fg: "var(--loss)" },
-  warn: { bg: "var(--warn-bg)", fg: "var(--warn-fg)" },
+  danger: { bg: "var(--loss-bg)", fg: "var(--loss-ink)" },
+  warn: { bg: "var(--warn-bg)", fg: "var(--warn-ink)" },
   info: { bg: "var(--info-bg)", fg: "var(--info-fg)" },
-  money: { bg: "var(--win-bg)", fg: "var(--win)" },
+  money: { bg: "var(--win-bg)", fg: "var(--win-ink)" },
   primary: { bg: "var(--team-primary-15)", fg: "var(--team-primary)" },
 };
 
@@ -1904,7 +1931,7 @@ export const UpNextPanel = memo(
                 }
                 aria-label={`Snooze: ${item.title}`}
                 title="Snooze"
-                className="shrink-0 px-3 text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
+                className="tap shrink-0 px-3 text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
               >
                 <Icons.X className="w-4 h-4" />
               </button>
@@ -1918,8 +1945,13 @@ export const UpNextPanel = memo(
 
 export const HomeTab = memo(() => {
   const { team, teams, activeTeamId, record, user, currentRole } = useTeam();
-  const { openPlayerProfile, setActiveTab, setIsAddingGame, openAddPlayer } =
-    useUI();
+  const {
+    openPlayerProfile,
+    setActiveTab,
+    setSelectedGameId,
+    setIsAddingGame,
+    openAddPlayer,
+  } = useUI();
   const isHead = currentRole !== "assistant";
   const navigate = useNavigate();
   const promptStatus = useMemo(
@@ -2136,14 +2168,14 @@ export const HomeTab = memo(() => {
                   <button
                     type="button"
                     onClick={() => navigate("/season-report")}
-                    className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
+                    className="tap-h inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
                   >
                     <Icons.FileText className="w-3.5 h-3.5" /> Season Report
                   </button>
                   <button
                     type="button"
                     onClick={() => navigate("/awards")}
-                    className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
+                    className="tap-h inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
                   >
                     <Icons.Sparkles className="w-3.5 h-3.5" /> Awards
                   </button>
@@ -2250,7 +2282,9 @@ export const HomeTab = memo(() => {
         // (a practice card would deep-link into a tab that no longer exists).
         practices={featureEnabled(team, "practices") ? practices : []}
         todayStr={todayStr}
-        onOpenGame={() => setActiveTab("schedule")}
+        // Straight to the game that was tapped, not the schedule it's in.
+        // Selecting a game routes to its editor and loads it (UIProvider).
+        onOpenGame={(gameId) => setSelectedGameId(gameId)}
         onOpenPractices={() => setActiveTab("practices")}
       />
 
@@ -2405,7 +2439,7 @@ const LeaderboardsSection = memo(
                   type="button"
                   onClick={() => setActiveTab(t.id)}
                   aria-pressed={isActive}
-                  className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md transition-colors ${
+                  className={`tap-h text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md transition-colors ${
                     isActive ? "shadow-sm" : "text-ink-3 hover:bg-surface"
                   }`}
                   style={

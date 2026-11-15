@@ -134,7 +134,7 @@ export const TourModal = ({
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 -mr-2 -mt-1 p-2 text-ink-3 hover:text-ink"
+              className="tap shrink-0 -mr-2 -mt-1 p-2 text-ink-3 hover:text-ink"
               aria-label="Close tour"
             >
               <Icons.X className="w-5 h-5" />

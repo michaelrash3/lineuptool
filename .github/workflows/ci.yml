@@ -169,3 +169,41 @@ jobs:
         run: npm run test:rules
         env:
           CI: true
+
+  # Every screen of the real app, opened in a real browser at phone, tablet
+  # and desktop widths (e2e/screens.e2e.ts). The unit suite runs in a simulated
+  # DOM with no layout and no real router, so it cannot see a screen that
+  # scrolls sideways, a refresh that loops forever, or a component that only
+  # crashes once it is mounted — all of which reached production before this
+  # job existed. It drives the app against an in-memory sample team and blocks
+  # every request that leaves the runner, so it never touches Firebase.
+  # Auto-merge gates on every check run on the head commit, so a failure here
+  # blocks the merge the same way rules-test does.
+  browser-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The browser build matches the @playwright/test version pinned in
+      # package.json, so this needs no version of its own.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser check
+        run: npm run test:browser
+        env:
+          CI: true

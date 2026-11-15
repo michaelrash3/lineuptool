@@ -425,14 +425,14 @@ export const PlayerDevelopmentReport = memo(
             <button
               type="button"
               onClick={() => window.print()}
-              className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-line rounded-lg text-ink hover:bg-surface-2 transition-colors inline-flex items-center gap-1.5"
+              className="tap-h px-4 py-2 text-xs font-black uppercase tracking-widest border border-line rounded-lg text-ink hover:bg-surface-2 transition-colors inline-flex items-center gap-1.5"
             >
               <Icons.Printer className="w-4 h-4" /> Print
             </button>
             <button
               type="button"
               onClick={copy}
-              className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md inline-flex items-center gap-1.5"
+              className="tap-h px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md inline-flex items-center gap-1.5"
               style={{ backgroundColor: "var(--team-primary)" }}
             >
               <Icons.Clipboard className="w-4 h-4" /> Copy

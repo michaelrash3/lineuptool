@@ -12,7 +12,7 @@ import {
 } from "../../utils/calendarFeed";
 
 const BUTTON =
-  "w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+  "tap-h w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
 // The schedule on the coach's own calendar, at the foot of the game list
 // (the header is already four buttons deep on a phone). In-app reminders only

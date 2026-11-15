@@ -247,7 +247,7 @@ export const GameChangerImportPage = memo(() => {
         <button
           onClick={preview}
           disabled={loading || !url.trim()}
-          className="w-full py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl bg-surface border border-line-strong text-ink hover:bg-surface-2 disabled:opacity-50"
+          className="tap-h w-full py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl bg-surface border border-line-strong text-ink hover:bg-surface-2 disabled:opacity-50"
         >
           {loading ? "Loading…" : "Preview games"}
         </button>
@@ -255,14 +255,14 @@ export const GameChangerImportPage = memo(() => {
         {hasSavedFeed && (
           <button
             onClick={removeFeed}
-            className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-ink-3 hover:text-rose-600"
+            className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-ink-3 hover:text-loss"
           >
             <Icons.Trash className="w-3.5 h-3.5" /> Remove saved feed
           </button>
         )}
 
         {error && (
-          <div className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl p-3">
+          <div className="text-xs font-bold text-loss bg-loss-bg border border-line rounded-xl p-3">
             {error}
           </div>
         )}
@@ -279,7 +279,7 @@ export const GameChangerImportPage = memo(() => {
                 ` · ${skippedCount} other event${skippedCount === 1 ? "" : "s"} skipped`}
             </div>
             {eventGames.remove.length > 0 && (
-              <div className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <div className="text-xs font-bold text-warnfg bg-warn-bg border border-line rounded-xl p-3">
                 {eventGames.remove.length === 1
                   ? "This was imported as a game, but it's a GameChanger event, not a game. It will be taken off the schedule:"
                   : `These ${eventGames.remove.length} were imported as games, but they're GameChanger events, not games. They will be taken off the schedule:`}
@@ -316,7 +316,7 @@ export const GameChangerImportPage = memo(() => {
               </div>
             )}
             {diff.prune.length > 0 && (
-              <div className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <div className="text-xs font-bold text-warnfg bg-warn-bg border border-line rounded-xl p-3">
                 {diff.prune.length} practice
                 {diff.prune.length === 1 ? " is" : "s are"} no longer in this
                 feed and will be deleted on import:
@@ -384,11 +384,11 @@ export const GameChangerImportPage = memo(() => {
                           : c.event.isHome === false
                             ? {
                                 label: "@ Away",
-                                cls: "bg-amber-50 border-amber-200 text-amber-700",
+                                cls: "bg-warn-bg border-line text-warnfg",
                               }
                             : {
                                 label: "vs Home",
-                                cls: "bg-emerald-50 border-emerald-200 text-emerald-700",
+                                cls: "bg-win-bg border-line text-win",
                               };
                     return (
                       <>
@@ -426,13 +426,13 @@ export const GameChangerImportPage = memo(() => {
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={back}
-                className="py-2.5 px-5 text-xs font-black uppercase tracking-wider rounded-xl border border-line text-ink hover:bg-surface"
+                className="tap-h py-2.5 px-5 text-xs font-black uppercase tracking-wider rounded-xl border border-line text-ink hover:bg-surface"
               >
                 Cancel
               </button>
               <button
                 onClick={doImport}
-                className="py-2.5 px-5 text-xs font-black uppercase tracking-wider rounded-xl bg-[var(--team-primary)] text-white hover:-translate-y-0.5 transition-transform"
+                className="tap-h py-2.5 px-5 text-xs font-black uppercase tracking-wider rounded-xl bg-[var(--team-primary)] text-white hover:-translate-y-0.5 transition-transform"
               >
                 {gameCandidates.length > 0
                   ? `Import ${gameCandidates.length} game${gameCandidates.length === 1 ? "" : "s"}`

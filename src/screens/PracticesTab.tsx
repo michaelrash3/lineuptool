@@ -74,7 +74,7 @@ const AttendanceRow = ({ player, status, onCycle }: any) => {
     <button
       type="button"
       onClick={onCycle}
-      className="flex items-center justify-between gap-3 px-1 py-2 border-b border-line text-left w-full hover:bg-surface-2 transition-colors"
+      className="tap-h flex items-center justify-between gap-3 px-1 py-2 border-b border-line text-left w-full hover:bg-surface-2 transition-colors"
     >
       <span className="flex items-center gap-2 min-w-0">
         <span className={`w-2 h-2 rounded-full shrink-0 ${m.dot}`} />
@@ -370,7 +370,7 @@ const PracticeRow = memo(
                             type="button"
                             onClick={() => moveDrill(idx, -1)}
                             disabled={idx === 0}
-                            className="text-ink-3 hover:text-ink disabled:opacity-30 disabled:hover:text-ink-3"
+                            className="tap text-ink-3 hover:text-ink disabled:opacity-30 disabled:hover:text-ink-3"
                             aria-label="Move drill earlier"
                           >
                             <Icons.ChevronUp className="w-3.5 h-3.5" />
@@ -379,7 +379,7 @@ const PracticeRow = memo(
                             type="button"
                             onClick={() => moveDrill(idx, 1)}
                             disabled={idx === drills.length - 1}
-                            className="text-ink-3 hover:text-ink disabled:opacity-30 disabled:hover:text-ink-3"
+                            className="tap text-ink-3 hover:text-ink disabled:opacity-30 disabled:hover:text-ink-3"
                             aria-label="Move drill later"
                           >
                             <Icons.ChevronDown className="w-3.5 h-3.5" />
@@ -387,7 +387,7 @@ const PracticeRow = memo(
                           <button
                             type="button"
                             onClick={() => removeDrill(d.id)}
-                            className="text-ink-3 hover:text-loss ml-0.5"
+                            className="tap text-ink-3 hover:text-loss ml-0.5"
                             aria-label="Remove drill"
                           >
                             <Icons.X className="w-3.5 h-3.5" />
@@ -408,7 +408,7 @@ const PracticeRow = memo(
                   <button
                     type="button"
                     onClick={() => navigate(`/practices/${practice.id}/plan`)}
-                    className="w-full mb-3 flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-black uppercase tracking-widest rounded-sm border border-line bg-surface text-ink-2 hover:text-ink hover:border-ink-3 transition-colors"
+                    className="tap-h w-full mb-3 flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-black uppercase tracking-widest rounded-sm border border-line bg-surface text-ink-2 hover:text-ink hover:border-ink-3 transition-colors"
                   >
                     <Icons.Sparkles className="w-4 h-4" /> Build a plan
                   </button>
@@ -440,7 +440,7 @@ const PracticeRow = memo(
                     />
                     <button
                       type="submit"
-                      className="btn-premium px-3 py-2 rounded-sm shrink-0"
+                      className="tap btn-premium px-3 py-2 rounded-sm shrink-0"
                       style={{ color: "var(--team-on-primary)" }}
                       aria-label="Add drill"
                     >
@@ -558,7 +558,7 @@ const AddPracticeForm = ({ onAdd, onClose }: any) => {
         </label>
         <button
           type="submit"
-          className="btn-premium px-4 py-2 rounded-sm font-black uppercase tracking-widest text-xs shrink-0"
+          className="tap-h btn-premium px-4 py-2 rounded-sm font-black uppercase tracking-widest text-xs shrink-0"
           style={{ color: "var(--team-on-primary)" }}
         >
           Add
@@ -566,7 +566,7 @@ const AddPracticeForm = ({ onAdd, onClose }: any) => {
         <button
           type="button"
           onClick={onClose}
-          className="px-3 py-2 rounded-sm border border-line text-ink-2 hover:text-ink text-xs font-black uppercase tracking-widest shrink-0"
+          className="tap-h px-3 py-2 rounded-sm border border-line text-ink-2 hover:text-ink text-xs font-black uppercase tracking-widest shrink-0"
         >
           Cancel
         </button>
@@ -661,7 +661,7 @@ const DrillLibraryManager = ({ library, onAdd, onRemove }: any) => {
                   <button
                     type="button"
                     onClick={() => onRemove(d.id)}
-                    className="ml-auto shrink-0 text-ink-3 hover:text-loss"
+                    className="tap ml-auto shrink-0 text-ink-3 hover:text-loss"
                     aria-label={`Remove ${d.name} from library`}
                   >
                     <Icons.X className="w-3.5 h-3.5" />
@@ -730,7 +730,7 @@ const DrillLibraryManager = ({ library, onAdd, onRemove }: any) => {
               </label>
               <button
                 type="submit"
-                className="btn-premium px-3 py-2 rounded-sm shrink-0"
+                className="tap btn-premium px-3 py-2 rounded-sm shrink-0"
                 style={{ color: "var(--team-on-primary)" }}
                 aria-label="Add drill to library"
               >
@@ -846,14 +846,14 @@ export const PracticesTab = memo(() => {
             <button
               type="button"
               onClick={() => navigate("/practices/attendance-report")}
-              className="self-start sm:self-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
+              className="tap-h self-start sm:self-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
             >
               <Icons.Clipboard className="w-4 h-4" /> Attendance Report
             </button>
             <button
               type="button"
               onClick={() => setAdding(true)}
-              className="btn-premium self-start sm:self-auto px-4 py-2.5 rounded-sm font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+              className="tap-h btn-premium self-start sm:self-auto px-4 py-2.5 rounded-sm font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2"
               style={{ color: "var(--team-on-primary)" }}
             >
               <Icons.Plus className="w-4 h-4" /> Add Practice

@@ -385,7 +385,7 @@ const PlayerInfoLinkCard = memo(({ team }: any) => {
         <button
           type="button"
           onClick={exportPlayerInfoCsv}
-          className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
+          className="tap-h px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
         >
           <Icons.Download className="w-3.5 h-3.5" /> Player Info CSV
         </button>
@@ -399,21 +399,21 @@ const PlayerInfoLinkCard = memo(({ team }: any) => {
               toast,
             })
           }
-          className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
+          className="tap-h px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
         >
           <Icons.FileText className="w-3.5 h-3.5" /> Directory PDF
         </button>
         <button
           type="button"
           onClick={emailAllParents}
-          className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
+          className="tap-h px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
         >
           <Icons.Forward className="w-3.5 h-3.5" /> Email All Parents
         </button>
         <button
           type="button"
           onClick={copyAllParentEmails}
-          className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
+          className="tap-h px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
         >
           <Icons.Clipboard className="w-3.5 h-3.5" /> Copy Emails
         </button>
@@ -571,7 +571,7 @@ export const RosterTab = memo(() => {
                 <button
                   type="button"
                   onClick={() => openAddPlayer()}
-                  className="btn-premium flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 t-button rounded-xl hover:-translate-y-0.5 transition-transform"
+                  className="tap-h btn-premium flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 t-button rounded-xl hover:-translate-y-0.5 transition-transform"
                   style={{ color: "var(--team-on-primary)" }}
                 >
                   <Icons.UserPlus className="w-4 h-4" /> Add Player
@@ -678,7 +678,7 @@ export const RosterTab = memo(() => {
                 <button
                   type="button"
                   onClick={clearAll}
-                  className="mt-3 t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2"
+                  className="tap-h mt-3 t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2"
                 >
                   Clear Filters
                 </button>
@@ -771,7 +771,7 @@ export const RosterTab = memo(() => {
                             key={p.id}
                             type="button"
                             onClick={() => openPlayerProfile(p.id)}
-                            className="px-1 py-2.5 flex items-center gap-3 text-left hover:bg-surface-2 transition-colors group"
+                            className="tap-h px-1 py-2.5 flex items-center gap-3 text-left hover:bg-surface-2 transition-colors group"
                           >
                             <span className="text-[11px] font-black uppercase tracking-widest text-ink-3 tabular-nums w-9 shrink-0">
                               {p.number ? `#${p.number}` : "--"}

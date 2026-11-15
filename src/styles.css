@@ -61,8 +61,16 @@
   --win-ink: #157a3a;
   --win-bg: #e7f7ee;
   --loss: #dc2626;
+  /* The same split for red and amber. As TEXT the fills land under AA on the
+     tinted chips they are usually paired with (--loss 4.2:1 on --loss-bg,
+     --warn-fg 3.6:1 on --warn-bg); the ink shades clear 5:1 on every light
+     surface. Tailwind's text-win / text-loss / text-warnfg resolve to the ink
+     tokens (tailwind.config.js), so text is legible without each call site
+     having to know; bg-/border- keep the fills. */
+  --loss-ink: #c21f1f;
   --loss-bg: #fdeaea;
   --warn-fg: #c2660a;
+  --warn-ink: #9a4f09;
   --warn-bg: #fbf0dd;
   --info-fg: #1d4ed8;
   --info-bg: #dbeafe;
@@ -180,8 +188,10 @@
   --win-ink: #34d399;
   --win-bg: #0f2a20;
   --loss: #f87171;
+  --loss-ink: #f87171;
   --loss-bg: #2a1416;
   --warn-fg: #fbbf24;
+  --warn-ink: #fbbf24;
   --warn-bg: #2a2008;
   --info-fg: #7eb3f9;
   --info-bg: #122339;
@@ -320,45 +330,38 @@ body::before {
 .t-display {
   font: 800 38px/1.02 var(--font-sans);
   letter-spacing: -0.03em;
-  color: var(--ink);
 }
 
 .t-h1 {
   font: 800 30px/1.05 var(--font-sans);
   letter-spacing: -0.03em;
-  color: var(--ink);
 }
 
 .t-h2 {
   font: 700 20px/1.15 var(--font-sans);
   letter-spacing: -0.015em;
-  color: var(--ink);
 }
 
 .t-h3 {
   font: 700 18px/1.25 var(--font-sans);
   letter-spacing: -0.01em;
-  color: var(--ink);
 }
 
 .t-card-title {
   font: 800 23px/1.1 var(--font-sans);
   letter-spacing: -0.025em;
-  color: var(--ink);
 }
 
 .t-eyebrow {
   font: 700 10px/1 var(--font-sans);
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--ink-3);
 }
 
 .t-label {
   font: 700 10px/1 var(--font-sans);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-3);
 }
 
 .t-button {
@@ -377,40 +380,64 @@ body::before {
   font: 800 30px/1 var(--font-sans);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  color: var(--ink);
 }
 
 .t-stat-num-sm {
   font: 800 14px/1 var(--font-sans);
   font-variant-numeric: tabular-nums;
-  color: var(--ink);
 }
 
 .t-body {
   font: 450 14px/1.55 var(--font-sans);
-  color: var(--ink-2);
 }
 
 .t-body-bold {
   font: 700 14px/1.45 var(--font-sans);
-  color: var(--ink);
 }
 
 .t-meta {
   font: 600 10px/1 var(--font-sans);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink-3);
 }
 
 .t-mono {
   font: 600 12px/1 var(--font-mono);
   letter-spacing: 0.04em;
-  color: var(--ink);
 }
 
 /* Gradient ink — for hero numbers / display headings that want a premium
    metallic sheen. Falls back to solid ink where background-clip is unsupported. */
+/* Default colours for the type classes. Deliberately weak: specificity
+   (0,0,1) — one element, the class inside :where() counting for nothing — so
+   it beats Tailwind's base rules (`a`, `button { color: inherit }`) by coming
+   later, and loses to ANY text-colour utility on the same element.
+
+   As plain `.t-eyebrow { color: … }` rules these sat after Tailwind's
+   utilities in this file and, at equal specificity, silently beat them:
+   `t-eyebrow text-white/60` rendered grey on the blue finance card, and
+   `t-stat-num-sm text-win` rendered plain ink. */
+html
+  :where(
+    .t-display,
+    .t-h1,
+    .t-h2,
+    .t-h3,
+    .t-card-title,
+    .t-stat-num,
+    .t-stat-num-sm,
+    .t-body-bold,
+    .t-mono
+  ) {
+  color: var(--ink);
+}
+html :where(.t-body) {
+  color: var(--ink-2);
+}
+html :where(.t-eyebrow, .t-label, .t-meta) {
+  color: var(--ink-3);
+}
+
 .t-gradient {
   background: linear-gradient(
     180deg,
@@ -605,5 +632,61 @@ body::before {
   select,
   textarea {
     font-size: 16px !important;
+  }
+}
+
+/* Touch targets. A finger needs more room than a cursor, so on a touch screen
+   (the primary pointer is coarse — phones, tablets) controls get a minimum
+   size they don't have under a mouse, where the tighter layout is the point.
+   Everything here is zero-specificity (:where), so any sizing or display class
+   on the element itself still wins.
+
+   1. The floor: nothing tappable is smaller than 24px either way (WCAG 2.2
+      "Target Size (Minimum)"). An inline link inside a sentence is untouched
+      — min-height doesn't apply to inline boxes, and the guideline exempts it.
+   2. Form fields are 44px tall.
+   3. Opt-in, for a control that stands on its own. Real size, not an
+      invisible hit area: two small neighbours with overlapping hit areas
+      steal each other's taps.
+        .tap    an icon-only control — 44px both ways, icon centred.
+        .tap-h  a control with a text label (a tab, a page action, a menu
+                row) — 44px tall; its width and alignment are left alone.
+      Dense in-content items (a name in a table, a chip in a row of chips)
+      stay at the floor on purpose.
+
+   e2e/screens.e2e.ts enforces the floor on every screen. */
+@media (pointer: coarse) {
+  :where(button, [role="button"], [role="tab"], summary, select, a[href]) {
+    min-height: 24px;
+    min-width: 24px;
+  }
+  /* A checkbox or radio is tapped through its label, so the label is the
+     target that has to clear the floor. */
+  :where(label:has(input[type="checkbox"], input[type="radio"])) {
+    min-height: 24px;
+  }
+  :where(
+    input:not(
+      [type="checkbox"],
+      [type="radio"],
+      [type="range"],
+      [type="color"],
+      [type="file"],
+      [type="hidden"]
+    ),
+    select,
+    textarea
+  ) {
+    min-height: 44px;
+  }
+  :where(.tap) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
+  }
+  :where(.tap-h) {
+    min-height: 44px;
   }
 }

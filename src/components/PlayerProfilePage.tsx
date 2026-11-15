@@ -127,7 +127,7 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
                     absences: removeAbsenceDates(player.absences, r.dates),
                   })
                 }
-                className="p-0.5 rounded hover:bg-warn-bg text-warnfg"
+                className="tap p-0.5 rounded hover:bg-warn-bg text-warnfg"
               >
                 <Icons.X className="w-3 h-3" />
               </button>
@@ -159,7 +159,7 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
           disabled={!fromDate}
           aria-label={`Add absence for ${player.name}`}
           onClick={addRange}
-          className="px-3 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest disabled:opacity-50 transition-opacity"
+          className="tap-h px-3 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest disabled:opacity-50 transition-opacity"
           style={{
             backgroundColor: "var(--team-primary)",
             color: "var(--team-on-primary)",
@@ -301,7 +301,7 @@ const PastSeasonForm = memo(
             <button
               type="button"
               onClick={onDelete}
-              className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-loss-bg border border-line text-loss rounded-lg hover:opacity-90 transition-opacity shadow-sm mr-auto"
+              className="tap-h text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-loss-bg border border-line text-loss rounded-lg hover:opacity-90 transition-opacity shadow-sm mr-auto"
             >
               Delete
             </button>
@@ -309,7 +309,7 @@ const PastSeasonForm = memo(
           <button
             type="button"
             onClick={onCancel}
-            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-surface border border-line text-ink rounded-lg hover:bg-surface-2 transition-colors shadow-sm"
+            className="tap-h text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-surface border border-line text-ink rounded-lg hover:bg-surface-2 transition-colors shadow-sm"
           >
             Cancel
           </button>
@@ -317,7 +317,7 @@ const PastSeasonForm = memo(
             type="button"
             disabled={!season.trim() || !ageGroup}
             onClick={handleSave}
-            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-lg shadow-md transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none"
+            className="tap-h text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-lg shadow-md transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none"
             style={{ backgroundColor: primaryColor, color: tertiaryColor }}
           >
             {initial ? "Save Changes" : "Add Season"}
@@ -936,7 +936,7 @@ const PlayerProfile = memo(() => {
                             ? "Catcher — only selected players are ever used at C"
                             : undefined
                         }
-                        className={`p-2 text-xs font-black uppercase rounded-lg transition-all border ${
+                        className={`tap-h p-2 text-xs font-black uppercase rounded-lg transition-all border ${
                           active
                             ? "bg-win-bg border-line text-win shadow-sm"
                             : "bg-surface border-line text-ink hover:bg-surface-2 hover:border-line-strong"
@@ -1262,7 +1262,7 @@ const PlayerProfile = memo(() => {
                       <button
                         type="button"
                         onClick={() => setAddingPastSeason(true)}
-                        className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-surface border border-line text-ink hover:bg-surface-2 transition-colors shadow-sm flex items-center gap-1.5"
+                        className="tap-h text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-surface border border-line text-ink hover:bg-surface-2 transition-colors shadow-sm flex items-center gap-1.5"
                       >
                         <Icons.Plus className="w-3.5 h-3.5" /> Add
                       </button>
@@ -1342,7 +1342,7 @@ const PlayerProfile = memo(() => {
                               <button
                                 type="button"
                                 onClick={() => setEditingPastSeasonId(entry.id)}
-                                className="p-2 text-ink-3 hover:text-team-primary hover:bg-surface-2 rounded-lg transition-colors"
+                                className="tap p-2 text-ink-3 hover:text-team-primary hover:bg-surface-2 rounded-lg transition-colors"
                               >
                                 <Icons.Edit className="w-4 h-4" />
                               </button>
@@ -1535,7 +1535,7 @@ const PlayerProfile = memo(() => {
                                   `/roster/${playerSlug(player, players)}/trend/${key}`,
                                 )
                               }
-                              className="group bg-app hover:bg-surface-2 border border-transparent rounded-lg p-2 text-center transition-colors cursor-pointer"
+                              className="tap-h group bg-app hover:bg-surface-2 border border-transparent rounded-lg p-2 text-center transition-colors cursor-pointer"
                             >
                               <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-0.5">
                                 {STAT_META[key].label}
@@ -1705,7 +1705,7 @@ const PlayerProfile = memo(() => {
                       `/roster/${playerSlug(player, players)}/letter/returning`,
                     )
                   }
-                  className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
+                  className="tap-h text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
                 >
                   <Icons.FileText className="w-3.5 h-3.5" /> Returning Offer
                 </button>
@@ -1716,14 +1716,14 @@ const PlayerProfile = memo(() => {
                       `/roster/${playerSlug(player, players)}/letter/not-returning`,
                     )
                   }
-                  className="text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line hover:opacity-90 text-loss px-3 py-1.5 rounded-lg shadow-sm transition-opacity inline-flex items-center gap-1.5"
+                  className="tap-h text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line hover:opacity-90 text-loss px-3 py-1.5 rounded-lg shadow-sm transition-opacity inline-flex items-center gap-1.5"
                 >
                   <Icons.FileText className="w-3.5 h-3.5" /> Not Returning
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditingContact(!editingContact)}
-                  className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors"
+                  className="tap-h text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors"
                 >
                   {editingContact ? "Done" : "Edit"}
                 </button>
@@ -1774,7 +1774,7 @@ const PlayerProfile = memo(() => {
             onClick={() =>
               navigate(`/roster/${playerSlug(player, players)}/report`)
             }
-            className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-opacity shadow-sm border border-line bg-surface hover:bg-surface-2 text-ink flex items-center gap-2"
+            className="tap-h text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-opacity shadow-sm border border-line bg-surface hover:bg-surface-2 text-ink flex items-center gap-2"
           >
             <Icons.FileText className="w-3.5 h-3.5" /> Report
           </button>
@@ -1782,14 +1782,14 @@ const PlayerProfile = memo(() => {
           <div className="flex gap-3 ml-auto">
             <button
               onClick={() => removePlayer(player.id)}
-              className="text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line text-loss hover:opacity-90 px-4 py-2.5 rounded-xl shadow-sm transition-opacity flex items-center gap-2"
+              className="tap-h text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line text-loss hover:opacity-90 px-4 py-2.5 rounded-xl shadow-sm transition-opacity flex items-center gap-2"
             >
               <Icons.Trash className="w-3.5 h-3.5" /> Delete
             </button>
 
             <button
               onClick={close}
-              className="text-[10px] font-black uppercase tracking-widest text-white px-4 py-2.5 rounded-xl shadow-md transition-transform hover:-translate-y-0.5"
+              className="tap-h text-[10px] font-black uppercase tracking-widest text-white px-4 py-2.5 rounded-xl shadow-md transition-transform hover:-translate-y-0.5"
               style={{ backgroundColor: primaryColor, color: tertiaryColor }}
             >
               Back

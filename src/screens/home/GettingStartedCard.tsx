@@ -100,7 +100,7 @@ export const GettingStartedCard = ({
         <button
           type="button"
           onClick={dismiss}
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-ink-3 hover:bg-surface-2"
+          className="tap min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-ink-3 hover:bg-surface-2"
           aria-label="Hide getting started"
         >
           <Icons.X className="w-4 h-4" />

@@ -6,6 +6,7 @@ import {
   planEntryStatus,
   plannedPitchesOf,
   type PlanViolation,
+  type UnavailableArm,
 } from "../../utils/tournamentPitching";
 import type { Game, PlannedOuting, Player } from "../../types";
 
@@ -21,6 +22,7 @@ const AddArmRow = ({
   taken,
   dailyMax,
   armById,
+  unavailableById,
   onAdd,
   onCancel,
 }: {
@@ -28,10 +30,19 @@ const AddArmRow = ({
   taken: Set<string>;
   dailyMax: number;
   armById: Map<string, PitcherAvailability>;
+  unavailableById: Map<string, UnavailableArm>;
   onAdd: (entry: PlannedOuting) => void;
   onCancel: () => void;
 }) => {
-  const available = pitchers.filter((p) => !taken.has(p.id));
+  // Arms who can be there come first, and are what the picker opens on. One
+  // who is out stays in the list, labelled — the coach may know something
+  // the profile doesn't — but adding them raises the warning below.
+  const available = pitchers
+    .filter((p) => !taken.has(p.id))
+    .sort(
+      (a, b) =>
+        Number(unavailableById.has(a.id)) - Number(unavailableById.has(b.id)),
+    );
   const [playerId, setPlayerId] = useState(available[0]?.id || "");
   const [role, setRole] = useState<"start" | "relief">("start");
   const [budget, setBudget] = useState("");
@@ -65,6 +76,11 @@ const AddArmRow = ({
           <option key={p.id} value={p.id}>
             {p.number ? `#${p.number} ` : ""}
             {p.name}
+            {unavailableById.has(p.id)
+              ? ` — out (${unavailableById.get(p.id)!.reason})`
+              : p.health?.status === "limited"
+                ? " — limited"
+                : ""}
           </option>
         ))}
       </select>
@@ -101,7 +117,7 @@ const AddArmRow = ({
           if (Number.isFinite(n) && n > 0) entry.plannedPitches = n;
           onAdd(entry);
         }}
-        className="t-chip px-3 py-1.5 rounded-lg font-black uppercase tracking-widest"
+        className="tap-h t-chip px-3 py-1.5 rounded-lg font-black uppercase tracking-widest"
         style={{
           backgroundColor: "var(--team-primary)",
           color: "var(--team-on-primary)",
@@ -112,7 +128,7 @@ const AddArmRow = ({
       <button
         type="button"
         onClick={onCancel}
-        className="t-chip px-3 py-1.5 rounded-lg font-black uppercase tracking-widest bg-surface border border-line text-ink-2 hover:bg-surface-2"
+        className="tap-h t-chip px-3 py-1.5 rounded-lg font-black uppercase tracking-widest bg-surface border border-line text-ink-2 hover:bg-surface-2"
       >
         Cancel
       </button>
@@ -123,7 +139,10 @@ const AddArmRow = ({
 export interface PitchPlanGameBodyProps {
   game: Game;
   entries: PlannedOuting[];
+  // Cleared pitchers who can be there, and (separately) those who can't —
+  // out injured or away on the game's date. See assessGamesPlan.
   arms: PitcherAvailability[];
+  unavailable: UnavailableArm[];
   violations: PlanViolation[];
   teamAge: string;
   ruleSet: PitchRuleSet;
@@ -146,6 +165,7 @@ export const PitchPlanGameBody = ({
   game,
   entries,
   arms,
+  unavailable,
   violations,
   teamAge,
   ruleSet,
@@ -165,6 +185,13 @@ export const PitchPlanGameBody = ({
   const resting = arms.filter((a) => a.status === "resting");
   const maxed = arms.filter((a) => a.status === "maxed");
   const armById = new Map(arms.map((a) => [a.id, a]));
+  const unavailableById = new Map(unavailable.map((u) => [u.id, u]));
+  // "Limited" never rules a kid out, but on a pitching plan it is exactly
+  // what the coach wants in front of them (often it IS "no pitching").
+  const limitedNote = (id: string): string | null => {
+    const health = playerById.get(id)?.health;
+    return health?.status === "limited" ? health.note || "Limited" : null;
+  };
 
   return (
     <>
@@ -174,6 +201,13 @@ export const PitchPlanGameBody = ({
           const p = playerById.get(entry.playerId);
           if (!p) return null;
           const consumed = planEntryStatus(entry, game, p) === "consumed";
+          // Not via unavailableById: that only covers cleared pitchers, and
+          // the violation list already speaks for whoever is in the plan.
+          const isOut =
+            !consumed &&
+            violations.some(
+              (v) => v.playerId === entry.playerId && v.kind === "unavailable",
+            );
           const label = `${p.number ? `#${p.number} ` : ""}${p.name} · ${
             entry.role === "start" ? "start" : "relief"
           } · ${plannedPitchesOf(entry, teamAge, ruleSet)}p`;
@@ -183,12 +217,16 @@ export const PitchPlanGameBody = ({
               className={`t-chip inline-flex items-center gap-1 px-2 py-1 rounded-md border whitespace-nowrap ${
                 consumed
                   ? "bg-surface-2 border-line text-ink-3"
-                  : "bg-surface border-line-strong text-ink"
+                  : isOut
+                    ? "bg-loss-bg border-line text-loss"
+                    : "bg-surface border-line-strong text-ink"
               }`}
               title={
                 consumed
                   ? "Logged — the imported box score now carries this outing."
-                  : "Planned outing"
+                  : isOut
+                    ? "Planned, but not available for this game"
+                    : "Planned outing"
               }
             >
               {consumed && <span aria-hidden="true">✓</span>}
@@ -207,7 +245,7 @@ export const PitchPlanGameBody = ({
                     )
                   }
                   aria-label={`Remove ${p.name} from this game's plan`}
-                  className="ml-0.5 text-ink-3 hover:text-loss leading-none"
+                  className="tap ml-0.5 text-ink-3 hover:text-loss leading-none"
                 >
                   ×
                 </button>
@@ -236,6 +274,7 @@ export const PitchPlanGameBody = ({
           taken={taken}
           dailyMax={dailyMax}
           armById={armById}
+          unavailableById={unavailableById}
           onAdd={(entry) => {
             onSetEntries([...entries, entry]);
             setAdding(false);
@@ -280,6 +319,14 @@ export const PitchPlanGameBody = ({
                 {a.pitchedToday > 0 && (
                   <span className="tabular-nums">{` · ${a.remainingToday} left`}</span>
                 )}
+                {limitedNote(a.id) && (
+                  <span
+                    className="text-warnfg"
+                    title={`Limited: ${limitedNote(a.id)}`}
+                  >
+                    {" · limited"}
+                  </span>
+                )}
               </PlayerNameLink>
             ))}
           </div>
@@ -310,11 +357,35 @@ export const PitchPlanGameBody = ({
               <PlayerNameLink
                 key={a.id}
                 playerId={a.id}
-                className="t-chip px-2 py-0.5 rounded-md border bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 transition-colors whitespace-nowrap"
+                className="t-chip px-2 py-0.5 rounded-md border bg-loss-bg border-line text-loss hover:bg-surface-2 transition-colors whitespace-nowrap"
                 title={`${a.pitchedToday} pitches already on this date — the ${a.maxPitches}-pitch daily max is spent`}
               >
                 {a.number ? `#${a.number} ` : ""}
                 {a.name} · day maxed
+              </PlayerNameLink>
+            ))}
+          </div>
+        )}
+        {/* Rested or not, these arms won't be there: out injured, or marked
+            away that day. Shown so the coach sees WHY a pitcher is missing
+            from the list above instead of wondering where he went. */}
+        {unavailable.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <span className="t-eyebrow text-ink-3">Out</span>
+            {unavailable.map((u) => (
+              <PlayerNameLink
+                key={u.id}
+                playerId={u.id}
+                className="t-chip px-2 py-0.5 rounded-md border bg-surface-2 border-line text-ink-3 hover:bg-surface transition-colors whitespace-nowrap"
+                title={
+                  u.reason === "injured"
+                    ? `Out injured — ${u.detail}`
+                    : "Marked away on this date"
+                }
+              >
+                {u.number ? `#${u.number} ` : ""}
+                {u.name}
+                {u.reason === "injured" ? ` · injured, ${u.detail}` : " · away"}
               </PlayerNameLink>
             ))}
           </div>

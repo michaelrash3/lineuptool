@@ -98,7 +98,7 @@ export const TournamentsSection = memo(() => {
               <Link
                 key={s.id}
                 to={`/schedule/tournaments/new?seed=${encodeURIComponent(s.id)}`}
-                className="t-chip inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-line-strong text-ink-2 hover:bg-surface-2 transition-colors"
+                className="tap-h t-chip inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-line-strong text-ink-2 hover:bg-surface-2 transition-colors"
                 title="These games look like one tournament weekend — name it to plan pitching across its games."
               >
                 <Icons.Pitch className="w-3.5 h-3.5" />

@@ -20,13 +20,14 @@ export default [
     ignores: [
       "build/**",
       "dist/**",
+      "e2e/dist/**",
       "node_modules/**",
       "coverage/**",
       "**/*.config.{js,mjs,ts}",
     ],
   },
   {
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["src/**/*.{ts,tsx}", "e2e/**/*.{ts,tsx}"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {

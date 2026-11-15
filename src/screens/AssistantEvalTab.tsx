@@ -229,7 +229,7 @@ export const AssistantEvalTab = memo(() => {
           <button
             type="button"
             onClick={() => navigate("/evaluation")}
-            className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2"
+            className="tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2"
           >
             Back to Form
           </button>
@@ -292,7 +292,7 @@ export const AssistantEvalTab = memo(() => {
                   key={r.id}
                   type="button"
                   onClick={() => navigate(`/evaluation/round/${r.id}`)}
-                  className="w-full flex items-center justify-between gap-3 px-1 py-2.5 hover:bg-surface text-left"
+                  className="tap-h w-full flex items-center justify-between gap-3 px-1 py-2.5 hover:bg-surface text-left"
                 >
                   <span className="text-sm font-extrabold text-ink tabular-nums">
                     {r.date}
@@ -317,7 +317,7 @@ export const AssistantEvalTab = memo(() => {
                 key={g}
                 type="button"
                 onClick={() => setActiveGroup(g)}
-                className={`py-1.5 px-3.5 text-[11px] font-black uppercase tracking-wider rounded-full transition-all whitespace-nowrap ${
+                className={`tap-h py-1.5 px-3.5 text-[11px] font-black uppercase tracking-wider rounded-full transition-all whitespace-nowrap ${
                   isActive
                     ? "shadow-sm border"
                     : "text-ink-3 hover:bg-surface-2 border border-transparent"
@@ -370,7 +370,7 @@ export const AssistantEvalTab = memo(() => {
             type="button"
             onClick={handleSave}
             disabled={orderedPlayers.length === 0}
-            className="btn-premium px-5 py-2.5 text-xs font-black uppercase tracking-widest rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="tap-h btn-premium px-5 py-2.5 text-xs font-black uppercase tracking-widest rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ color: "var(--team-on-primary)" }}
           >
             Save Evaluation

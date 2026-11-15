@@ -300,7 +300,7 @@ export const TournamentFormatCard = memo(
                           type="button"
                           onClick={() => move(i, -1)}
                           disabled={i === 0}
-                          className="p-1.5 text-ink-3 hover:text-ink hover:bg-surface-2 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="tap p-1.5 text-ink-3 hover:text-ink hover:bg-surface-2 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           aria-label={`Move ${line.label} up`}
                         >
                           <Icons.ChevronUp className="w-4 h-4" />
@@ -309,7 +309,7 @@ export const TournamentFormatCard = memo(
                           type="button"
                           onClick={() => move(i, 1)}
                           disabled={i === ladder.length - 1}
-                          className="p-1.5 text-ink-3 hover:text-ink hover:bg-surface-2 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="tap p-1.5 text-ink-3 hover:text-ink hover:bg-surface-2 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           aria-label={`Move ${line.label} down`}
                         >
                           <Icons.ChevronDown className="w-4 h-4" />
@@ -317,7 +317,7 @@ export const TournamentFormatCard = memo(
                         <button
                           type="button"
                           onClick={() => removeRung(i)}
-                          className="p-1.5 text-ink-3 hover:text-loss hover:bg-loss-bg rounded-md transition-colors"
+                          className="tap p-1.5 text-ink-3 hover:text-loss hover:bg-loss-bg rounded-md transition-colors"
                           aria-label={`Remove ${line.label}`}
                         >
                           <Icons.X className="w-4 h-4" />

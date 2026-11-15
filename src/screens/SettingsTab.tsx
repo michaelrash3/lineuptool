@@ -211,7 +211,7 @@ const EvalCategoryRow = memo(
           type="button"
           onClick={onToggleHidden}
           aria-label={`${hidden ? "Show" : "Hide"} ${cat.label}`}
-          className="shrink-0 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2"
+          className="tap-h shrink-0 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2"
         >
           {hidden ? "Show" : "Hide"}
         </button>
@@ -220,7 +220,7 @@ const EvalCategoryRow = memo(
             type="button"
             onClick={onDelete}
             aria-label={`Delete ${cat.label}`}
-            className="shrink-0 p-1.5 rounded-md border border-line bg-surface text-ink-3 hover:text-loss"
+            className="tap shrink-0 p-1.5 rounded-md border border-line bg-surface text-ink-3 hover:text-loss"
           >
             <Icons.Trash className="w-3.5 h-3.5" />
           </button>
@@ -349,7 +349,7 @@ const EvalCategoriesPanel = memo(({ team, updateTeam }: any) => {
               );
               setNewLabel("");
             }}
-            className="px-3 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg border border-line bg-surface text-ink hover:bg-surface-2 disabled:opacity-40 flex items-center gap-1.5"
+            className="tap-h px-3 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg border border-line bg-surface text-ink hover:bg-surface-2 disabled:opacity-40 flex items-center gap-1.5"
           >
             <Icons.Plus className="w-3.5 h-3.5" /> Add
           </button>
@@ -365,7 +365,7 @@ const EvalCategoriesPanel = memo(({ team, updateTeam }: any) => {
             onClick={() =>
               write(applyEvalCategoryPreset(config, KID_PITCH_CATEGORY_PRESET))
             }
-            className="mt-3 w-full px-3 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg border-2 border-dashed border-line-strong bg-surface text-ink-2 hover:bg-surface-2"
+            className="tap-h mt-3 w-full px-3 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg border-2 border-dashed border-line-strong bg-surface text-ink-2 hover:bg-surface-2"
           >
             + Add kid-pitch starter set (
             {KID_PITCH_CATEGORY_PRESET.map((p) => p.label).join(", ")})
@@ -664,14 +664,14 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
               <button
                 type="button"
                 onClick={() => copy(code, "Team code")}
-                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
+                className="tap-h px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
               >
                 Copy Code
               </button>
               <button
                 type="button"
                 onClick={() => copy(url, "Join link")}
-                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
+                className="tap-h px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
               >
                 Copy Link
               </button>
@@ -684,7 +684,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
             <button
               type="button"
               onClick={rotateCode}
-              className="shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink hover:bg-surface-2 rounded-md"
+              className="tap-h shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink hover:bg-surface-2 rounded-md"
             >
               Regenerate
             </button>
@@ -706,7 +706,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
         <button
           type="button"
           onClick={() => regenerateJoinCode?.()}
-          className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
+          className="tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
           style={{
             backgroundColor: "var(--team-primary)",
             color: "var(--team-on-primary)",
@@ -802,7 +802,7 @@ const DiagnosticsPanel = memo(({ team, user, activeTeamId }: any) => {
                   });
                 }
               }}
-              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-md bg-surface border border-line-strong text-ink hover:bg-surface-2"
+              className="tap-h text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-md bg-surface border border-line-strong text-ink hover:bg-surface-2"
             >
               Sign Out + Reload
             </button>
@@ -816,7 +816,7 @@ const DiagnosticsPanel = memo(({ team, user, activeTeamId }: any) => {
                 } catch {}
                 window.location.reload();
               }}
-              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-md bg-warn-bg border border-warn-bg text-warnfg hover:bg-warn-bg"
+              className="tap-h text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-md bg-warn-bg border border-warn-bg text-warnfg hover:bg-warn-bg"
             >
               Reset Local Cache + Reload
             </button>
@@ -1029,7 +1029,7 @@ export const SettingsTab = memo(() => {
                   key={item.id}
                   to={`/settings/${item.id}`}
                   aria-current={active ? "page" : undefined}
-                  className={`flex items-center gap-3 px-3 py-3 text-left border-b border-line lg:border-b-0 lg:rounded-sm transition-colors ${
+                  className={`tap-h flex items-center gap-3 px-3 py-3 text-left border-b border-line lg:border-b-0 lg:rounded-sm transition-colors ${
                     active ? "lg:bg-surface-2" : "hover:bg-surface-2"
                   }`}
                 >
@@ -1247,7 +1247,7 @@ export const SettingsTab = memo(() => {
                         <button
                           onClick={() => updateTeam({ defenseSize: "9" })}
                           disabled={isDefenseLocked}
-                          className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wider transition-all rounded-lg ${
+                          className={`tap-h flex-1 py-2.5 text-xs font-black uppercase tracking-wider transition-all rounded-lg ${
                             defenseSize === "9"
                               ? "bg-surface text-ink shadow-sm border border-line"
                               : "text-ink-3 hover:bg-surface border border-transparent"
@@ -1258,7 +1258,7 @@ export const SettingsTab = memo(() => {
                         <button
                           onClick={() => updateTeam({ defenseSize: "10" })}
                           disabled={isDefenseLocked}
-                          className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wider transition-all rounded-lg ${
+                          className={`tap-h flex-1 py-2.5 text-xs font-black uppercase tracking-wider transition-all rounded-lg ${
                             defenseSize === "10"
                               ? "bg-surface text-ink shadow-sm border border-line"
                               : "text-ink-3 hover:bg-surface border border-transparent"
@@ -1325,7 +1325,7 @@ export const SettingsTab = memo(() => {
                                   catcherConsecutive: !consecutiveOn,
                                 })
                               }
-                              className={`w-full p-3 border border-line text-sm font-black uppercase tracking-wider rounded-xl shadow-sm transition-all ${
+                              className={`tap-h w-full p-3 border border-line text-sm font-black uppercase tracking-wider rounded-xl shadow-sm transition-all ${
                                 capIsExplicit && consecutiveOn
                                   ? "bg-[var(--team-primary)] text-white"
                                   : "bg-surface text-ink-3 hover:bg-surface-2"
@@ -1425,7 +1425,7 @@ export const SettingsTab = memo(() => {
                               key={mode}
                               type="button"
                               onClick={() => updateTeam({ statDisplay: mode })}
-                              className={`p-3 border border-line text-sm font-black uppercase tracking-wider rounded-xl shadow-sm transition-all ${
+                              className={`tap-h p-3 border border-line text-sm font-black uppercase tracking-wider rounded-xl shadow-sm transition-all ${
                                 active
                                   ? "bg-[var(--team-primary)] text-white"
                                   : "bg-surface text-ink-3 hover:bg-surface-2"
@@ -1473,7 +1473,7 @@ export const SettingsTab = memo(() => {
                           onClick={() => removeCoach(c.id)}
                           title="Remove name"
                           aria-label={`Remove ${c.name || "coach"}`}
-                          className="p-2 text-ink-3 hover:text-loss hover:bg-loss-bg rounded-lg transition-colors"
+                          className="tap p-2 text-ink-3 hover:text-loss hover:bg-loss-bg rounded-lg transition-colors"
                         >
                           <Icons.Trash className="w-4 h-4" />
                         </button>
@@ -1512,14 +1512,14 @@ export const SettingsTab = memo(() => {
                       <div className="flex gap-3 pt-2">
                         <button
                           onClick={() => addCoach(newCoachForm)}
-                          className="flex-1 text-white text-xs font-black uppercase tracking-widest py-3 rounded-lg shadow-sm transition-transform hover:-translate-y-0.5"
+                          className="tap-h flex-1 text-white text-xs font-black uppercase tracking-widest py-3 rounded-lg shadow-sm transition-transform hover:-translate-y-0.5"
                           style={{ backgroundColor: primaryColor }}
                         >
                           Save
                         </button>
                         <button
                           onClick={() => setIsAddingCoach(false)}
-                          className="flex-1 bg-surface border border-line-strong text-ink-2 text-xs font-black uppercase tracking-widest py-3 rounded-lg shadow-sm hover:bg-surface-2 transition-colors"
+                          className="tap-h flex-1 bg-surface border border-line-strong text-ink-2 text-xs font-black uppercase tracking-widest py-3 rounded-lg shadow-sm hover:bg-surface-2 transition-colors"
                         >
                           Cancel
                         </button>
@@ -1623,7 +1623,7 @@ export const SettingsTab = memo(() => {
                                     role === "head" ? "assistant" : "head",
                                   )
                                 }
-                                className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong hover:bg-surface-2 whitespace-nowrap"
+                                className="tap-h text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong hover:bg-surface-2 whitespace-nowrap"
                               >
                                 {role === "head"
                                   ? "Make Assistant"
@@ -1643,7 +1643,7 @@ export const SettingsTab = memo(() => {
                                     if (ok && removeMember?.(uid))
                                       regenerateJoinCode?.();
                                   }}
-                                  className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong text-loss hover:bg-loss-bg whitespace-nowrap"
+                                  className="tap-h text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong text-loss hover:bg-loss-bg whitespace-nowrap"
                                   aria-label={`Remove ${contactName || "coach"} from the team`}
                                 >
                                   Remove
@@ -1731,7 +1731,7 @@ export const SettingsTab = memo(() => {
                       <div className="flex items-end">
                         <button
                           onClick={() => navigate("/settings/advance-season")}
-                          className="p-3 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 w-full sm:w-auto h-[46px] rounded-xl shadow-md"
+                          className="tap-h p-3 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 w-full sm:w-auto h-[46px] rounded-xl shadow-md"
                           style={{
                             backgroundColor: "var(--team-primary)",
                             color: "var(--team-on-primary)",
@@ -1752,7 +1752,7 @@ export const SettingsTab = memo(() => {
                       <button
                         type="button"
                         onClick={exportRosterCsv}
-                        className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 flex items-center gap-2"
+                        className="tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 flex items-center gap-2"
                       >
                         <Icons.Forward className="w-3.5 h-3.5" /> Export Roster
                         CSV
@@ -1760,7 +1760,7 @@ export const SettingsTab = memo(() => {
                       <button
                         type="button"
                         onClick={exportNewPlayersCsv}
-                        className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 flex items-center gap-2"
+                        className="tap-h px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 flex items-center gap-2"
                       >
                         <Icons.Forward className="w-3.5 h-3.5" /> Export New
                         Players CSV
@@ -1828,7 +1828,7 @@ export const SettingsTab = memo(() => {
                         </span>
                         <button
                           type="button"
-                          className="text-[11px] px-4 py-2 font-black uppercase tracking-widest rounded-xl shadow-md cursor-default"
+                          className="tap-h text-[11px] px-4 py-2 font-black uppercase tracking-widest rounded-xl shadow-md cursor-default"
                           style={{
                             backgroundColor: primaryColor,
                             color: tertiaryColor,
@@ -1897,7 +1897,7 @@ export const SettingsTab = memo(() => {
                         <button
                           type="button"
                           onClick={pullColorsFromLogo}
-                          className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-ink-2 hover:text-ink bg-surface border border-line rounded-lg px-3 py-1.5 shadow-sm hover:bg-surface-2 transition-colors"
+                          className="tap-h mt-2 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-ink-2 hover:text-ink bg-surface border border-line rounded-lg px-3 py-1.5 shadow-sm hover:bg-surface-2 transition-colors"
                         >
                           <Icons.Palette className="w-3 h-3" /> Pull colors from
                           logo
@@ -2003,7 +2003,7 @@ export const SettingsTab = memo(() => {
                           viewAsRole === "assistant" ? null : "assistant",
                         )
                       }
-                      className={`shrink-0 px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-colors ${
+                      className={`tap-h shrink-0 px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-colors ${
                         viewAsRole === "assistant"
                           ? "bg-warn-bg text-warnfg hover:bg-warn-bg"
                           : "bg-surface border border-line text-warnfg hover:bg-surface-2"

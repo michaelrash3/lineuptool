@@ -204,7 +204,7 @@ export const AddTournamentSubPage = memo(() => {
                   type="button"
                   aria-pressed={active}
                   onClick={() => togglePosition(pos)}
-                  className={`p-2 text-xs font-black uppercase rounded-lg transition-all border ${
+                  className={`tap-h p-2 text-xs font-black uppercase rounded-lg transition-all border ${
                     active
                       ? "bg-win-bg border-line text-win shadow-sm"
                       : "bg-surface border-line text-ink hover:bg-surface-2 hover:border-line-strong"
@@ -221,13 +221,13 @@ export const AddTournamentSubPage = memo(() => {
           <button
             type="button"
             onClick={back}
-            className="px-5 py-2.5 bg-surface border border-line text-ink-2 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
+            className="tap-h px-5 py-2.5 bg-surface border border-line text-ink-2 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-5 py-2.5 font-black text-xs uppercase tracking-widest rounded-xl hover:-translate-y-0.5 transition-transform shadow-md"
+            className="tap-h px-5 py-2.5 font-black text-xs uppercase tracking-widest rounded-xl hover:-translate-y-0.5 transition-transform shadow-md"
             style={{ backgroundColor: primaryColor, color: tertiaryColor }}
           >
             Add Sub

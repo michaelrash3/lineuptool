@@ -84,7 +84,7 @@ export const PlayingTimePanel = memo(() => {
             }
           }}
           aria-label="Download playing time report PDF"
-          className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:text-ink transition-colors inline-flex items-center gap-1.5 disabled:opacity-40"
+          className="tap-h px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:text-ink transition-colors inline-flex items-center gap-1.5 disabled:opacity-40"
         >
           <Icons.Download className="w-4 h-4" aria-hidden />
           {busy ? "Building…" : "Print / PDF"}

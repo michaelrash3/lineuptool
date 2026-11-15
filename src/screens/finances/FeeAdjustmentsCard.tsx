@@ -97,7 +97,7 @@ export const FeeAdjustmentsCard = ({
                     type="button"
                     aria-label={`Remove adjustment for ${nameOf(adj.playerId)}`}
                     onClick={() => removeFeeAdjustment(adj.id)}
-                    className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-loss transition-colors"
+                    className="tap inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-loss transition-colors"
                   >
                     <Icons.X className="w-4 h-4" />
                   </button>
@@ -142,7 +142,7 @@ export const FeeAdjustmentsCard = ({
                 type="button"
                 onClick={() => setAdjMode(m)}
                 aria-pressed={adjMode === m}
-                className={`px-3 py-2 text-xs font-black transition-colors ${
+                className={`tap-h px-3 py-2 text-xs font-black transition-colors ${
                   adjMode === m
                     ? "bg-team-primary/15 text-team-primary"
                     : "bg-surface-2 text-ink-3 hover:bg-line"

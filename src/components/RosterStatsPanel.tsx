@@ -180,7 +180,7 @@ export const RosterStatsPanel = memo(
                 <button
                   type="button"
                   onClick={() => onSelect(null)}
-                  className="shrink-0 text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink border border-line rounded-lg px-2.5 py-1.5 hover:bg-surface-2 transition-colors"
+                  className="tap-h shrink-0 text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink border border-line rounded-lg px-2.5 py-1.5 hover:bg-surface-2 transition-colors"
                 >
                   Leaders
                 </button>
