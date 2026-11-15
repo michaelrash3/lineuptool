@@ -70,6 +70,7 @@ npm run test:watch # Vitest watch mode
 npm test           # one-shot test run (vitest run)
 npm run build      # production Vite build into ./dist
 npm run preview    # serve the production build locally
+npm run test:browser # open every screen in a real browser (see docs/CONTRIBUTING.md)
 ```
 
 Firebase configuration is read at runtime from `src/firebase.ts`. For local development against a real project you need a populated `.env` (see `docs/firebase-webapp-configuration.md`); for emulator-driven testing follow `docs/firebase-rules-rollout.md`.

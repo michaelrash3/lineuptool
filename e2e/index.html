@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Browser check harness</title>
+    <!-- Same pre-paint theme script as the real index.html. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("cc.theme") || "dark";
+          var dark =
+            stored === "dark" ||
+            (stored === "system" &&
+              window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.setAttribute("data-theme", "dark");
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./harness/main.tsx"></script>
+  </body>
+</html>

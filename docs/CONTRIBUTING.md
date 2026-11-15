@@ -38,9 +38,10 @@ npm start              # Vite dev server at http://localhost:3000
 npm run test:watch     # Vitest watch mode
 npm test               # one-shot test run (vitest run)
 npm run build          # production Vite build into ./dist
+npm run test:browser   # every screen in a real browser (needs: npx playwright install chromium)
 ```
 
-CI runs the security audit (`npm audit --audit-level=high --omit=dev`), the typecheck (`tsc --noEmit`), lint (`npm run lint`), the format check (`npm run format:check`), the test suite (`npm test`), the workflow-script suite (`npm run test:workflows` — executes the auto-merge hold logic from the real YAML, so an edit to that workflow that regresses the hold fails CI), and the production build (`npm run build`) on every push, plus a parallel `rules-test` job that runs the Firestore-emulator rules suite (`npm run test:rules`). Run them locally before pushing.
+CI runs the security audit (`npm audit --audit-level=high --omit=dev`), the typecheck (`tsc --noEmit`), lint (`npm run lint`), the format check (`npm run format:check`), the test suite (`npm test`), the workflow-script suite (`npm run test:workflows` — executes the auto-merge hold logic from the real YAML, so an edit to that workflow that regresses the hold fails CI), and the production build (`npm run build`) on every push, plus a parallel `rules-test` job that runs the Firestore-emulator rules suite (`npm run test:rules`) and a parallel `browser-check` job (`npm run test:browser`). Run them locally before pushing.
 
 Formatting is pinned to **Prettier** (config in `.prettierrc.json`). Run `npm run format` to format the tree and `npm run format:check` to verify — CI fails on any unformatted file, so let Prettier own style instead of hand-matching it.
 
@@ -48,6 +49,7 @@ Formatting is pinned to **Prettier** (config in `.prettierrc.json`). Run `npm ru
 
 - Pure logic in `src/lineupEngine.ts` and `src/utils/helpers.ts` has unit tests. New pure helpers should land with tests in `*.test.ts` next to the source.
 - React Testing Library is wired up (`@testing-library/react` + `jest-dom`, auto-loaded via `src/setupTests.ts`). Component and hook tests live in `*.test.tsx` next to the source. Use `renderWithProviders` from `src/test-utils.tsx` to render anything that consumes the Toast/Team/UI contexts; mock Firebase with `jest.mock` (see `src/hooks/useInviteFlows.test.tsx`). Screenshot before/after for visual changes the DOM assertions don't cover.
+- **The browser check** (`npm run test:browser`, `e2e/`) opens every screen of the real app in Chromium at phone, tablet and desktop widths and fails on a render error, a blank screen, a URL that doesn't stay where it was opened, a navigation loop, sideways scrolling, duplicate ids, or a form control with no accessible name. It runs against an in-memory sample team (`e2e/harness/`) with `TeamProvider` swapped for a stand-in, so it covers the shell, routing, layout and screens — not data loading, sync or the Firestore rules, which stay with the unit and rules suites. When you add a route, add a row to `SCREENS` in `e2e/screens.e2e.ts`. Note that the unit suite cannot stand in for it: jsdom has no layout and the tests don't mount the real router.
 - CI runs the Firestore rules suite (`npm run test:rules`) automatically in its `rules-test` job, but when you touch a Firestore-rule-sensitive path, still walk the validation matrix in `docs/firebase-rules-rollout.md` against the emulator before merging.
 
 ## When to update which doc

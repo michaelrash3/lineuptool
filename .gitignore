@@ -165,3 +165,8 @@ bundle-stats.html
 .orphan-export*.json
 .orphan-race-export.json
 orphans.json
+
+# Browser check (npm run test:browser): the harness build and Playwright output
+e2e/dist/
+test-results/
+playwright-report/
