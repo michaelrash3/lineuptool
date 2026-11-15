@@ -561,9 +561,9 @@ const InsightTile = memo(
     // in dark mode.
     const ACCENT_STYLES = {
       primary: { halo: "var(--team-primary-15)", text: "var(--team-primary)" },
-      success: { halo: "var(--win-bg)", text: "var(--win)" },
-      warn: { halo: "var(--warn-bg)", text: "var(--warn-fg)" },
-      danger: { halo: "var(--loss-bg)", text: "var(--loss)" },
+      success: { halo: "var(--win-bg)", text: "var(--win-ink)" },
+      warn: { halo: "var(--warn-bg)", text: "var(--warn-ink)" },
+      danger: { halo: "var(--loss-bg)", text: "var(--loss-ink)" },
       info: { halo: "var(--info-bg)", text: "var(--info-fg)" },
       slate: { halo: "var(--surface-2)", text: "var(--ink-2)" },
     };
@@ -975,12 +975,16 @@ const TeamTrendTile = memo(({ games }: TeamTrendTileProps) => {
         {data.results.map((r, i) => (
           <span
             key={i}
-            className={`flex-1 h-7 rounded-md grid place-items-center t-button text-white ${
+            // Tinted chip + matching text, like the other result strips.
+            // (These were `bg-win-bg0` & co. with white text — class names
+            // that don't exist, so the letters sat on no background at all:
+            // white on white in light mode.)
+            className={`flex-1 h-7 rounded-md grid place-items-center t-button ${
               r === "W"
-                ? "bg-win-bg0"
+                ? "bg-win-bg text-win"
                 : r === "L"
-                  ? "bg-loss-bg0"
-                  : "bg-warn-bg0"
+                  ? "bg-loss-bg text-loss"
+                  : "bg-warn-bg text-warnfg"
             }`}
             title={`Game ${i + 1}: ${r}`}
           >
@@ -1505,10 +1509,10 @@ const UpcomingWeekSection = memo(
    (they can't author lineups or see finances).
 =========================================================================== */
 const UP_NEXT_ACCENTS: Record<string, { bg: string; fg: string }> = {
-  danger: { bg: "var(--loss-bg)", fg: "var(--loss)" },
-  warn: { bg: "var(--warn-bg)", fg: "var(--warn-fg)" },
+  danger: { bg: "var(--loss-bg)", fg: "var(--loss-ink)" },
+  warn: { bg: "var(--warn-bg)", fg: "var(--warn-ink)" },
   info: { bg: "var(--info-bg)", fg: "var(--info-fg)" },
-  money: { bg: "var(--win-bg)", fg: "var(--win)" },
+  money: { bg: "var(--win-bg)", fg: "var(--win-ink)" },
   primary: { bg: "var(--team-primary-15)", fg: "var(--team-primary)" },
 };
 

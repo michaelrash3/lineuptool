@@ -786,7 +786,9 @@ export const InGameView = memo(() => {
   const benchKids = inn.BENCH || [];
 
   return (
-    <div className="fixed inset-0 z-[85] bg-slate-900 overflow-y-auto">
+    // bg-app, not a fixed dark slate: everything inside is themed (surface
+    // cards, ink text), so in light mode the section headings sat dark-on-dark.
+    <div className="fixed inset-0 z-[85] bg-app overflow-y-auto">
       {/* Top bar */}
       <div className="bg-surface border-b border-line">
         <div className="h-1.5" style={{ backgroundColor: primaryColor }} />

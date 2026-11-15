@@ -194,8 +194,8 @@ export const StatTrendView = memo(
           <div
             className={`-mt-3 mb-4 inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border tabular-nums ${
               trend.isImproving
-                ? "bg-green-50 text-green-800 border-green-200"
-                : "bg-red-50 text-red-800 border-red-200"
+                ? "bg-win-bg text-win border-line"
+                : "bg-loss-bg text-loss border-line"
             }`}
           >
             {trend.direction === "up" ? "↑" : "↓"}

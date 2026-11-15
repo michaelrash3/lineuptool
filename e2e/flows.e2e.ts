@@ -1,17 +1,12 @@
 import { test, expect } from "@playwright/test";
+import { blockOutsideRequests } from "./support";
 
 // A few journeys clicked through the real app — the things a per-screen
 // render check can't see, because they only exist between two screens.
 // Shares the harness and sample team with screens.e2e.ts.
 
 test.beforeEach(async ({ page }) => {
-  // Nothing leaves the machine (see screens.e2e.ts).
-  await page.route("**/*", (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname.startsWith("/_vercel/"))
-      return route.fulfill({ contentType: "text/javascript", body: "" });
-    return url.hostname === "localhost" ? route.continue() : route.abort();
-  });
+  await blockOutsideRequests(page);
 });
 
 test("a This Week game card opens that game", async ({ page }) => {

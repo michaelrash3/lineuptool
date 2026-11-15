@@ -26,16 +26,32 @@ export default defineConfig({
       : {},
   },
   projects: [
+    // Layout and behaviour, at three widths.
     {
       name: "phone",
+      testIgnore: "**/contrast.e2e.ts",
       use: {
         viewport: { width: 390, height: 844 },
         isMobile: true,
         hasTouch: true,
       },
     },
-    { name: "tablet", use: { viewport: { width: 820, height: 1180 } } },
-    { name: "desktop", use: { viewport: { width: 1440, height: 900 } } },
+    {
+      name: "tablet",
+      testIgnore: "**/contrast.e2e.ts",
+      use: { viewport: { width: 820, height: 1180 } },
+    },
+    {
+      name: "desktop",
+      testIgnore: "**/contrast.e2e.ts",
+      use: { viewport: { width: 1440, height: 900 } },
+    },
+    // Colour, in light and dark. Width doesn't change it, so once is enough.
+    {
+      name: "themes",
+      testMatch: "**/contrast.e2e.ts",
+      use: { viewport: { width: 1280, height: 900 } },
+    },
   ],
   webServer: {
     command:

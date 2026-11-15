@@ -357,7 +357,7 @@ export const PitchPlanGameBody = ({
               <PlayerNameLink
                 key={a.id}
                 playerId={a.id}
-                className="t-chip px-2 py-0.5 rounded-md border bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 transition-colors whitespace-nowrap"
+                className="t-chip px-2 py-0.5 rounded-md border bg-loss-bg border-line text-loss hover:bg-surface-2 transition-colors whitespace-nowrap"
                 title={`${a.pitchedToday} pitches already on this date — the ${a.maxPitches}-pitch daily max is spent`}
               >
                 {a.number ? `#${a.number} ` : ""}

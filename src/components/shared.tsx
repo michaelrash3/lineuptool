@@ -604,17 +604,17 @@ const CHIP_VARIANTS: Record<
   },
   success: {
     bg: "var(--win-bg)",
-    color: "var(--win)",
+    color: "var(--win-ink)",
     border: "color-mix(in srgb, var(--win) 30%, transparent)",
   },
   danger: {
     bg: "var(--loss-bg)",
-    color: "var(--loss)",
+    color: "var(--loss-ink)",
     border: "color-mix(in srgb, var(--loss) 30%, transparent)",
   },
   warn: {
     bg: "var(--warn-bg)",
-    color: "var(--warn-fg)",
+    color: "var(--warn-ink)",
     border: "color-mix(in srgb, var(--warn-fg) 30%, transparent)",
   },
   info: {
