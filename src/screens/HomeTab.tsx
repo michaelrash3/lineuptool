@@ -17,6 +17,8 @@ import {
   recordWinningPercentage,
   latestGameLineMovement,
   teamFeesStatus,
+  isPlayerHealthOut,
+  isPlayerScheduledOut,
 } from "../utils/helpers";
 import {
   assessTournamentPlan,
@@ -598,7 +600,8 @@ const InsightTile = memo(
    pitchers can take the mound today under the engine's day-budget rules.
    A kid who already threw in an earlier game TODAY still counts as eligible
    while the daily max leaves him something — two games in one day share one
-   cumulative pitch count.
+   cumulative pitch count. A kid who is out injured or marked away today is
+   not counted, however rested: an arm that won't be there isn't available.
 =========================================================================== */
 interface PitcherAvailabilityTileProps {
   players: Player[];
@@ -624,6 +627,16 @@ const PitcherAvailabilityTile = memo(
         const restricted =
           Array.isArray(p.restrictions) && p.restrictions.includes("P");
         if (restricted) continue;
+        // The same gates game-day attendance applies. Checked before the
+        // pitch budget: rest is moot for a kid who isn't coming.
+        if (isPlayerHealthOut(p, todayStr)) {
+          resters.push({ name: p.name, recent: 0, label: "injured" });
+          continue;
+        }
+        if (isPlayerScheduledOut(p, todayStr)) {
+          resters.push({ name: p.name, recent: 0, label: "away" });
+          continue;
+        }
         const budget = pitchBudgetFor(p.pitching, todayStr, teamAge ?? "");
         const recent = p.pitching?.recentPitches || 0;
         if (budget.eligible) {
@@ -659,7 +672,7 @@ const PitcherAvailabilityTile = memo(
         </div>
         {stats.resters.length === 0 ? (
           <p className="text-[11px] text-ink-3 font-medium">
-            Full bullpen available — no rest or pitch-limit holds.
+            Full bullpen available — nobody resting, at the limit, or out.
           </p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
@@ -669,11 +682,21 @@ const PitcherAvailabilityTile = memo(
                 className={`inline-flex items-center gap-1 px-2 py-1 rounded-md t-chip border ${
                   r.label === "limit"
                     ? "bg-loss-bg border-line text-loss"
-                    : "bg-warn-bg border-line text-warnfg"
+                    : r.label === "rest"
+                      ? "bg-warn-bg border-line text-warnfg"
+                      : "bg-surface-2 border-line text-ink-3"
                 }`}
-                title={`${r.recent} recent pitches`}
+                title={
+                  r.label === "injured"
+                    ? "Out injured"
+                    : r.label === "away"
+                      ? "Marked away today"
+                      : `${r.recent} recent pitches`
+                }
               >
                 {r.name}
+                {(r.label === "injured" || r.label === "away") &&
+                  ` · ${r.label}`}
               </span>
             ))}
             {stats.resters.length > 4 && (

@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import React from "react";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { HomeTab } from "./HomeTab";
 import { renderWithProviders } from "../test-utils";
@@ -219,6 +219,52 @@ describe("HomeTab", () => {
     fireEvent.click(late);
     expect(setSelectedGameId).toHaveBeenCalledWith("late");
     expect(setActiveTab).not.toHaveBeenCalledWith("schedule");
+  });
+
+  it("Pitcher Availability doesn't count a kid who is out injured or away today", () => {
+    // "Eligible today" came from rest and pitch counts alone, so a rested
+    // kid with a sprained ankle counted as an available arm.
+    renderWithProviders(
+      <MemoryRouter>
+        <HomeTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...emptyTeam,
+            teamAge: "10U",
+            players: [
+              { id: "p1", name: "Ava Rivera" },
+              { id: "p2", name: "Ben Cruz", health: { status: "out" } },
+              { id: "p3", name: "Cara Diaz", absences: ["2026-06-18"] },
+            ],
+            games: [],
+          },
+          teams: [{ id: "t1", name: "Hawks" }],
+          activeTeamId: "t1",
+          record: { wins: 0, losses: 0, ties: 0 },
+          user: { uid: "u1" },
+          currentRole: "head",
+        },
+        ui: {
+          setIsAddingGame: jest.fn(),
+          openAddPlayer: jest.fn(),
+          openPlayerProfile: jest.fn(),
+          setActiveTab: jest.fn(),
+        },
+      },
+    );
+    const tile = screen
+      .getByText("Pitcher Availability")
+      .closest("div.flex.flex-col") as HTMLElement;
+    expect(
+      within(tile).getByText("eligible today").previousSibling,
+    ).toHaveTextContent("1");
+    expect(within(tile).getByText(/Ben Cruz · injured/)).toBeInTheDocument();
+    expect(within(tile).getByText(/Cara Diaz · away/)).toBeInTheDocument();
+    expect(
+      within(tile).queryByText(/Full bullpen available/),
+    ).not.toBeInTheDocument();
   });
 
   it("suppresses dashboard surfaces that deep-link into disabled features", () => {

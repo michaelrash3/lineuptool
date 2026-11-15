@@ -33,3 +33,19 @@ test("a This Week game card opens that game", async ({ page }) => {
     /vs South County Sluggers/i,
   );
 });
+
+test("the week planner shows who is out instead of offering them as arms", async ({
+  page,
+}) => {
+  // In the sample team Leo is out injured for nine days and Caleb is away
+  // for the game two days out. Both are rested, so pitch counts alone would
+  // list them as ready.
+  await page.goto("/schedule/week");
+  const main = page.locator("#main-content");
+  await expect(
+    main.getByText(/Leo Jankowski · injured, back /).first(),
+  ).toBeVisible();
+  await expect(main.getByText(/Caleb Garcia · away/)).toHaveCount(1);
+  // Jack is only "limited" — still an arm, with the caution attached.
+  await expect(main.getByText(/· limited/).first()).toBeVisible();
+});

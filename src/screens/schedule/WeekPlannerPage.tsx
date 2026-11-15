@@ -189,6 +189,7 @@ export const WeekPlannerPage = memo(() => {
                     game={game}
                     entries={planForGame(game, tournaments)}
                     arms={a.arms}
+                    unavailable={a.unavailable}
                     violations={a.violations}
                     teamAge={teamAge}
                     ruleSet={ruleSet}

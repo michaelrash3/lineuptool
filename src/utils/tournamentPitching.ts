@@ -31,6 +31,8 @@ import type {
 } from "../types";
 import { deriveTournaments, type TournamentGroup } from "./helpers";
 import { isGameFinalized } from "./gameStatus";
+import { isPlayerHealthOut, isPlayerScheduledOut } from "./availability";
+import { formatGameDateDisplay } from "./dates";
 
 // A planned outing rendered as if it were a logged one.
 export interface HypotheticalOuting {
@@ -57,17 +59,69 @@ export interface PlanViolation {
   // dailyMax: this game's planned pitches, stacked on whatever the arm already
   // carries that DATE, pass the day's ceiling. insufficientRest: the day's
   // budget is fine but an earlier day's workload still owes rest.
-  kind: "dailyMax" | "insufficientRest";
+  // unavailable: the arm isn't going to be there — out injured, or marked
+  // away on the game's date.
+  kind: "dailyMax" | "insufficientRest" | "unavailable";
   message: string;
 }
+
+// A cleared pitcher who is not available for a game at all, whatever their
+// pitch count says: out injured (health status "out" covering the date) or
+// marked away that day (a scheduled absence). The same two gates game-day
+// attendance already applies — see isPlayerUnavailable in ./availability.
+export interface UnavailableArm {
+  id: PlayerId;
+  name: string;
+  number?: string | number;
+  reason: "injured" | "away";
+  // "back Sat, Nov 21" / "until cleared" for an injury; "" for away.
+  detail: string;
+}
+
+// "Tue, Nov 24" — the year would only make a chip that has to fit a phone
+// wider, and a return date is always near.
+const shortDay = (iso: string): string => {
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(y, m - 1, d)));
+};
+
+// Why a player can't pitch on `date`, or null when nothing rules them out.
+// Injury is checked first: for a kid who is both hurt and away, the injury is
+// the fact the coach needs.
+export const unavailableArmOn = (
+  player: Player,
+  date: string,
+): UnavailableArm | null => {
+  const base = { id: player.id, name: player.name, number: player.number };
+  if (isPlayerHealthOut(player, date)) {
+    const back = player.health?.expectedReturn;
+    return {
+      ...base,
+      reason: "injured",
+      detail: back ? `back ${shortDay(back)}` : "until cleared",
+    };
+  }
+  if (isPlayerScheduledOut(player, date))
+    return { ...base, reason: "away", detail: "" };
+  return null;
+};
 
 export interface GamePlanAssessment {
   gameId: string;
   date: string;
-  // Every cleared pitcher's availability for THIS game with all earlier
-  // planned outings in the assessed span folded in — the "arms remaining"
-  // view.
+  // Every cleared pitcher who can actually be there, with their availability
+  // for THIS game after all earlier planned outings in the assessed span are
+  // folded in — the "arms remaining" view. A pitcher who is out injured or
+  // away that day is NOT in this list, however rested they are.
   arms: PitcherAvailability[];
+  // The cleared pitchers left out of `arms` for that reason.
+  unavailable: UnavailableArm[];
   // This game's own planned assignments that break the rules.
   violations: PlanViolation[];
 }
@@ -248,7 +302,17 @@ export function assessGamesPlan({
       withPlannedOutings(p, acc.get(p.id) || []),
     );
     const hypById = new Map(hypPlayers.map((p) => [p.id, p]));
-    const arms = buildPitchingPlan(hypPlayers, date, teamAge, ruleSet);
+    // Pitch counts say who is RESTED; they know nothing about who is hurt or
+    // out of town. Split those arms off so nothing downstream offers them.
+    const unavailableById = new Map<PlayerId, UnavailableArm>();
+    const arms = buildPitchingPlan(hypPlayers, date, teamAge, ruleSet).filter(
+      (arm) => {
+        const real = realById.get(arm.id);
+        const absent = real ? unavailableArmOn(real, date) : null;
+        if (absent) unavailableById.set(arm.id, absent);
+        return !absent;
+      },
+    );
 
     const violations: PlanViolation[] = [];
     for (const entry of planFor(game.id)) {
@@ -265,8 +329,25 @@ export function assessGamesPlan({
       // is what the entry's own pitches stack on top of.
       const sameDay = pitchesOnDate(hyp.pitching, date);
       const budget = pitchBudgetFor(hyp.pitching, date, teamAge, ruleSet);
+      // Checked against the player directly, not unavailableById: that map
+      // only holds CLEARED pitchers, and a plan can name anyone.
+      const absent = unavailableArmOn(real, date);
 
-      if (sameDay + planned > maxP) {
+      if (absent) {
+        // The one that matters: a pitch count is moot for an arm that won't
+        // be there. Still folded forward below, like any other violation, so
+        // the coach sees what the plan as written costs the later games.
+        violations.push({
+          gameId: game.id,
+          playerId: entry.playerId,
+          playerName: name,
+          kind: "unavailable",
+          message:
+            absent.reason === "injured"
+              ? `${name} is out injured (${absent.detail}) — not available for this game.`
+              : `${name} is marked away on ${formatGameDateDisplay(date)} — not available for this game.`,
+        });
+      } else if (sameDay + planned > maxP) {
         violations.push({
           gameId: game.id,
           playerId: entry.playerId,
@@ -300,7 +381,13 @@ export function assessGamesPlan({
       acc.set(entry.playerId, [...list, { date, pitches: planned }]);
     }
 
-    out.push({ gameId: game.id, date, arms, violations });
+    out.push({
+      gameId: game.id,
+      date,
+      arms,
+      unavailable: [...unavailableById.values()],
+      violations,
+    });
   }
   return out;
 }

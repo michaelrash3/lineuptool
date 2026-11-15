@@ -79,7 +79,7 @@ export const TournamentPitchPlanPanel = memo(
           </span>
         </div>
         <div className="divide-y divide-line">
-          {assessments.map(({ gameId, arms, violations }) => {
+          {assessments.map(({ gameId, arms, unavailable, violations }) => {
             const game = gameById.get(gameId);
             if (!game) return null;
             const entries = tournament.pitchPlan?.[gameId] || [];
@@ -103,6 +103,7 @@ export const TournamentPitchPlanPanel = memo(
                   game={game}
                   entries={entries}
                   arms={arms}
+                  unavailable={unavailable}
                   violations={violations}
                   teamAge={teamAge}
                   ruleSet={ruleSet}
