@@ -87,10 +87,17 @@ export const SeasonTrendsPanel = ({
   stripped: boolean;
 }) => {
   const id = useChartId();
-  const { points, marginBuckets, summary } = useMemo(
-    () => buildTeamTrendSeries(games),
-    [games],
-  );
+  const { points, chartPoints, marginBuckets, summary } = useMemo(() => {
+    const series = buildTeamTrendSeries(games);
+    return {
+      ...series,
+      // What the charts get: the same rows without `id`. Recharts copies a
+      // row's fields onto the SVG shapes it draws, so a row's game id became
+      // the DOM id of every bar and dot drawn for that game — the same id on
+      // several elements at once.
+      chartPoints: series.points.map(({ id: _gameId, ...rest }) => rest),
+    };
+  }, [games]);
 
   if (summary.gamesPlayed < 2) {
     return (
@@ -193,7 +200,7 @@ export const SeasonTrendsPanel = ({
         >
           <ChartFrame label="Cumulative run differential" height={200}>
             <AreaChart
-              data={points}
+              data={chartPoints}
               margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
             >
               <defs>
@@ -252,7 +259,7 @@ export const SeasonTrendsPanel = ({
         >
           <ChartFrame label="Runs scored vs runs allowed per game" height={200}>
             <BarChart
-              data={points}
+              data={chartPoints}
               margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
               barGap={2}
             >
@@ -318,7 +325,7 @@ export const SeasonTrendsPanel = ({
         >
           <ChartFrame label="Rolling win percentage" height={200}>
             <LineChart
-              data={points}
+              data={chartPoints}
               margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
             >
               <CartesianGrid
